@@ -10,9 +10,9 @@ distributions, but the methodology can be used for other applications.
 
 Features
 --------
-* Works in any number of dimensions
+* Works in any number of dimensions.
 * Arbitrary isotropic power-spectra.
-* Arbitrary 1-point density distributions.
+* Option to transform density field to log-normal field.
 * Really simple.
 
 Installation
