@@ -3,7 +3,8 @@ Changelog
 
 Development Version
 ~~~~~~~~~~~~~~~~~~~
-No changes as yet!
+**Bugfixes**
+- Fixed output of ``create_discrete_sample`` when not randomising positions.
 
 v0.2.0 [10 Jan 2017]
 ~~~~~~~~~~~~~~~~~~~~

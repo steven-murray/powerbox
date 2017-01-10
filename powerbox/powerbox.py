@@ -206,9 +206,10 @@ class PowerBox(object):
         X, Y, Z = np.meshgrid(self.x, self.x, self.x)
 
         self.tracer_positions = np.array([X.flatten(), Y.flatten(), Z.flatten()]).T
+        self.tracer_positions = self.tracer_positions.repeat(self.n_per_cell.flatten(), axis=0)
 
         if randomise_in_cell:
-            self.tracer_positions = self.tracer_positions.repeat(self.n_per_cell.flatten(), axis=0) + np.random.uniform(size=(np.sum(self.n_per_cell), 3))*self.dx
+            self.tracer_positions += np.random.uniform(size=(np.sum(self.n_per_cell), 3))*self.dx
 
         return self.tracer_positions
 
