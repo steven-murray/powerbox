@@ -55,4 +55,4 @@ TODO
 ----
 * At this point, log-normal transforms are done by back-and-forward FFTs on the grid, which could be slow for higher
   dimensions. Soon I will implement a more efficient way of doing this using numerical Hankel transforms.
-* Tests
+* Some more tests might be nice.
