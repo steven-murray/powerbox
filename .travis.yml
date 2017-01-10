@@ -23,7 +23,7 @@ before_install:
   - conda info -a
 
 install:
-  - conda install python=$TRAVIS_PYTHON_VERSION numpy nose
+  - conda install python=$TRAVIS_PYTHON_VERSION numpy scipy nose
   - pip install python-coveralls
   - pip install cached_property
 #  conda install -c dan_blanchard python-coveralls nose-cov
