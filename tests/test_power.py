@@ -7,25 +7,17 @@ import sys
 LOCATION = "/".join(os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe()))).split("/")[:-1])
 sys.path.insert(0, LOCATION)
 
-from powerbox import PowerBox
+from powerbox import PowerBox, get_power
 
 
 
-def get_power(x,k):
-    P = np.abs(fftshift(fftn(x)/len(x)**len(x.shape)))**2
 
-    hist1 = np.histogram(k.flatten(),bins=int(len(k)/2.2))[0]
-    hist,edges = np.histogram(k.flatten(),bins=int(len(k)/2.2),weights=P.flatten())
-
-    p_k = hist/hist1
-    centres = (edges[1:]+edges[:-1])/2
-    return p_k, centres
 
 
 def test_power1d():
     p = [0]*40
     for i in range(40):
-        pb = PowerBox(8001, dim=1, pk=lambda k: 1.0*k ** -2., transform=None, boxlength=1.0, angular_freq=True, )
+        pb = PowerBox(8001, dim=1, pk=lambda k: 1.0*k ** -2., boxlength=1.0, angular_freq=True, )
         p[i], k = get_power(pb.delta_x, pb.k)
 
     print np.mean(np.array(p),axis=0)/(1.0*k**-2.)
@@ -34,7 +26,7 @@ def test_power1d():
 def test_power1d_n3():
     p = [0]*40
     for i in range(40):
-        pb = PowerBox(8001, dim=1, pk=lambda k: 1.0*k ** -3., transform=None, boxlength=1.0, angular_freq=True, )
+        pb = PowerBox(8001, dim=1, pk=lambda k: 1.0*k ** -3., boxlength=1.0, angular_freq=True, )
         p[i], k = get_power(pb.delta_x, pb.k)
 
     print np.mean(np.array(p), axis=0)/(1.0*k ** -2.)
@@ -44,7 +36,7 @@ def test_power1d_n3():
 def test_power1d_bigL():
     p = [0]*40
     for i in range(40):
-        pb = PowerBox(8001, dim=1, pk=lambda k: 1.0*k ** -3., transform=None, boxlength=10.0, angular_freq=True, )
+        pb = PowerBox(8001, dim=1, pk=lambda k: 1.0*k ** -3., boxlength=10.0, angular_freq=True, )
         p[i], k = get_power(pb.delta_x, pb.k)
 
     print np.mean(np.array(p), axis=0)/(1.0*k ** -2.)
@@ -54,7 +46,7 @@ def test_power1d_bigL():
 def test_power1d_ordinary_freq():
     p = [0]*40
     for i in range(40):
-        pb = PowerBox(8001, dim=1, pk=lambda k: 1.0*k ** -3., transform=None, boxlength=1.0, angular_freq=False, )
+        pb = PowerBox(8001, dim=1, pk=lambda k: 1.0*k ** -3., boxlength=1.0, angular_freq=False, )
         p[i], k = get_power(pb.delta_x, pb.k)
 
     print np.mean(np.array(p), axis=0)/(1.0*k ** -2.)
@@ -65,7 +57,7 @@ def test_power1d_ordinary_freq():
 def test_power1d_halfN():
     p = [0]*40
     for i in range(40):
-        pb = PowerBox(4001, dim=1, pk=lambda k: 1.0*k ** -3., transform=None, boxlength=1.0, angular_freq=True, )
+        pb = PowerBox(4001, dim=1, pk=lambda k: 1.0*k ** -3., boxlength=1.0, angular_freq=True, )
         p[i], k = get_power(pb.delta_x, pb.k)
 
     print np.mean(np.array(p), axis=0)/(1.0*k ** -2.)
@@ -75,7 +67,7 @@ def test_power1d_halfN():
 def test_power2d():
     p = [0]*5
     for i in range(5):
-        pb = PowerBox(200, dim=2, pk=lambda k: 1.0*k ** -2., transform=None, boxlength=1.0, angular_freq=True)
+        pb = PowerBox(200, dim=2, pk=lambda k: 1.0*k ** -2., boxlength=1.0, angular_freq=True)
         p[i], k = get_power(pb.delta_x, pb.k)
 
     print np.mean(np.array(p),axis=0)/(1.0*k**-2.)
@@ -83,7 +75,7 @@ def test_power2d():
 
 
 def test_power3d():
-    pb = PowerBox(50, dim=2, pk=lambda k: 1.0*k ** -2., transform=None, boxlength=1.0, angular_freq=True)
+    pb = PowerBox(50, dim=2, pk=lambda k: 1.0*k ** -2., boxlength=1.0, angular_freq=True)
     p, k = get_power(pb.delta_x, pb.k)
 
     print p/(1.0*k**-2.)
