@@ -4,7 +4,7 @@ powerbox
 .. image:: https://coveralls.io/repos/github/steven-murray/powerbox/badge.svg?branch=master
     :target: https://coveralls.io/github/steven-murray/powerbox?branch=master
 .. image:: https://img.shields.io/pypi/v/powerbox.svg
-    :target:
+    :target: https://pypi.python.org/pypi/powerbox
 .. image:: https://travis-ci.org/steven-murray/powerbox.svg?branch=master
     :target: https://travis-ci.org/steven-murray/powerbox
 
