@@ -1,3 +1,3 @@
-__version__ = "0.2.0"
+__version__ = "0.2.1"
 
 from powerbox import PowerBox, get_power, LogNormalPowerBox

@@ -189,7 +189,7 @@ class PowerBox(object):
         pha = (pha - pha[revidx])/2 + np.pi
         return mag*(np.cos(pha) + 1j*np.sin(pha))
 
-    def create_discrete_sample(self,nbar,randomise_in_cell=True):
+    def create_discrete_sample(self,nbar,randomise_in_cell=True,min_at_zero=False):
         """
         Assuming that the real-space signal represents an over-density with respect to some mean, create a sample
         of tracers of the underlying density distribution.
@@ -210,6 +210,9 @@ class PowerBox(object):
 
         if randomise_in_cell:
             self.tracer_positions += np.random.uniform(size=(np.sum(self.n_per_cell), 3))*self.dx
+
+        if min_at_zero:
+            self.tracer_positions += self.boxlength/2.0
 
         return self.tracer_positions
 
