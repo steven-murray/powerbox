@@ -25,19 +25,19 @@ Basic Usage
 There are two useful classes: the basic ``PowerBox`` and one for log-normal fields: ``LogNormalPowerBox``.
 You can import them like
 
-.. code::python
+.. code:: python
 
     from powerbox import PowerBox, LogNormalPowerBox
 
 Once imported, to see all the options, just use `help`:
 
-.. code::python
+.. code:: python
 
     help(PowerBox)
 
 For a basic 2D Gaussian field with a power-law power-spectrum, one can use the following:
 
-.. code::python
+.. code:: python
 
     pb = PowerBox(N=512,                     # Number of grid-points in the box
                   dim=2,                     # 2D box
