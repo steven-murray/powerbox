@@ -152,7 +152,7 @@ class PowerBox(object):
     @cached_property
     def delta_k(self):
         "A realisation of the delta_k, i.e. the gaussianised square root of the power spectrum (i.e. the Fourier co-efficients)"
-        return np.sqrt(self.power_array/2)*self.gauss_hermitian
+        return np.sqrt(self.power_array)*self.gauss_hermitian
 
     @cached_property
     def delta_x(self):
@@ -276,7 +276,7 @@ class LogNormalPowerBox(PowerBox):
     @cached_property
     def delta_k(self):
         "A realisation of the delta_k, i.e. the gaussianised square root of the power spectrum (i.e. the Fourier co-efficients)"
-        return np.sqrt(self.gaussian_power_array/2)*self.gauss_hermitian
+        return np.sqrt(self.gaussian_power_array)*self.gauss_hermitian
 
     @cached_property
     def delta_x(self):
@@ -299,6 +299,9 @@ def get_power(x,k,V = 1):
         An array of the same shape as `x`, defining the absolute value of the wavenumber at each position of the
         (inverted) grid.
 
+    V : float
+        The volume of the real-space grid.
+
     Returns
     -------
     p_k : array
@@ -315,17 +318,24 @@ def get_power(x,k,V = 1):
     >>> from powerbox import PowerBox, get_power
     >>> import matplotlib.pyplot as plt
     >>> pb = PowerBox(250,lambda k : k**-2.)
-    >>> p,k = get_power(pb.delta_x,pb.k)
+    >>> p,k = get_power(pb.delta_x,pb.k,pb.V)
     >>> plt.plot(k,p)
     >>> plt.plot(k,k**-2.)
     >>> plt.xscale('log')
     >>> plt.yscale('log')
     """
 
-    P = V * np.abs( fftshift(fftn(x)/x.size))**2
+    P = V * np.abs(fftshift(fftn(x)/x.size))**2
+    bins = int(len(k)/2.2)
 
-    hist1 = np.histogram(k.flatten(),bins=int(len(k)/2.2))[0]
-    hist,edges = np.histogram(k.flatten(),bins=int(len(k)/2.2),weights=P.flatten())
+    P = P[k!=0].flatten()
+    k = k[k!=0].flatten()
+
+    hist1 = np.histogram(k,bins=bins)[0]
+    hist,edges = np.histogram(k,bins=bins,weights=P)
+
+    # hist1 = np.histogram(k.flatten(), bins=int(len(k)/2.2))[0]
+    # hist, edges = np.histogram(k.flatten(), bins=int(len(k)/2.2), weights=P.flatten())
 
     p_k = hist/hist1
     centres = (edges[1:]+edges[:-1])/2

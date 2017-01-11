@@ -1,6 +1,11 @@
 Changelog
 =========
 
+v0.2.3 [11 Jan 2017]
+~~~~~~~~~~~~~~~~~~~~
+**Enhancements**
+- Improved estimation of power (in ``get_power``) for lowest k bin.
+
 v0.2.2 [11 Jan 2017]
 ~~~~~~~~~~~~~~~~~~~~
 **Bugfixes**
