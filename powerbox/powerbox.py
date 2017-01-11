@@ -152,7 +152,7 @@ class PowerBox(object):
     @cached_property
     def delta_k(self):
         "A realisation of the delta_k, i.e. the gaussianised square root of the power spectrum (i.e. the Fourier co-efficients)"
-        return np.sqrt(self.power_array)*self.gauss_hermitian
+        return np.sqrt(self.power_array/2)*self.gauss_hermitian
 
     @cached_property
     def delta_x(self):
@@ -276,7 +276,7 @@ class LogNormalPowerBox(PowerBox):
     @cached_property
     def delta_k(self):
         "A realisation of the delta_k, i.e. the gaussianised square root of the power spectrum (i.e. the Fourier co-efficients)"
-        return np.sqrt(self.gaussian_power_array)*self.gauss_hermitian
+        return np.sqrt(self.gaussian_power_array/2)*self.gauss_hermitian
 
     @cached_property
     def delta_x(self):

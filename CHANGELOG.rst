@@ -1,6 +1,11 @@
 Changelog
 =========
 
+v0.2.2 [11 Jan 2017]
+~~~~~~~~~~~~~~~~~~~~
+**Bugfixes**
+- Fixed a bug in which the output power spectrum was a factor of sqrt(2) off in normalisation
+
 v0.2.1 [10 Jan 2017]
 ~~~~~~~~~~~~~~~~~~~~
 **Bugfixes**
