@@ -189,7 +189,8 @@ class PowerBox(object):
         pha = (pha - pha[revidx])/2 + np.pi
         return mag*(np.cos(pha) + 1j*np.sin(pha))
 
-    def create_discrete_sample(self,nbar,randomise_in_cell=True,min_at_zero=False):
+    def create_discrete_sample(self,nbar,randomise_in_cell=True,min_at_zero=False,
+                               store_pos=False):
         """
         Assuming that the real-space signal represents an over-density with respect to some mean, create a sample
         of tracers of the underlying density distribution.
@@ -203,18 +204,22 @@ class PowerBox(object):
         self.n_per_cell = np.random.poisson(n)
 
         # Get all source positions
-        X, Y, Z = np.meshgrid(self.x, self.x, self.x)
+        args = [self.x]*self.dim
+        X = np.meshgrid(*args)
 
-        self.tracer_positions = np.array([X.flatten(), Y.flatten(), Z.flatten()]).T
-        self.tracer_positions = self.tracer_positions.repeat(self.n_per_cell.flatten(), axis=0)
+        tracer_positions = np.array([x.flatten() for x in X]).T
+        tracer_positions = tracer_positions.repeat(self.n_per_cell.flatten(), axis=0)
 
         if randomise_in_cell:
-            self.tracer_positions += np.random.uniform(size=(np.sum(self.n_per_cell), 3))*self.dx
+            tracer_positions += np.random.uniform(size=(np.sum(self.n_per_cell), self.dim))*self.dx
 
         if min_at_zero:
-            self.tracer_positions += self.boxlength/2.0
+            tracer_positions += self.boxlength/2.0
 
-        return self.tracer_positions
+        if store_pos:
+            self.tracer_positions = tracer_positions
+
+        return tracer_positions
 
 
 class LogNormalPowerBox(PowerBox):
