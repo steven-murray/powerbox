@@ -1,6 +1,11 @@
 Changelog
 =========
 
+v0.3.2
+~~~~~~
+**Bugfixes**
+- Fixed bug in pyFFTW cache setting
+
 v0.3.1
 ~~~~~~
 **Enhancements**

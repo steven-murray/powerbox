@@ -7,8 +7,8 @@ try:
     from pyfftw.interfaces.numpy_fft import fftn, ifftn, ifftshift, fftshift, fftfreq
     from pyfftw import byte_align
     from pyfftw.interfaces.cache import enable, set_keepalive_time
-    set_keepalive_time(10.)
     enable()
+    set_keepalive_time(10.)
 
     HAVE_FFTW = True
 
