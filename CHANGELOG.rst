@@ -1,6 +1,15 @@
 Changelog
 =========
 
+v0.3.0
+~~~~~~
+**Features**
+- New functionality in `get_power` function to measure power-spectra of discrete samples.
+
+**Enhancements**
+- Added option to not store discrete positions in class (just return them)
+- `get_power` now more streamlined and intuitive in its API
+
 v0.2.3 [11 Jan 2017]
 ~~~~~~~~~~~~~~~~~~~~
 **Enhancements**

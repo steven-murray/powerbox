@@ -21,6 +21,7 @@ Features
 * Arbitrary isotropic power-spectra.
 * Create Gaussian or Log-Normal fields
 * Create discrete samples following the field, assuming it describes an over-density.
+* Measure power spectra of output fields to ensure consistency.
 
 Installation
 ------------
@@ -56,6 +57,57 @@ Other attributes of the box can be accessed also -- check them out with tab comp
 The ``LogNormalPowerBox`` class is called in exactly the same way, but the resulting field has a log-normal pdf with the
 same power spectrum.
 
+Just to be clear, for a more "realistic" example: a log-normal box (let's say with 3 dimensions) with a power-spectrum
+given by cosmological density perturbations, can be created like this (this also uses the code
+`hmf <https://github.com/steven-murray/hmf>`_):
+
+.. code:: python
+
+    from hmf import MassFunction
+    from scipy.interpolate import InterpolatedUnivariateSpline as spline
+
+    # Set up a MassFunction instance to access its cosmological power-spectrum
+    mf = MassFunction(z=0)
+
+    # Generate a callable function that returns the cosmological power spectrum.
+    spl = spline(np.log(mf.k),np.log(mf.power),k=2)
+    power = lambda k : np.exp(spl(np.log(k))
+
+    # Create the power-box instance. The boxlength is in inverse units of the k of which pk is a function, i.e.
+    # Mpc/h in this case.
+    pb = LogNormalPowerBox(N=512, dim=3, pk = power, boxlength= 100.)
+
+Now we can make a plot of a slice of the density field:
+
+.. code:: python
+
+    plt.imshow(pb.delta_x,extent=(0,100,0,100))
+    plt.colorbar()
+    plt.show()
+
+And we can also compare the power-spectrum of the output field to the input power:
+
+.. code:: python
+
+    from powerbox import get_power
+
+    p_k, kbins = get_power(pb.delta_x,pb.boxlength)
+    plt.plot(mf.k,mf.power,label="Input Power")
+    plt.plot(kbins,p_k,label="Sampled Power')
+    plt.legend()
+    plt.show()
+
+Furthermore, we can sample a set of discrete particles on the field, and plot their power spectrum
+
+.. code:: python
+
+    particles = pb.create_discrete_sample(nbar=1.0)
+    p_k_sample, kbins_sample = get_power(particles, pb.boxlength,N=pb.N)
+
+    plt.plot(mf.k,mf.power,label="Input Power")
+    plt.plot(kbins_sample,p_k_sample,label="Sampled Power Discrete")
+    plt.legend()
+    plt.show()
 
 TODO
 ----

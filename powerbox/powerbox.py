@@ -290,30 +290,44 @@ class LogNormalPowerBox(PowerBox):
         sg = np.var(delx)
         return np.exp(delx - sg/2) -1
 
-def get_power(x,k,V = 1):
+def get_power(deltax,boxlength,N=None,angular_freq=True, remove_shotnoise=True,
+              bins=None):
     """
     Calculate the n-ball-averaged power spectrum of a given field.
 
     Parameters
     ----------
-    x : array-like
-        The field to calculate the power spectrum of. Can be arbitrarily n-dimensional, but each dimension
-        should have the same size.
+    deltax : array-like
+        The field to calculate the power spectrum of. Can either be arbitrarily n-dimensional, with each dimension
+        should have the same size, or 2-dimensional with the first being the number of spatial dimensions, and the second
+        the positions of discrete particles in the field. The former should represent a density field, while the latter
+        is a discrete sampling of a field. Note that if a discrete sampling is used, the power spectrum calculated is the
+        "overdensity" power spectrum, i.e. the field re-centered about zero and rescaled by the mean.
 
-    k : array-like
-        An array of the same shape as `x`, defining the absolute value of the wavenumber at each position of the
-        (inverted) grid.
+    boxlength : float
+        The length of the box side in real-space.
 
-    V : float
-        The volume of the real-space grid.
+    ncells : int, optional
+        The number of grid cells per side in the box. Only required if deltax is a discrete sample.
+
+    angular_freq : bool, optional
+        Whether the fourier-dual of `x` (called `k` in this code) is an angular frequency (i.e. k = 2pi/x) or not
+        (i.e. k = 1/x).
+
+    remove_shotnoise : bool, optional
+        Whether to subtract a shot-noise term after determining the isotropic power. This only affects discrete samples.
+
+    bins : int or array, optional
+        Defines the final k-bins outputted. If None, chooses a number based on the input resolution of the box. Otherwise,
+        if int, this defines the number of kbins, or if an array, it defines the exact bin edges.
 
     Returns
     -------
     p_k : array
         The power spectrum averaged over bins of equal |k|.
 
-    centres : array
-        The bin-centres for the p_k array (in k).
+    meank : array
+        The bin-centres for the p_k array (in k). This is the mean k-value for cells in that bin.
 
     Examples
     --------
@@ -323,25 +337,59 @@ def get_power(x,k,V = 1):
     >>> from powerbox import PowerBox, get_power
     >>> import matplotlib.pyplot as plt
     >>> pb = PowerBox(250,lambda k : k**-2.)
-    >>> p,k = get_power(pb.delta_x,pb.k,pb.V)
+    >>> p,k = get_power(pb.delta_x,pb.boxlength)
     >>> plt.plot(k,p)
     >>> plt.plot(k,k**-2.)
     >>> plt.xscale('log')
     >>> plt.yscale('log')
     """
+    # Check if the input data is in sampled particle format
+    if len(deltax.shape)==2 and deltax.shape[0]!=deltax.shape[1]:
+        if deltax.shape[1]>deltax.shape[0]:
+            raise ValueError("It seems that there are more dimensions than particles! Try transposing deltax.")
 
-    P = V * np.abs(fftshift(fftn(x)/x.size))**2
-    bins = int(len(k)/2.2)
+        dim = deltax.shape[1]
+        Npart = deltax.shape[0]
 
-    P = P[k!=0].flatten()
-    k = k[k!=0].flatten()
+        # If so, generate a histogram of the data, with appropriate number of bins.
+        edges = np.linspace(deltax.min(),deltax.min()+boxlength,N+1)
+        deltax = np.histogramdd(deltax,bins=[edges]*dim)[0].astype("float")
 
+        # Convert sampled data to mean-zero data
+        deltax = deltax/np.mean(deltax) - 1
+
+    else:
+        # If input data is already a density field, just get the dimensions.
+        dim = len(deltax.shape)
+        N = len(deltax)
+        Npart = None
+
+    # Create a power-box instance to generate the correct k-bins etc.
+    pb = PowerBox(N,lambda x : 0, dim=dim, boxlength=boxlength,angular_freq=angular_freq)
+    V = pb.V
+
+    # Calculate the n-D power spectrum and align it with the k from powerbox.
+    P = V * np.abs(fftshift(fftn(deltax)/deltax.size))**2
+
+    # Generate the bin edges
+    if bins is None:
+        bins = int(N/2.2)
+
+    # Get matching flattened arrays
+    P = P[pb.k!=0].flatten()
+    k = pb.k[pb.k!=0].flatten()
+
+    # Generate the number of kgrid-cells in each bin
     hist1 = np.histogram(k,bins=bins)[0]
-    hist,edges = np.histogram(k,bins=bins,weights=P)
 
-    # hist1 = np.histogram(k.flatten(), bins=int(len(k)/2.2))[0]
-    # hist, edges = np.histogram(k.flatten(), bins=int(len(k)/2.2), weights=P.flatten())
+    # Average the power spectrum in each bin
+    p_k = np.histogram(k,bins=bins,weights=P)[0]/hist1
 
-    p_k = hist/hist1
-    centres = (edges[1:]+edges[:-1])/2
-    return p_k, centres
+    # Average the k-value in each bin.
+    meank = np.histogram(k,bins=bins,weights=k)[0]/hist1
+
+    # Remove shot-noise
+    if remove_shotnoise and Npart:
+        p_k -= pb.V/Npart
+
+    return p_k, meank
