@@ -1,6 +1,22 @@
 import numpy as np
-from numpy.fft import fftn, ifftn, ifftshift, fftshift, fftfreq
+import warnings
 from cached_property import cached_property
+
+# Try importing the pyFFTW interface
+try:
+    from pyfftw.interfaces.numpy_fft import fftn, ifftn, ifftshift, fftshift, fftfreq
+    from pyfftw import byte_align
+    from pyfftw.interfaces.cache import enable, set_keepalive_time
+    set_keepalive_time(10.)
+    enable()
+
+    HAVE_FFTW = True
+
+except ImportError:
+    warnings.warn("You do not have pyFFTW installed. Installing it should give some speed increase.")
+    HAVE_FFTW = False
+    from numpy.fft import fftn, ifftn, ifftshift, fftshift, fftfreq
+
 
 #TODO: add hankel-transform version of LogNormal
 
@@ -152,7 +168,7 @@ class PowerBox(object):
     @cached_property
     def delta_k(self):
         "A realisation of the delta_k, i.e. the gaussianised square root of the power spectrum (i.e. the Fourier co-efficients)"
-        return np.sqrt(self.power_array)*self.gauss_hermitian
+        return  np.sqrt(self.power_array)*self.gauss_hermitian
 
     @cached_property
     def delta_x(self):
@@ -271,7 +287,7 @@ class LogNormalPowerBox(PowerBox):
     @cached_property
     def gaussian_correlation_array(self):
         "The correlation function required for a Gaussian field to produce the input power on a lognormal field"
-        return np.log(1+self.correlation_array)
+        return np.log(1 + self.correlation_array)
 
     @cached_property
     def gaussian_power_array(self):
