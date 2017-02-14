@@ -22,6 +22,7 @@ Features
 * Create Gaussian or Log-Normal fields
 * Create discrete samples following the field, assuming it describes an over-density.
 * Measure power spectra of output fields to ensure consistency.
+* Seamlessly uses pyFFTW if available for ~double the speed.
 
 Installation
 ------------

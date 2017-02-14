@@ -1,6 +1,11 @@
 Changelog
 =========
 
+v0.3.1
+~~~~~~
+**Enhancements**
+- New interface with pyFFTW to make fourier transforms ~twice as fast. No difference to the API.
+
 v0.3.0
 ~~~~~~
 **Features**
