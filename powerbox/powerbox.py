@@ -323,7 +323,9 @@ class LogNormalPowerBox(PowerBox):
     @cached_property
     def gaussian_power_array(self):
         "The power spectrum required for a Gaussian field to produce the input power on a lognormal field"
-        return np.abs(fft(self.gaussian_correlation_array,L=self.boxlength,a=self.fourier_a, b=self.fourier_b))[0]
+        gpa =  np.abs(fft(self.gaussian_correlation_array,L=self.boxlength,a=self.fourier_a, b=self.fourier_b))[0]
+        gpa[self.N/2,self.N/2,self.N/2] = 0
+        return gpa
 
     @cached_property
     def delta_k(self):
@@ -335,7 +337,7 @@ class LogNormalPowerBox(PowerBox):
 
     @cached_property
     def delta_x(self):
-        "The realised field in real-space from the input power spectrum"
+        "The real-space over-density field, from the input power spectrum"
         deltax = np.sqrt(self.V)* ifft(self.delta_k, L=self.boxlength, a=self.fourier_a, b=self.fourier_b)[0]
         deltax = np.real(deltax)
 
