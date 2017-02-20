@@ -2,27 +2,37 @@ import numpy as np
 import warnings
 from cached_property import cached_property
 
-# Try importing the pyFFTW interface
-try:
-    from pyfftw.interfaces.numpy_fft import fftn, ifftn, ifftshift, fftshift, fftfreq
-    from pyfftw import byte_align
-    from pyfftw.interfaces.cache import enable, set_keepalive_time
-    enable()
-    set_keepalive_time(10.)
-
-    HAVE_FFTW = True
-
-except ImportError:
-    warnings.warn("You do not have pyFFTW installed. Installing it should give some speed increase.")
-    HAVE_FFTW = False
-    from numpy.fft import fftn, ifftn, ifftshift, fftshift, fftfreq
+from fft import fft,ifft, fftfreq
+#
+# # Try importing the pyFFTW interface
+# try:
+#     from multiprocessing import cpu_count
+#     THREADS = cpu_count()
+#
+#     from pyfftw.interfaces.numpy_fft import fftn as _fftn, ifftn as _ifftn, ifftshift, fftshift, fftfreq
+#     from pyfftw.interfaces.cache import enable, set_keepalive_time
+#     enable()
+#     set_keepalive_time(10.)
+#
+#     def fftn(*args,**kwargs):
+#         return _fftn(threads=THREADS,*args,**kwargs)
+#
+#     def ifftn(*args, **kwargs):
+#         return _ifftn(threads=THREADS,*args, **kwargs)
+#
+#     HAVE_FFTW = True
+#
+# except ImportError:
+#     warnings.warn("You do not have pyFFTW installed. Installing it should give some speed increase.")
+#     HAVE_FFTW = False
+#     from numpy.fft import fftn, ifftn, ifftshift, fftshift, fftfreq
 
 
 #TODO: add hankel-transform version of LogNormal
 
 class PowerBox(object):
-    def __init__(self,N,pk, dim=2, ensure_physical=False, boxlength=1.0,angular_freq=True,
-                 seed=None):
+    def __init__(self,N,pk, dim=2, boxlength=1.0, ensure_physical=False, a=1.,b=1.,
+                 vol_normalised_power = True,seed=None):
         """
         An object which calculates and stores the real-space and fourier-space fields generated with a given power
         spectrum.
@@ -42,9 +52,20 @@ class PowerBox(object):
             Length of the final signal on a side. This may have arbitrary units, so long as `pk` is a function of a
             variable which has the inverse units.
 
-        angular_freq : bool, default `True`
-            Whether the fourier-dual of `x` (called `k` in this code) is an angular frequency (i.e. k = 2pi/x) or not
-            (i.e. k = 1/x).
+        ensure_physical : bool, optional
+            Interpreting the power spectrum as a spectrum of density fluctuations, the minimum physical value of the
+            real-space field, :meth:`delta_x`, is -1. With ``ensure_physical`` set to ``True``, :meth:`delta_x` is
+            clipped to return values >-1. If this is happening a lot, consider using a log-normal box.
+
+        a,b : float, optional
+            These define the Fourier convention used. See :module:`fft` for details. The defaults define the standard
+            usage in *cosmology* (for example, as defined in Cosmological Physics, Peacock, 1999, pg. 496.). Standard
+            numerical usage (eg. numpy) is (a,b) = (0,2pi).
+
+        vol_weighted_power : bool, optional
+            Whether the input power spectrum, ``pk``, is volume-weighted. Default True because of standard cosmological
+            usage.
+
 
         Notes
         -----
@@ -88,14 +109,21 @@ class PowerBox(object):
         self.dim = dim
         self.boxlength = boxlength
         self.L = boxlength
-        self.angular_freq = angular_freq
-        self.pk = pk
+        self.fourier_a = a
+        self.fourier_b = b
+        self.vol_normalised_power = vol_normalised_power
         self.V = self.boxlength**self.dim
+
+
+        if self.vol_normalised_power:
+            self.pk = lambda k : pk(k)/self.V
+        else:
+            self.pk = pk
+
         self.ensure_physical = ensure_physical
         self.Ntot = self.N**self.dim
 
-        if seed:
-            np.random.seed(seed)
+        self.seed = seed
 
         # Our algorithm at this point only deals with even-length arrays.
         # assert N%2 == 0
@@ -122,9 +150,7 @@ class PowerBox(object):
     @property
     def kvec(self):
         "The vector of wavenumbers along a side"
-        # Create K, the frequencies that numpy implicity uses when summing over frequency bins
-        A = 2*np.pi if self.angular_freq else 1
-        return A*fftshift(fftfreq(self.N, d=self.dx))
+        return fftfreq(self.N, d=self.dx, b=self.fourier_b)
 
     @property
     def r(self):
@@ -138,14 +164,14 @@ class PowerBox(object):
     @property
     def x(self):
         "The co-ordinates of the grid along a side"
-        if self._even:
-            return np.arange(-self.N/2.,self.N/2.)*self.dx
-        else:
-            return np.linspace(-self.boxlength, self.boxlength,self.N)
+        return np.arange(-self.boxlength/2,self.boxlength/2,self.dx)[:self.N]
 
     @cached_property
     def gauss_hermitian(self):
         "A random array which has Gaussian magnitudes and Hermitian symmetry"
+        if self.seed:
+            np.random.seed(self.seed)
+
         mag = np.random.normal(0, 1, size=[self.n]*self.dim)
         pha = 2*np.pi*np.random.uniform(size=[self.n]*self.dim)
 
@@ -159,7 +185,7 @@ class PowerBox(object):
 
     @property
     def power_array(self):
-        "The Power Spectrum at `self.k`"
+        "The Power Spectrum (volume normalised) at `self.k`"
         k = self.k
         P = np.zeros_like(k)
         P[k != 0] = self.pk(k[k != 0])
@@ -168,18 +194,20 @@ class PowerBox(object):
     @cached_property
     def delta_k(self):
         "A realisation of the delta_k, i.e. the gaussianised square root of the power spectrum (i.e. the Fourier co-efficients)"
-        return  np.sqrt(self.power_array)*self.gauss_hermitian
+        return np.sqrt(self.power_array)*self.gauss_hermitian
 
     @cached_property
     def delta_x(self):
         "The realised field in real-space from the input power spectrum"
-        # Note we ifftshift kspace, to get the zero as the first element as numpy expects.
-        delta_x = 1./np.sqrt(self.V) * np.real(self.Ntot *ifftn(ifftshift(self.delta_k)))
+        # Here we multiply by V because the (inverse) fourier-transform of the (dimensionless) power has
+        # units of 1/V and we require a unitless quantity for delta_x.
+        deltax = self.V * ifft(self.delta_k,L=self.boxlength,a=self.fourier_a,b=self.fourier_b)[0]
+        deltax = np.real(deltax)
 
         if self.ensure_physical:
-            return np.clip(delta_x,-1,np.inf)
-        else:
-            return delta_x
+            np.clip(deltax,-1,np.inf,deltax)
+
+        return deltax
 
     def _make_hermitian(self,mag,pha):
         """
@@ -206,7 +234,7 @@ class PowerBox(object):
         return mag*(np.cos(pha) + 1j*np.sin(pha))
 
     def create_discrete_sample(self,nbar,randomise_in_cell=True,min_at_zero=False,
-                               store_pos=False):
+                               store_pos=False,seed=None):
         """
         Assuming that the real-space signal represents an over-density with respect to some mean, create a sample
         of tracers of the underlying density distribution.
@@ -216,6 +244,9 @@ class PowerBox(object):
         nbar : float
             Mean tracer density within the box.
         """
+        if seed:
+            np.random.seed(seed)
+
         n = (self.delta_x + 1)*self.dx ** self.dim * nbar
         self.n_per_cell = np.random.poisson(n)
 
@@ -282,7 +313,7 @@ class LogNormalPowerBox(PowerBox):
     @cached_property
     def correlation_array(self):
         "The correlation function from the input power, on the grid"
-        return fftshift(1./self.V*np.real(self.Ntot*ifftn(ifftshift(self.power_array))))
+        return self.V * np.real(ifft(self.power_array, L = self.boxlength,a=self.fourier_a, b=self.fourier_b)[0])
 
     @cached_property
     def gaussian_correlation_array(self):
@@ -292,22 +323,56 @@ class LogNormalPowerBox(PowerBox):
     @cached_property
     def gaussian_power_array(self):
         "The power spectrum required for a Gaussian field to produce the input power on a lognormal field"
-        return np.abs(fftshift(self.V * fftn(self.gaussian_correlation_array)/self.Ntot))
+        return np.abs(fft(self.gaussian_correlation_array,L=self.boxlength,a=self.fourier_a, b=self.fourier_b))[0]
 
     @cached_property
     def delta_k(self):
-        "A realisation of the delta_k, i.e. the gaussianised square root of the power spectrum (i.e. the Fourier co-efficients)"
-        return np.sqrt(self.gaussian_power_array)*self.gauss_hermitian
+        """
+        A realisation of the delta_k, i.e. the gaussianised square root of the unitless power spectrum
+        (i.e. the Fourier co-efficients)
+        """
+        return np.sqrt(self.gaussian_power_array) *self.gauss_hermitian
 
     @cached_property
     def delta_x(self):
         "The realised field in real-space from the input power spectrum"
-        delx =  (1./np.sqrt(self.V))*np.real(self.Ntot*ifftn(ifftshift(self.delta_k)))
-        sg = np.var(delx)
-        return np.exp(delx - sg/2) -1
+        deltax = np.sqrt(self.V)* ifft(self.delta_k, L=self.boxlength, a=self.fourier_a, b=self.fourier_b)[0]
+        deltax = np.real(deltax)
 
-def get_power(deltax,boxlength,N=None,angular_freq=True, remove_shotnoise=True,
-              bins=None):
+        sg = np.var(deltax)
+        return np.exp(deltax - sg/2) -1
+
+
+def angular_average(field,coords,bins):
+    """
+    Perform a radial histogram -- averaging within radial bins -- of a field.
+
+    Parameters
+    ----------
+    field : array
+        An array of arbitrary dimension specifying the field to be angularly averaged.
+
+    coords : array
+        The magnitude of the co-ordinates at each point of `field`. Must be the same size as field.
+
+    bins : float or array.
+        The ``bins`` argument provided to histogram. Can be a float or array specifying bin edges.
+
+    Returns
+    -------
+    field_1d : array
+        The field averaged angularly (finally 1D)
+
+    binavg : array
+        The mean co-ordinate in each radial bin.
+    """
+    weights,edges = np.histogram(coords.flatten(), bins=bins)
+    binav = np.histogram(coords.flatten(),bins=bins,weights=coords.flatten())[0]/weights
+    return np.histogram(coords.flatten(),bins=bins,weights=field.flatten())[0]/weights, binav
+
+
+def get_power(deltax,boxlength,N=None,a=1.,b=1., remove_shotnoise=True,
+              vol_normalised_power=True,bins=None):
     """
     Calculate the n-ball-averaged power spectrum of a given field.
 
@@ -380,32 +445,34 @@ def get_power(deltax,boxlength,N=None,angular_freq=True, remove_shotnoise=True,
         N = len(deltax)
         Npart = None
 
-    # Create a power-box instance to generate the correct k-bins etc.
-    pb = PowerBox(N,lambda x : 0, dim=dim, boxlength=boxlength,angular_freq=angular_freq)
-    V = pb.V
-
     # Calculate the n-D power spectrum and align it with the k from powerbox.
-    P = V * np.abs(fftshift(fftn(deltax)/deltax.size))**2
+    FT, _, k = fft(deltax, L=boxlength, a=a, b=b,ret_cubegrid=True)
+    P = np.abs(FT/boxlength**dim)**2
+
+    if vol_normalised_power:
+        P *= boxlength**dim
 
     # Generate the bin edges
     if bins is None:
         bins = int(N/2.2)
 
-    # Get matching flattened arrays
-    P = P[pb.k!=0].flatten()
-    k = pb.k[pb.k!=0].flatten()
+    p_k, kbins = angular_average(P[k!=0], k[k!=0], bins)
 
-    # Generate the number of kgrid-cells in each bin
-    hist1 = np.histogram(k,bins=bins)[0]
-
-    # Average the power spectrum in each bin
-    p_k = np.histogram(k,bins=bins,weights=P)[0]/hist1
-
-    # Average the k-value in each bin.
-    meank = np.histogram(k,bins=bins,weights=k)[0]/hist1
+    # # Get matching flattened arrays
+    # P = P[k!=0].flatten()
+    # k = k[k!=0].flatten()
+    #
+    # # Generate the number of kgrid-cells in each bin
+    # hist1 = np.histogram(k,bins=bins)[0]
+    #
+    # # Average the power spectrum in each bin
+    # p_k = np.histogram(k,bins=bins,weights=P)[0]/hist1
+    #
+    # # Average the k-value in each bin.
+    # meank = np.histogram(k,bins=bins,weights=k)[0]/hist1
 
     # Remove shot-noise
     if remove_shotnoise and Npart:
-        p_k -= pb.V/Npart
+        p_k -= boxlength**dim / Npart
 
-    return p_k, meank
+    return p_k, kbins
