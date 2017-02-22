@@ -122,7 +122,7 @@ def fft(X, L=None, Lk=None, a=0, b=2*np.pi, axes=None, ret_cubegrid=False):
     V = np.product(L)    # Volume of box
     Vx = V/np.product(N) # Volume of cell
 
-    ft = Vx*fftshift(fftn(X, axes=axes))*np.sqrt(np.abs(b)/(2*np.pi) ** (1 - a)) ** len(axes)
+    ft = Vx*fftshift(fftn(X, axes=axes),axes=axes)*np.sqrt(np.abs(b)/(2*np.pi) ** (1 - a)) ** len(axes)
 
     dx = np.array([float(l)/float(n) for l, n in zip(L, N)])
     freq = np.array([fftfreq(n, d=d,b=b) for n, d in zip(N, dx)])
@@ -209,7 +209,7 @@ def ifft(X, Lk=None,L=None, a=0, b=2*np.pi, axes=None,ret_cubegrid=False):
     V = np.product(Lk)
     dk = np.array([float(lk)/float(n) for lk, n in zip(Lk, N)])
 
-    ft = V*ifftn(ifftshift(X), axes=axes)*np.sqrt(np.abs(b)/(2*np.pi) ** (1 + a)) ** len(axes)
+    ft = V*ifftn(ifftshift(X,axes=axes), axes=axes)*np.sqrt(np.abs(b)/(2*np.pi) ** (1 + a)) ** len(axes)
 
     freq = np.array([fftfreq(n, d=d,b=b) for n, d in zip(N, dk)])
 
