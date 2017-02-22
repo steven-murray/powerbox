@@ -14,8 +14,8 @@ def test_ln_vs_straight():
     ln_pb = LogNormalPowerBox(128,lambda u : 100.*u**-2., dim=3,seed=1234,boxlength=100.)
 
 
-    pk,bins = get_power(pb.delta_x,pb.boxlength)
-    ln_pk, ln_bins = get_power(ln_pb.delta_x, pb.boxlength)
+    pk = get_power(pb.delta_x,pb.boxlength)[0]
+    ln_pk = get_power(ln_pb.delta_x, pb.boxlength)[0]
 
     pk = pk[1:-1]
     ln_pk = ln_pk[1:-1]
