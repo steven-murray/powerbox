@@ -8,11 +8,6 @@ sys.path.insert(0, LOCATION)
 
 from powerbox import PowerBox, get_power
 
-
-
-
-
-
 def test_power1d():
     p = [0]*40
     for i in range(40):

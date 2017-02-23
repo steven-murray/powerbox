@@ -8,11 +8,41 @@ import cached_property as cp
 import dft
 
 
-#TODO: add hankel-transform version of LogNormal
+# TODO: add hankel-transform version of LogNormal
+
+def _magnitude_grid(x, dim):
+    "Return the magnitude of x co-ordinates in dim dimensions as a grid"
+    return np.sqrt(np.sum(np.meshgrid(*([x ** 2]*dim)), axis=0))
+
+
+def _make_hermitian(mag, pha):
+    """
+    rTake random arrays and convert them to a complex hermitian array.
+
+    Note that this assumes that mag is distributed normally.
+
+    Parameters
+    ----------
+    mag : array
+        Normally-distributed magnitudes of the complex vector.
+
+    pha : array
+        Uniformly distributed phases of the complex vector
+
+    Returns
+    -------
+    kspace : array
+        A complex hermitian array with normally distributed amplitudes.
+    """
+    revidx = [slice(None, None, -1)]*len(mag.shape)
+    mag = (mag + mag[revidx])/np.sqrt(2)
+    pha = (pha - pha[revidx])/2 + np.pi
+    return mag*(np.cos(pha) + 1j*np.sin(pha))
+
 
 class PowerBox(object):
-    def __init__(self,N,pk, dim=2, boxlength=1.0, ensure_physical=False, a=1.,b=1.,
-                 vol_normalised_power = True,seed=None):
+    def __init__(self, N, pk, dim=2, boxlength=1.0, ensure_physical=False, a=1., b=1.,
+                 vol_normalised_power=True, seed=None):
         r"""
         An object which calculates and stores the real-space and fourier-space fields generated with a given power
         spectrum.
@@ -88,16 +118,15 @@ class PowerBox(object):
         self.fourier_a = a
         self.fourier_b = b
         self.vol_normalised_power = vol_normalised_power
-        self.V = self.boxlength**self.dim
-
+        self.V = self.boxlength ** self.dim
 
         if self.vol_normalised_power:
-            self.pk = lambda k : pk(k)/self.V
+            self.pk = lambda k: pk(k)/self.V
         else:
             self.pk = pk
 
         self.ensure_physical = ensure_physical
-        self.Ntot = self.N**self.dim
+        self.Ntot = self.N ** self.dim
 
         self.seed = seed
 
@@ -111,15 +140,16 @@ class PowerBox(object):
         # Get the grid-size for the final real-space box.
         self.dx = float(boxlength)/N
 
-
     @cp.cached_property
     def k(self):
         "The entire grid of wavenumber magitudes"
-        k = self.kvec ** 2
-        K = self.kvec ** 2
-        for i in range(self.dim - 1):
-            k = np.add.outer(K, k)
-        return np.sqrt(k)
+        return _magnitude_grid(self.kvec, self.dim)
+        # k = self.kvec ** 2
+        # return np.sqrt(np.sum(np.meshgrid(*([k]*self.dim)),axis=0))
+        # K = self.kvec ** 2
+        # for i in range(self.dim - 1):
+        #     k = np.add.outer(K, k)
+        # return np.sqrt(k)
 
     @property
     def kvec(self):
@@ -129,8 +159,8 @@ class PowerBox(object):
     @property
     def r(self):
         "The radial position of every point in the grid"
-        X = self.x**2
-        x = self.x**2
+        X = self.x ** 2
+        x = self.x ** 2
         for i in range(self.dim - 1):
             x = np.add.outer(X, x)
         return np.sqrt(x)
@@ -138,7 +168,7 @@ class PowerBox(object):
     @property
     def x(self):
         "The co-ordinates of the grid along a side"
-        return np.arange(-self.boxlength/2,self.boxlength/2,self.dx)[:self.N]
+        return np.arange(-self.boxlength/2, self.boxlength/2, self.dx)[:self.N]
 
     @cp.cached_property
     def gauss_hermitian(self):
@@ -149,7 +179,7 @@ class PowerBox(object):
         mag = np.random.normal(0, 1, size=[self.n]*self.dim)
         pha = 2*np.pi*np.random.uniform(size=[self.n]*self.dim)
 
-        dk = self._make_hermitian(mag, pha)
+        dk = _make_hermitian(mag, pha)
 
         if self._even:
             cutidx = [slice(None, -1)]*self.dim
@@ -179,36 +209,12 @@ class PowerBox(object):
         deltax = np.real(deltax)
 
         if self.ensure_physical:
-            np.clip(deltax,-1,np.inf,deltax)
+            np.clip(deltax, -1, np.inf, deltax)
 
         return deltax
 
-    def _make_hermitian(self,mag,pha):
-        """
-        rTake random arrays and convert them to a complex hermitian array.
-
-        Note that this assumes that mag is distributed normally.
-
-        Parameters
-        ----------
-        mag : array
-            Normally-distributed magnitudes of the complex vector.
-
-        pha : array
-            Uniformly distributed phases of the complex vector
-
-        Returns
-        -------
-        kspace : array
-            A complex hermitian array with normally distributed amplitudes.
-        """
-        revidx = [slice(None,None,-1)]*len(mag.shape)
-        mag = (mag + mag[revidx])/np.sqrt(2)
-        pha = (pha - pha[revidx])/2 + np.pi
-        return mag*(np.cos(pha) + 1j*np.sin(pha))
-
-    def create_discrete_sample(self,nbar,randomise_in_cell=True,min_at_zero=False,
-                               store_pos=False,seed=None):
+    def create_discrete_sample(self, nbar, randomise_in_cell=True, min_at_zero=False,
+                               store_pos=False, seed=None):
         r"""
         Assuming that the real-space signal represents an over-density with respect to some mean, create a sample
         of tracers of the underlying density distribution.
@@ -221,7 +227,7 @@ class PowerBox(object):
         if seed:
             np.random.seed(seed)
 
-        n = (self.delta_x + 1)*self.dx ** self.dim * nbar
+        n = (self.delta_x + 1)*self.dx ** self.dim*nbar
         self.n_per_cell = np.random.poisson(n)
 
         # Get all source positions
@@ -283,13 +289,14 @@ class LogNormalPowerBox(PowerBox):
     >>> plt.scatter(positions[:,0],positions[:,1],s=2,alpha=0.5,lw=0)
 
     """
-    def __init__(self,*args,**kwargs):
-        super(LogNormalPowerBox,self).__init__(*args,**kwargs)
+
+    def __init__(self, *args, **kwargs):
+        super(LogNormalPowerBox, self).__init__(*args, **kwargs)
 
     @cp.cached_property
     def correlation_array(self):
         "The correlation function from the input power, on the grid"
-        return self.V * np.real(dft.ifft(self.power_array, L = self.boxlength, a=self.fourier_a, b=self.fourier_b)[0])
+        return self.V*np.real(dft.ifft(self.power_array, L=self.boxlength, a=self.fourier_a, b=self.fourier_b)[0])
 
     @cp.cached_property
     def gaussian_correlation_array(self):
@@ -299,8 +306,8 @@ class LogNormalPowerBox(PowerBox):
     @cp.cached_property
     def gaussian_power_array(self):
         "The power spectrum required for a Gaussian field to produce the input power on a lognormal field"
-        gpa =  np.abs(dft.fft(self.gaussian_correlation_array, L=self.boxlength, a=self.fourier_a, b=self.fourier_b))[0]
-        gpa[self.k==0] = 0
+        gpa = np.abs(dft.fft(self.gaussian_correlation_array, L=self.boxlength, a=self.fourier_a, b=self.fourier_b))[0]
+        gpa[self.k == 0] = 0
         return gpa
 
     @cp.cached_property
@@ -309,7 +316,7 @@ class LogNormalPowerBox(PowerBox):
         A realisation of the delta_k, i.e. the gaussianised square root of the unitless power spectrum
         (i.e. the Fourier co-efficients)
         """
-        return np.sqrt(self.gaussian_power_array) *self.gauss_hermitian
+        return np.sqrt(self.gaussian_power_array)*self.gauss_hermitian
 
     @cp.cached_property
     def delta_x(self):
@@ -318,5 +325,4 @@ class LogNormalPowerBox(PowerBox):
         deltax = np.real(deltax)
 
         sg = np.var(deltax)
-        return np.exp(deltax - sg/2) -1
-
+        return np.exp(deltax - sg/2) - 1

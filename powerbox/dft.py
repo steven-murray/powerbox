@@ -128,6 +128,7 @@ def fft(X, L=None, Lk=None, a=0, b=2*np.pi, axes=None, ret_cubegrid=False):
     ft = Vx*fftshift(fftn(X, axes=axes),axes=axes)*np.sqrt(np.abs(b)/(2*np.pi) ** (1 - a)) ** len(axes)
 
     dx = np.array([float(l)/float(n) for l, n in zip(L, N)])
+
     freq = np.array([fftfreq(n, d=d,b=b) for n, d in zip(N, dx)])
     if not ret_cubegrid:
         return ft, freq
@@ -225,6 +226,18 @@ def ifft(X, Lk=None,L=None, a=0, b=2*np.pi, axes=None,ret_cubegrid=False):
 
         return ft, freq, np.sqrt(grid)
 
+#
+# def _getfreq(N,dim,dx,b,ret_cubegrid=False):
+#     freq = np.array([fftfreq(n, d=d,b=b) for n, d in zip(N, dx)])
+#
+#     if not ret_cubegrid:
+#         return (freq,)
+#     else:
+#         grid = freq[0] ** 2
+#         for i in range(dim - 1):
+#             grid = np.add.outer(grid, freq[i] ** 2)
+#
+#         return freq, np.sqrt(grid)
 
 def fftfreq(N,d=1.0,b=2*np.pi):
     """

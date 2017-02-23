@@ -6,7 +6,7 @@ import sys
 LOCATION = "/".join(os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe()))).split("/")[:-1])
 sys.path.insert(0, LOCATION)
 
-from powerbox.powerbox import angular_average
+from powerbox.tools import angular_average
 from powerbox.dft import fft, ifft
 
 # SETUP
@@ -49,7 +49,7 @@ def test_forward_unitary_ordinary():
     # Analytic transform
     Fx_anl = Fx_anl_fc(grid)
 
-    Fx_circ, bins = angular_average(np.abs(Fx), grid, int(N/2.2))
+    Fx_circ = angular_average(np.abs(Fx), grid, int(N/2.2))[0]
     Fx_anl_circ = angular_average(Fx_anl, grid, int(N/2.2))[0]
 
     assert np.max(np.abs(Fx_circ - Fx_anl_circ)) < 1e-10
@@ -64,7 +64,7 @@ def test_forward_unitary_angular():
     # Analytic transform
     Fx_anl = Fx_anl_fc(grid)
 
-    Fx_circ, bins = angular_average(np.abs(Fx), grid, int(N/2.2))
+    Fx_circ = angular_average(np.abs(Fx), grid, int(N/2.2))[0]
     Fx_anl_circ = angular_average(Fx_anl, grid, int(N/2.2))[0]
 
     assert np.max(np.abs(Fx_circ - Fx_anl_circ)) < 1e-10
@@ -79,7 +79,7 @@ def test_forward_non_unitary_angular():
     # Analytic transform
     Fx_anl = Fx_anl_fc(grid)
 
-    Fx_circ, bins = angular_average(np.abs(Fx), grid, int(N/2.2))
+    Fx_circ[0] = angular_average(np.abs(Fx), grid, int(N/2.2))[0]
     Fx_anl_circ = angular_average(Fx_anl, grid, int(N/2.2))[0]
 
     assert np.max(np.abs(Fx_circ - Fx_anl_circ)) < 1e-10

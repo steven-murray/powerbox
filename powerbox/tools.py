@@ -43,8 +43,8 @@ def angular_average(field,coords,bins):
     >>> plt.plot(bins, avgfunc, label="Averaged Function")
     """
     weights,edges = np.histogram(coords.flatten(), bins=bins)
-    binav = np.histogram(coords.flatten(),bins=bins,weights=coords.flatten())[0]/weights
-    return np.histogram(coords.flatten(),bins=bins,weights=field.flatten())[0]/weights, binav
+    binav = np.histogram(coords.flatten(),bins=edges,weights=coords.flatten())[0]/weights
+    return np.histogram(coords.flatten(),bins=edges,weights=field.flatten())[0]/weights, binav
 
 
 def get_power(deltax,boxlength,N=None,a=1.,b=1., remove_shotnoise=True,
