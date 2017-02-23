@@ -26,6 +26,7 @@ install:
   - conda install python=$TRAVIS_PYTHON_VERSION numpy scipy nose
   - pip install python-coveralls
   - pip install cached_property
+  - pip install pyFFTW
 #  conda install -c dan_blanchard python-coveralls nose-cov
   - pip install coveralls
 #  - cd hankel; python setup.py install ; cd ../

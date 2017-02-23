@@ -30,9 +30,9 @@ one must be careful that the frequencies returned are descending, rather than as
 import warnings
 import numpy as np
 
-
 # Try importing the pyFFTW interface
 try:
+
     from multiprocessing import cpu_count
     THREADS = cpu_count()
 
@@ -106,6 +106,8 @@ def fft(X, L=None, Lk=None, a=0, b=2*np.pi, axes=None, ret_cubegrid=False):
         Only returned if ``ret_cubegrid`` is ``True``. An array with shape given by ``axes`` specifying the magnitude
         of the frequencies at each point of the fourier transform.
     """
+
+
     if axes is None:
         axes = range(len(X.shape))
 
@@ -190,6 +192,8 @@ def ifft(X, Lk=None,L=None, a=0, b=2*np.pi, axes=None,ret_cubegrid=False):
         Only returned if ``ret_cubegrid`` is ``True``. An array with shape given by ``axes`` specifying the magnitude
         of the real-space co-ordinates at each point of the inverse fourier transform.
     """
+
+
     if axes is None:
         axes = range(len(X.shape))
 
