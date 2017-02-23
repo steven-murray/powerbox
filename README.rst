@@ -1,12 +1,12 @@
 ========
 powerbox
 ========
-.. image:: https://coveralls.io/repos/github/steven-murray/powerbox/badge.svg?branch=master
-    :target: https://coveralls.io/github/steven-murray/powerbox?branch=master
 .. image:: https://img.shields.io/pypi/v/powerbox.svg
     :target: https://pypi.python.org/pypi/powerbox
 .. image:: https://travis-ci.org/steven-murray/powerbox.svg?branch=master
     :target: https://travis-ci.org/steven-murray/powerbox
+.. image:: https://coveralls.io/repos/github/steven-murray/powerbox/badge.svg?branch=master
+    :target: https://coveralls.io/github/steven-murray/powerbox?branch=master
 .. image:: https://api.codacy.com/project/badge/Grade/5853411c78444a5a9c6ec4058c6dbda9
     :target: https://www.codacy.com/app/steven-murray/powerbox?utm_source=github.com&amp;utm_medium=referral&amp;utm_content=steven-murray/powerbox&amp;utm_campaign=Badge_Grade
 
