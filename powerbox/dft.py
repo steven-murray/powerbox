@@ -1,5 +1,5 @@
-"""
-A module defining some "nicer" fourier transform functions, based off the API in :module:`numpy.fft`.
+r"""
+A module defining some "nicer" fourier transform functions.
 
 We define only two functions -- an arbitrary-dimension forward transform, and its inverse. In each case, the transform
 is designed to replicate the continuous transform. That is, the transform is volume-normalised and obeys correct
@@ -7,6 +7,9 @@ Fourier conventions.
 
 The actual FFT backend is provided by ``pyFFTW`` if it is installed, which provides a significant speedup, and
 multi-threading.
+
+Notes
+-----
 
 Conveniently, we allow for arbitrary Fourier convention, according to the scheme in
 http://mathworld.wolfram.com/FourierTransform.html. That is, we define the forward and inverse *n*-dimensional
@@ -36,7 +39,7 @@ try:
     from pyfftw.interfaces.numpy_fft import fftn as _fftn, ifftn as _ifftn, ifftshift, fftshift, fftfreq as _fftfreq
     from pyfftw.interfaces.cache import enable, set_keepalive_time
     enable()
-    set_keepalive_time(10.)
+    set_keepalive_time(1000.)
 
     def fftn(*args,**kwargs):
         return _fftn(threads=THREADS,*args,**kwargs)
@@ -53,12 +56,12 @@ except ImportError:
 
 
 def fft(X, L=None, Lk=None, a=0, b=2*np.pi, axes=None, ret_cubegrid=False):
-    """
+    r"""
     Arbitrary-dimension nice Fourier Transform.
 
     This function wraps numpy's ``fftn`` and applies some nice properties. Notably, the returned fourier transform
     is equivalent to what would be expected from a continuous Fourier Transform (including normalisations etc.). In
-    addition, arbitrary conventions are supported (see :module:`fft` for details).
+    addition, arbitrary conventions are supported (see :mod:`powerbox.dft` for details).
 
     Default parameters return exactly what ``numpy.fft.fftn`` would return.
 
@@ -82,8 +85,8 @@ def fft(X, L=None, Lk=None, a=0, b=2*np.pi, axes=None, ret_cubegrid=False):
         the same length. If array-like, must be of the same length as the number of transformed dimensions.
 
     a,b : float, optional
-        These define the Fourier convention used. See :module:`fft` for details. The defaults return the standard DFT
-        as defined in :module:`numpy.fft`.
+        These define the Fourier convention used. See :mod:`powerbox.dft` for details. The defaults return the standard DFT
+        as defined in :mod:`numpy.fft`.
 
     axes : sequence of ints, optional
         The axes to take the transform over. The default is to use all axes for the transform.
@@ -137,12 +140,12 @@ def fft(X, L=None, Lk=None, a=0, b=2*np.pi, axes=None, ret_cubegrid=False):
 
 
 def ifft(X, Lk=None,L=None, a=0, b=2*np.pi, axes=None,ret_cubegrid=False):
-    """
+    r"""
     Arbitrary-dimension nice inverse Fourier Transform.
 
     This function wraps numpy's ``ifftn`` and applies some nice properties. Notably, the returned fourier transform
     is equivalent to what would be expected from a continuous inverse Fourier Transform (including normalisations etc.).
-    In addition, arbitrary conventions are supported (see :module:`fft` for details).
+    In addition, arbitrary conventions are supported (see :mod:`powerbox.dft` for details).
 
     Default parameters return exactly what ``numpy.fft.ifftn`` would return.
 
@@ -165,8 +168,8 @@ def ifft(X, Lk=None,L=None, a=0, b=2*np.pi, axes=None,ret_cubegrid=False):
         of ``Lk=1`` returns the un-normalised DFT.
 
     a,b : float, optional
-        These define the Fourier convention used. See :module:`fft` for details. The defaults return the standard DFT
-        as defined in :module:`numpy.fft`.
+        These define the Fourier convention used. See :mod:`powerbox.dft` for details. The defaults return the standard DFT
+        as defined in :mod:`numpy.fft`.
 
     axes : sequence of ints, optional
         The axes to take the transform over. The default is to use all axes for the transform.
@@ -224,4 +227,24 @@ def ifft(X, Lk=None,L=None, a=0, b=2*np.pi, axes=None,ret_cubegrid=False):
 
 
 def fftfreq(N,d=1.0,b=2*np.pi):
+    """
+    Return the fourier frequencies for a box with N cells, using general Fourier convention.
+
+    Parameters
+    ----------
+    N : int
+        The number of grid cells
+
+    d : float, optional
+        The interval between cells
+
+    b : float, optional
+        The fourier-convention of the frequency component (see :mod:`powerbox.dft` for details).
+
+    Returns
+    -------
+    freq : array
+        The N symmetric frequency components of the Fourier transform. Always centred at 0.
+
+    """
     return fftshift(_fftfreq(N, d=d))*(2*np.pi/b)

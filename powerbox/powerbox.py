@@ -1,31 +1,11 @@
-import numpy as np
-import warnings
-from cached_property import cached_property
+"""
+The main module of :mod:`powerbox`. Provides classes to create structured boxes.
+"""
 
-from fft import fft,ifft, fftfreq
-#
-# # Try importing the pyFFTW interface
-# try:
-#     from multiprocessing import cpu_count
-#     THREADS = cpu_count()
-#
-#     from pyfftw.interfaces.numpy_fft import fftn as _fftn, ifftn as _ifftn, ifftshift, fftshift, fftfreq
-#     from pyfftw.interfaces.cache import enable, set_keepalive_time
-#     enable()
-#     set_keepalive_time(10.)
-#
-#     def fftn(*args,**kwargs):
-#         return _fftn(threads=THREADS,*args,**kwargs)
-#
-#     def ifftn(*args, **kwargs):
-#         return _ifftn(threads=THREADS,*args, **kwargs)
-#
-#     HAVE_FFTW = True
-#
-# except ImportError:
-#     warnings.warn("You do not have pyFFTW installed. Installing it should give some speed increase.")
-#     HAVE_FFTW = False
-#     from numpy.fft import fftn, ifftn, ifftshift, fftshift, fftfreq
+import numpy as np
+import cached_property as cp
+
+import dft
 
 
 #TODO: add hankel-transform version of LogNormal
@@ -33,7 +13,7 @@ from fft import fft,ifft, fftfreq
 class PowerBox(object):
     def __init__(self,N,pk, dim=2, boxlength=1.0, ensure_physical=False, a=1.,b=1.,
                  vol_normalised_power = True,seed=None):
-        """
+        r"""
         An object which calculates and stores the real-space and fourier-space fields generated with a given power
         spectrum.
 
@@ -43,7 +23,8 @@ class PowerBox(object):
             Number of grid-points on a side for the resulting box (equivalently, number of wavenumbers to use).
 
         pk : func
-            A function of a single (vector) variable k, which is the isotropic power spectrum.
+            A function of a single (vector) variable k, which is the isotropic power spectrum. The relationship of the
+            `k` of which this is a function to the real-space co-ordinates is determined by the parameters ``a,b``.
 
         dim : int, default 2
             Number of dimensions of resulting box.
@@ -58,7 +39,7 @@ class PowerBox(object):
             clipped to return values >-1. If this is happening a lot, consider using a log-normal box.
 
         a,b : float, optional
-            These define the Fourier convention used. See :module:`fft` for details. The defaults define the standard
+            These define the Fourier convention used. See :mod:`powerbox.dft` for details. The defaults define the standard
             usage in *cosmology* (for example, as defined in Cosmological Physics, Peacock, 1999, pg. 496.). Standard
             numerical usage (eg. numpy) is (a,b) = (0,2pi).
 
@@ -76,24 +57,19 @@ class PowerBox(object):
 
         The important convention is the relationship between `x` and `k`, or in other words, whether `k` is interpreted
         as an angular frequency or ordinary frequency. By default, because of cosmological conventions, `k` is an
-        angular frequency, so that the fourier transform integrand is delta_k*exp(-ikx).
+        angular frequency, so that the fourier transform integrand is delta_k*exp(-ikx). The conventions can be changed
+        arbitrarily by setting the ``a,b`` parameters, in line with Mathematica's definition.
 
-        The normalisation of the FT is set so as to return a statistically invariant real-space field with respect to
-        the resolution of the grid. That is, increasing the resolution does not change the variance of the resulting
-        field on a given scale. Again, this conforms to physical expectation in terms of cosmological usage.
-
-        The primary quantity of interest is `delta_x`, which is a zero-mean Gaussian field with a power spectrum
-        equivalent to that which was input. Being zero-mean enables its direct interpretation as a cosmological overdensity
-        field (but should also be applicable to many other fields).
-        Also, it means that the resulting field can be sampled such that the sampling densities in each grid-cell
-        is given by n(1 + delta_x), with n some arbitrary mean number density across the field.
+        The primary quantity of interest is ``delta_x``, which is a zero-mean Gaussian field with a power spectrum
+        equivalent to that which was input. Being zero-mean enables its direct interpretation as an overdensity
+        field, and this interpretation is enforced in the ``make_discrete_sample`` method.
 
         Examples
         --------
         To create a 3-dimensional box of gaussian over-densities, with side length 1 Mpc, gridded equally into
         100 bins, and where k=2pi/x, with a power-law power spectrum, simply use
 
-        >>> pb = PowerBox(100,lambda k : 0.1*k**-3., dim=3,boxlength=100.0)
+        >>> pb = PowerBox(100,lambda k : 0.1*k**-3., dim=3, boxlength=100.0)
         >>> overdensities = pb.delta_x
         >>> grid = pb.x
         >>> radii = pb.r
@@ -125,8 +101,6 @@ class PowerBox(object):
 
         self.seed = seed
 
-        # Our algorithm at this point only deals with even-length arrays.
-        # assert N%2 == 0
         if N%2 == 0:
             self._even = True
         else:
@@ -138,7 +112,7 @@ class PowerBox(object):
         self.dx = float(boxlength)/N
 
 
-    @cached_property
+    @cp.cached_property
     def k(self):
         "The entire grid of wavenumber magitudes"
         k = self.kvec ** 2
@@ -150,7 +124,7 @@ class PowerBox(object):
     @property
     def kvec(self):
         "The vector of wavenumbers along a side"
-        return fftfreq(self.N, d=self.dx, b=self.fourier_b)
+        return dft.fftfreq(self.N, d=self.dx, b=self.fourier_b)
 
     @property
     def r(self):
@@ -166,7 +140,7 @@ class PowerBox(object):
         "The co-ordinates of the grid along a side"
         return np.arange(-self.boxlength/2,self.boxlength/2,self.dx)[:self.N]
 
-    @cached_property
+    @cp.cached_property
     def gauss_hermitian(self):
         "A random array which has Gaussian magnitudes and Hermitian symmetry"
         if self.seed:
@@ -191,17 +165,17 @@ class PowerBox(object):
         P[k != 0] = self.pk(k[k != 0])
         return P
 
-    @cached_property
+    @cp.cached_property
     def delta_k(self):
         "A realisation of the delta_k, i.e. the gaussianised square root of the power spectrum (i.e. the Fourier co-efficients)"
         return np.sqrt(self.power_array)*self.gauss_hermitian
 
-    @cached_property
+    @cp.cached_property
     def delta_x(self):
         "The realised field in real-space from the input power spectrum"
         # Here we multiply by V because the (inverse) fourier-transform of the (dimensionless) power has
         # units of 1/V and we require a unitless quantity for delta_x.
-        deltax = self.V * ifft(self.delta_k,L=self.boxlength,a=self.fourier_a,b=self.fourier_b)[0]
+        deltax = self.V*dft.ifft(self.delta_k, L=self.boxlength, a=self.fourier_a, b=self.fourier_b)[0]
         deltax = np.real(deltax)
 
         if self.ensure_physical:
@@ -211,7 +185,7 @@ class PowerBox(object):
 
     def _make_hermitian(self,mag,pha):
         """
-        Take random arrays and convert them to a complex hermitian array.
+        rTake random arrays and convert them to a complex hermitian array.
 
         Note that this assumes that mag is distributed normally.
 
@@ -235,7 +209,7 @@ class PowerBox(object):
 
     def create_discrete_sample(self,nbar,randomise_in_cell=True,min_at_zero=False,
                                store_pos=False,seed=None):
-        """
+        r"""
         Assuming that the real-space signal represents an over-density with respect to some mean, create a sample
         of tracers of the underlying density distribution.
 
@@ -270,12 +244,14 @@ class PowerBox(object):
 
 
 class LogNormalPowerBox(PowerBox):
-    """
+    r"""
     A subclass of :class:`PowerBox` which calculates Log-Normal density fields with given power spectra.
 
-    Please read the documentation for :class:`PowerBox` for a detailed explanation. In brief, this class calculates
-    an (over-)density field of arbitrary dimension given an input isotropic power spectrum. In this case, the field
-    has a log-normal distribution of over-densities, always yielding a physically valid field.
+    See the documentation of :class:`PowerBox` for a detailed explanation of the arguments, as this class
+    has exactly the same arguments.
+
+    This class calculates an (over-)density field of arbitrary dimension given an input isotropic power spectrum. In
+    this case, the field has a log-normal distribution of over-densities, always yielding a physically valid field.
 
     Examples
     --------
@@ -310,24 +286,24 @@ class LogNormalPowerBox(PowerBox):
     def __init__(self,*args,**kwargs):
         super(LogNormalPowerBox,self).__init__(*args,**kwargs)
 
-    @cached_property
+    @cp.cached_property
     def correlation_array(self):
         "The correlation function from the input power, on the grid"
-        return self.V * np.real(ifft(self.power_array, L = self.boxlength,a=self.fourier_a, b=self.fourier_b)[0])
+        return self.V * np.real(dft.ifft(self.power_array, L = self.boxlength, a=self.fourier_a, b=self.fourier_b)[0])
 
-    @cached_property
+    @cp.cached_property
     def gaussian_correlation_array(self):
         "The correlation function required for a Gaussian field to produce the input power on a lognormal field"
         return np.log(1 + self.correlation_array)
 
-    @cached_property
+    @cp.cached_property
     def gaussian_power_array(self):
         "The power spectrum required for a Gaussian field to produce the input power on a lognormal field"
-        gpa =  np.abs(fft(self.gaussian_correlation_array,L=self.boxlength,a=self.fourier_a, b=self.fourier_b))[0]
+        gpa =  np.abs(dft.fft(self.gaussian_correlation_array, L=self.boxlength, a=self.fourier_a, b=self.fourier_b))[0]
         gpa[self.k==0] = 0
         return gpa
 
-    @cached_property
+    @cp.cached_property
     def delta_k(self):
         """
         A realisation of the delta_k, i.e. the gaussianised square root of the unitless power spectrum
@@ -335,146 +311,12 @@ class LogNormalPowerBox(PowerBox):
         """
         return np.sqrt(self.gaussian_power_array) *self.gauss_hermitian
 
-    @cached_property
+    @cp.cached_property
     def delta_x(self):
         "The real-space over-density field, from the input power spectrum"
-        deltax = np.sqrt(self.V)* ifft(self.delta_k, L=self.boxlength, a=self.fourier_a, b=self.fourier_b)[0]
+        deltax = np.sqrt(self.V)*dft.ifft(self.delta_k, L=self.boxlength, a=self.fourier_a, b=self.fourier_b)[0]
         deltax = np.real(deltax)
 
         sg = np.var(deltax)
         return np.exp(deltax - sg/2) -1
 
-
-def angular_average(field,coords,bins):
-    """
-    Perform a radial histogram -- averaging within radial bins -- of a field.
-
-    Parameters
-    ----------
-    field : array
-        An array of arbitrary dimension specifying the field to be angularly averaged.
-
-    coords : array
-        The magnitude of the co-ordinates at each point of `field`. Must be the same size as field.
-
-    bins : float or array.
-        The ``bins`` argument provided to histogram. Can be a float or array specifying bin edges.
-
-    Returns
-    -------
-    field_1d : array
-        The field averaged angularly (finally 1D)
-
-    binavg : array
-        The mean co-ordinate in each radial bin.
-    """
-    weights,edges = np.histogram(coords.flatten(), bins=bins)
-    binav = np.histogram(coords.flatten(),bins=bins,weights=coords.flatten())[0]/weights
-    return np.histogram(coords.flatten(),bins=bins,weights=field.flatten())[0]/weights, binav
-
-
-def get_power(deltax,boxlength,N=None,a=1.,b=1., remove_shotnoise=True,
-              vol_normalised_power=True,bins=None):
-    """
-    Calculate the n-ball-averaged power spectrum of a given field.
-
-    Parameters
-    ----------
-    deltax : array-like
-        The field to calculate the power spectrum of. Can either be arbitrarily n-dimensional, with each dimension
-        should have the same size, or 2-dimensional with the first being the number of spatial dimensions, and the second
-        the positions of discrete particles in the field. The former should represent a density field, while the latter
-        is a discrete sampling of a field. Note that if a discrete sampling is used, the power spectrum calculated is the
-        "overdensity" power spectrum, i.e. the field re-centered about zero and rescaled by the mean.
-
-    boxlength : float
-        The length of the box side in real-space.
-
-    ncells : int, optional
-        The number of grid cells per side in the box. Only required if deltax is a discrete sample.
-
-    angular_freq : bool, optional
-        Whether the fourier-dual of `x` (called `k` in this code) is an angular frequency (i.e. k = 2pi/x) or not
-        (i.e. k = 1/x).
-
-    remove_shotnoise : bool, optional
-        Whether to subtract a shot-noise term after determining the isotropic power. This only affects discrete samples.
-
-    bins : int or array, optional
-        Defines the final k-bins outputted. If None, chooses a number based on the input resolution of the box. Otherwise,
-        if int, this defines the number of kbins, or if an array, it defines the exact bin edges.
-
-    Returns
-    -------
-    p_k : array
-        The power spectrum averaged over bins of equal |k|.
-
-    meank : array
-        The bin-centres for the p_k array (in k). This is the mean k-value for cells in that bin.
-
-    Examples
-    --------
-    One can use this function to check whether a box created with :class:`PowerBox` has the correct
-    power spectrum:
-
-    >>> from powerbox import PowerBox, get_power
-    >>> import matplotlib.pyplot as plt
-    >>> pb = PowerBox(250,lambda k : k**-2.)
-    >>> p,k = get_power(pb.delta_x,pb.boxlength)
-    >>> plt.plot(k,p)
-    >>> plt.plot(k,k**-2.)
-    >>> plt.xscale('log')
-    >>> plt.yscale('log')
-    """
-    # Check if the input data is in sampled particle format
-    if len(deltax.shape)==2 and deltax.shape[0]!=deltax.shape[1]:
-        if deltax.shape[1]>deltax.shape[0]:
-            raise ValueError("It seems that there are more dimensions than particles! Try transposing deltax.")
-
-        dim = deltax.shape[1]
-        Npart = deltax.shape[0]
-
-        # If so, generate a histogram of the data, with appropriate number of bins.
-        edges = np.linspace(deltax.min(),deltax.min()+boxlength,N+1)
-        deltax = np.histogramdd(deltax,bins=[edges]*dim)[0].astype("float")
-
-        # Convert sampled data to mean-zero data
-        deltax = deltax/np.mean(deltax) - 1
-
-    else:
-        # If input data is already a density field, just get the dimensions.
-        dim = len(deltax.shape)
-        N = len(deltax)
-        Npart = None
-
-    # Calculate the n-D power spectrum and align it with the k from powerbox.
-    FT, _, k = fft(deltax, L=boxlength, a=a, b=b,ret_cubegrid=True)
-    P = np.abs(FT/boxlength**dim)**2
-
-    if vol_normalised_power:
-        P *= boxlength**dim
-
-    # Generate the bin edges
-    if bins is None:
-        bins = int(N/2.2)
-
-    p_k, kbins = angular_average(P[k!=0], k[k!=0], bins)
-
-    # # Get matching flattened arrays
-    # P = P[k!=0].flatten()
-    # k = k[k!=0].flatten()
-    #
-    # # Generate the number of kgrid-cells in each bin
-    # hist1 = np.histogram(k,bins=bins)[0]
-    #
-    # # Average the power spectrum in each bin
-    # p_k = np.histogram(k,bins=bins,weights=P)[0]/hist1
-    #
-    # # Average the k-value in each bin.
-    # meank = np.histogram(k,bins=bins,weights=k)[0]/hist1
-
-    # Remove shot-noise
-    if remove_shotnoise and Npart:
-        p_k -= boxlength**dim / Npart
-
-    return p_k, kbins

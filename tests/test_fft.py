@@ -7,7 +7,7 @@ LOCATION = "/".join(os.path.dirname(os.path.abspath(inspect.getfile(inspect.curr
 sys.path.insert(0, LOCATION)
 
 from powerbox.powerbox import angular_average
-from powerbox.fft import fft, ifft
+from powerbox.dft import fft, ifft
 
 # SETUP
 N = 1000
