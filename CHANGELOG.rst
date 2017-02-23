@@ -1,6 +1,23 @@
 Changelog
 =========
 
+v0.4.0
+~~~~~~
+**Features**
+- Added fft/ifft wrappers which consistently return fourier transforms with arbitrary Fourier conventions.
+- Boxes now may be composed with arbitrary Fourier conventions.
+- Documentation!
+
+**Enhancements**
+- New test to compare LogNormalPowerBox with standard PowerBox.
+- New project structure to make for easier location of functions.
+- Code quality improvements
+- New tests, better coverage.
+
+**Bugfixes**
+- Fixed incorrect boxsize for an odd number of cells
+- Ensure mean density is correct in LogNormalPowerBox
+
 v0.3.2
 ~~~~~~
 **Bugfixes**
