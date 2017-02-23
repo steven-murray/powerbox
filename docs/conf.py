@@ -66,7 +66,7 @@ author = u'Steven Murray'
 # |version| and |release|, also used in various other places throughout the
 # built documents.
 #
-import re, io,os
+import re, io
 def read(*names, **kwargs):
     with io.open(
         os.path.join(os.path.dirname(__file__), *names),
