@@ -79,7 +79,7 @@ def test_forward_non_unitary_angular():
     # Analytic transform
     Fx_anl = Fx_anl_fc(grid)
 
-    Fx_circ[0] = angular_average(np.abs(Fx), grid, int(N/2.2))[0]
+    Fx_circ = angular_average(np.abs(Fx), grid, int(N/2.2))[0]
     Fx_anl_circ = angular_average(Fx_anl, grid, int(N/2.2))[0]
 
     assert np.max(np.abs(Fx_circ - Fx_anl_circ)) < 1e-10
