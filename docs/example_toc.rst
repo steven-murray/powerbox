@@ -9,3 +9,4 @@ Other examples can be found in the API documentation for each object or by looki
 
    demos/getting_started
    demos/cosmological_fields
+   demos/dft
