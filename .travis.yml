@@ -9,6 +9,8 @@ notifications:
 
 # Setup anaconda
 before_install:
+  - sudo apt-get -qq update
+  - sudo apt-get install -y libfftw3-3 libfftw3-dev
   - if [[ "$TRAVIS_PYTHON_VERSION" == "2.7" ]]; then
       wget https://repo.continuum.io/miniconda/Miniconda-latest-Linux-x86_64.sh -O miniconda.sh;
     else
