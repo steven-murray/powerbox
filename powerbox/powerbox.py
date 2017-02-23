@@ -144,12 +144,7 @@ class PowerBox(object):
     def k(self):
         "The entire grid of wavenumber magitudes"
         return _magnitude_grid(self.kvec, self.dim)
-        # k = self.kvec ** 2
-        # return np.sqrt(np.sum(np.meshgrid(*([k]*self.dim)),axis=0))
-        # K = self.kvec ** 2
-        # for i in range(self.dim - 1):
-        #     k = np.add.outer(K, k)
-        # return np.sqrt(k)
+
 
     @property
     def kvec(self):
@@ -159,11 +154,7 @@ class PowerBox(object):
     @property
     def r(self):
         "The radial position of every point in the grid"
-        X = self.x ** 2
-        x = self.x ** 2
-        for i in range(self.dim - 1):
-            x = np.add.outer(X, x)
-        return np.sqrt(x)
+        return _magnitude_grid(self.x, self.dim)
 
     @property
     def x(self):

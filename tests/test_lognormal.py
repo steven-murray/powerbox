@@ -29,8 +29,8 @@ def test_ln_vs_straight_standard_freq():
     ln_pb = LogNormalPowerBox(128,lambda u : 12.*u**-2., dim=3,seed=1234,boxlength=1200.,a=0,b=2*np.pi)
 
 
-    pk,bins = get_power(pb.delta_x,pb.boxlength,a=0,b=2*np.pi)
-    ln_pk, ln_bins = get_power(ln_pb.delta_x, pb.boxlength,a=0,b=2*np.pi)
+    pk = get_power(pb.delta_x,pb.boxlength,a=0,b=2*np.pi)[0]
+    ln_pk = get_power(ln_pb.delta_x, pb.boxlength,a=0,b=2*np.pi)[0]
 
     pk = pk[1:-1]
     ln_pk = ln_pk[1:-1]
