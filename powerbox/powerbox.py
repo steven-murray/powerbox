@@ -41,75 +41,76 @@ def _make_hermitian(mag, pha):
 
 
 class PowerBox(object):
+    r"""
+    An object which calculates and stores the real-space and fourier-space fields generated with a given power
+    spectrum.
+
+    Parameters
+    ----------
+    N : int
+        Number of grid-points on a side for the resulting box (equivalently, number of wavenumbers to use).
+
+    pk : func
+        A function of a single (vector) variable k, which is the isotropic power spectrum. The relationship of the
+        `k` of which this is a function to the real-space co-ordinates is determined by the parameters ``a,b``.
+
+    dim : int, default 2
+        Number of dimensions of resulting box.
+
+    boxlength : float, default 1.0
+        Length of the final signal on a side. This may have arbitrary units, so long as `pk` is a function of a
+        variable which has the inverse units.
+
+    ensure_physical : bool, optional
+        Interpreting the power spectrum as a spectrum of density fluctuations, the minimum physical value of the
+        real-space field, :meth:`delta_x`, is -1. With ``ensure_physical`` set to ``True``, :meth:`delta_x` is
+        clipped to return values >-1. If this is happening a lot, consider using a log-normal box.
+
+    a,b : float, optional
+        These define the Fourier convention used. See :mod:`powerbox.dft` for details. The defaults define the standard
+        usage in *cosmology* (for example, as defined in Cosmological Physics, Peacock, 1999, pg. 496.). Standard
+        numerical usage (eg. numpy) is (a,b) = (0,2pi).
+
+    vol_weighted_power : bool, optional
+        Whether the input power spectrum, ``pk``, is volume-weighted. Default True because of standard cosmological
+        usage.
+
+
+    Notes
+    -----
+    A number of conventions need to be listed.
+
+    The conventions of using `x` for "real-space" and `k` for "fourier space" arise from cosmology, but this does
+    not affect anything -- `x` could just as well stand for "time domain" and `k` for "frequency domain".
+
+    The important convention is the relationship between `x` and `k`, or in other words, whether `k` is interpreted
+    as an angular frequency or ordinary frequency. By default, because of cosmological conventions, `k` is an
+    angular frequency, so that the fourier transform integrand is delta_k*exp(-ikx). The conventions can be changed
+    arbitrarily by setting the ``a,b`` parameters, in line with Mathematica's definition.
+
+    The primary quantity of interest is ``delta_x``, which is a zero-mean Gaussian field with a power spectrum
+    equivalent to that which was input. Being zero-mean enables its direct interpretation as an overdensity
+    field, and this interpretation is enforced in the ``make_discrete_sample`` method.
+
+    Examples
+    --------
+    To create a 3-dimensional box of gaussian over-densities, with side length 1 Mpc, gridded equally into
+    100 bins, and where k=2pi/x, with a power-law power spectrum, simply use
+
+    >>> pb = PowerBox(100,lambda k : 0.1*k**-3., dim=3, boxlength=100.0)
+    >>> overdensities = pb.delta_x
+    >>> grid = pb.x
+    >>> radii = pb.r
+
+    To create a 2D turbulence structure, with arbitrary units, once can use
+
+    >>> import matplotlib.pyplot as plt
+    >>> pb = PowerBox(1000, lambda k : k**-7./5.)
+    >>> plt.imshow(pb.delta_x)
+    """
+
     def __init__(self, N, pk, dim=2, boxlength=1.0, ensure_physical=False, a=1., b=1.,
                  vol_normalised_power=True, seed=None):
-        r"""
-        An object which calculates and stores the real-space and fourier-space fields generated with a given power
-        spectrum.
-
-        Parameters
-        ----------
-        N : int
-            Number of grid-points on a side for the resulting box (equivalently, number of wavenumbers to use).
-
-        pk : func
-            A function of a single (vector) variable k, which is the isotropic power spectrum. The relationship of the
-            `k` of which this is a function to the real-space co-ordinates is determined by the parameters ``a,b``.
-
-        dim : int, default 2
-            Number of dimensions of resulting box.
-
-        boxlength : float, default 1.0
-            Length of the final signal on a side. This may have arbitrary units, so long as `pk` is a function of a
-            variable which has the inverse units.
-
-        ensure_physical : bool, optional
-            Interpreting the power spectrum as a spectrum of density fluctuations, the minimum physical value of the
-            real-space field, :meth:`delta_x`, is -1. With ``ensure_physical`` set to ``True``, :meth:`delta_x` is
-            clipped to return values >-1. If this is happening a lot, consider using a log-normal box.
-
-        a,b : float, optional
-            These define the Fourier convention used. See :mod:`powerbox.dft` for details. The defaults define the standard
-            usage in *cosmology* (for example, as defined in Cosmological Physics, Peacock, 1999, pg. 496.). Standard
-            numerical usage (eg. numpy) is (a,b) = (0,2pi).
-
-        vol_weighted_power : bool, optional
-            Whether the input power spectrum, ``pk``, is volume-weighted. Default True because of standard cosmological
-            usage.
-
-
-        Notes
-        -----
-        A number of conventions need to be listed.
-
-        The conventions of using `x` for "real-space" and `k` for "fourier space" arise from cosmology, but this does
-        not affect anything -- `x` could just as well stand for "time domain" and `k` for "frequency domain".
-
-        The important convention is the relationship between `x` and `k`, or in other words, whether `k` is interpreted
-        as an angular frequency or ordinary frequency. By default, because of cosmological conventions, `k` is an
-        angular frequency, so that the fourier transform integrand is delta_k*exp(-ikx). The conventions can be changed
-        arbitrarily by setting the ``a,b`` parameters, in line with Mathematica's definition.
-
-        The primary quantity of interest is ``delta_x``, which is a zero-mean Gaussian field with a power spectrum
-        equivalent to that which was input. Being zero-mean enables its direct interpretation as an overdensity
-        field, and this interpretation is enforced in the ``make_discrete_sample`` method.
-
-        Examples
-        --------
-        To create a 3-dimensional box of gaussian over-densities, with side length 1 Mpc, gridded equally into
-        100 bins, and where k=2pi/x, with a power-law power spectrum, simply use
-
-        >>> pb = PowerBox(100,lambda k : 0.1*k**-3., dim=3, boxlength=100.0)
-        >>> overdensities = pb.delta_x
-        >>> grid = pb.x
-        >>> radii = pb.r
-
-        To create a 2D turbulence structure, with arbitrary units, once can use
-
-        >>> import matplotlib.pyplot as plt
-        >>> pb = PowerBox(1000, lambda k : k**-7./5.)
-        >>> plt.imshow(pb.delta_x)
-        """
 
         self.N = N
         self.dim = dim
