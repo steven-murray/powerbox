@@ -1,6 +1,11 @@
 Changelog
 =========
 
+v0.4.1
+~~~~~~
+**Bugfixes**
+- Fixed cubegrid return value for dft functions when input boxes have different sizes on each dimension.
+
 v0.4.0
 ~~~~~~
 **Features**

@@ -137,7 +137,7 @@ def fft(X, L=None, Lk=None, a=0, b=2*np.pi, axes=None, ret_cubegrid=False):
     else:
         grid = freq[0] ** 2
         for i in range(len(axes) - 1):
-            grid = np.add.outer(grid, freq[i] ** 2)
+            grid = np.add.outer(grid, freq[i+1] ** 2)
 
         return ft, freq, np.sqrt(grid)
 
