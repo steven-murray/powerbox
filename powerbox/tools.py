@@ -47,7 +47,7 @@ def angular_average(field,coords,bins):
     return np.histogram(coords.flatten(),bins=edges,weights=field.flatten())[0]/weights, binav
 
 
-def get_power(deltax,boxlength,N=None,a=1.,b=1., remove_shotnoise=True,
+def get_power(deltax,boxlength,deltax2=None,N=None,a=1.,b=1., remove_shotnoise=True,
               vol_normalised_power=True,bins=None):
     r"""
     Calculate the isotropic power spectrum of a given field.
@@ -63,6 +63,9 @@ def get_power(deltax,boxlength,N=None,a=1.,b=1., remove_shotnoise=True,
 
     boxlength : float
         The length of the box side in real-space.
+
+    deltax2 : array-like
+        If given, a box of the same shape as deltax, against which deltax will be cross correlated.
 
     N : int, optional
         The number of grid cells per side in the box. Only required if deltax is a discrete sample.
@@ -128,7 +131,13 @@ def get_power(deltax,boxlength,N=None,a=1.,b=1., remove_shotnoise=True,
 
     # Calculate the n-D power spectrum and align it with the k from powerbox.
     FT, _, k = dft.fft(deltax, L=boxlength, a=a, b=b, ret_cubegrid=True)
-    P = np.abs(FT/boxlength**dim)**2
+
+    if deltax2 is not None:
+        FT2 = dft.fft(deltax2, L=boxlength, a=a, b=b)[0]
+    else:
+        FT2 = FT
+
+    P = np.real(FT*np.conj(FT2)/boxlength**dim)
 
     if vol_normalised_power:
         P *= boxlength**dim

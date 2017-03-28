@@ -39,7 +39,7 @@ try:
     from pyfftw.interfaces.numpy_fft import fftn as _fftn, ifftn as _ifftn, ifftshift, fftshift, fftfreq as _fftfreq
     from pyfftw.interfaces.cache import enable, set_keepalive_time
     enable()
-    set_keepalive_time(1000.)
+    set_keepalive_time(100.)
 
     def fftn(*args,**kwargs):
         return _fftn(threads=THREADS,*args,**kwargs)

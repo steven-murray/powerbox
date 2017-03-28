@@ -1,10 +1,15 @@
 Changelog
 =========
+v0.4.2
+~~~~~~
+**Features**
+- Added ability to cross-correlate boxes in get_power.
 
 v0.4.1
 ~~~~~~
 **Bugfixes**
 - Fixed cubegrid return value for dft functions when input boxes have different sizes on each dimension.
+
 
 v0.4.0
 ~~~~~~
