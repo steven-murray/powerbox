@@ -137,7 +137,7 @@ def get_power(deltax,boxlength,deltax2=None,N=None,a=1.,b=1., remove_shotnoise=T
     else:
         FT2 = FT
 
-    P = np.real(FT*np.conj(FT2)/boxlength**dim)
+    P = np.real(FT*np.conj(FT2)/boxlength**(2*dim))
 
     if vol_normalised_power:
         P *= boxlength**dim
