@@ -1,7 +1,13 @@
 Changelog
 =========
-v0.4.2
-~~~~~~
+
+v0.4.3 [29 March 2017]
+~~~~~~~~~~~~~~~~~~~~~~
+**Bugfixes**
+- Fixed volume normalisation in get_power.
+
+v0.4.2 [28 March 2017]
+~~~~~~~~~~~~~~~~~~~~~~
 **Features**
 - Added ability to cross-correlate boxes in get_power.
 
