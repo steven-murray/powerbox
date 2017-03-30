@@ -5,6 +5,15 @@ The main module of :mod:`powerbox`. Provides classes to create structured boxes.
 import numpy as np
 import dft
 
+try:
+    from multiprocessing import cpu_count
+    THREADS = cpu_count()
+
+    from pyfftw import empty_aligned as empty
+    HAVE_FFTW = True
+except ImportError:
+    empty = np.empty
+    HAVE_FFTW = False
 
 # TODO: add hankel-transform version of LogNormal
 
@@ -195,8 +204,9 @@ class PowerBox(object):
         "The realised field in real-space from the input power spectrum"
         # Here we multiply by V because the (inverse) fourier-transform of the (dimensionless) power has
         # units of 1/V and we require a unitless quantity for delta_x.
-        dk = self.delta_k()
-        dk = self.V*dft.ifft(dk, L=self.boxlength, a=self.fourier_a, b=self.fourier_b)[0]
+        dk = empty((self.N,)*self.dim,dtype='complex128')
+        dk[...] = self.delta_k()
+        dk[...] = self.V*dft.ifft(dk, L=self.boxlength, a=self.fourier_a, b=self.fourier_b)[0]
         dk = np.real(dk)
 
         if self.ensure_physical:
@@ -288,7 +298,9 @@ class LogNormalPowerBox(PowerBox):
 
     def correlation_array(self):
         "The correlation function from the input power, on the grid"
-        return self.V*np.real(dft.ifft(self.power_array(), L=self.boxlength, a=self.fourier_a, b=self.fourier_b)[0])
+        pa = empty((self.N,)*self.dim)
+        pa[...] = self.power_array()
+        return self.V*np.real(dft.ifft(pa, L=self.boxlength, a=self.fourier_a, b=self.fourier_b)[0])
 
     def gaussian_correlation_array(self):
         "The correlation function required for a Gaussian field to produce the input power on a lognormal field"
@@ -296,7 +308,9 @@ class LogNormalPowerBox(PowerBox):
 
     def gaussian_power_array(self):
         "The power spectrum required for a Gaussian field to produce the input power on a lognormal field"
-        gpa = np.abs(dft.fft(self.gaussian_correlation_array(), L=self.boxlength, a=self.fourier_a, b=self.fourier_b))[0]
+        gca = empty((self.N,)*self.dim)
+        gca[...] = self.gaussian_correlation_array()
+        gpa = np.abs(dft.fft(gca, L=self.boxlength, a=self.fourier_a, b=self.fourier_b))[0]
         gpa[self.k() == 0] = 0
         return gpa
 
@@ -312,8 +326,10 @@ class LogNormalPowerBox(PowerBox):
 
     def delta_x(self):
         "The real-space over-density field, from the input power spectrum"
-        deltax = np.sqrt(self.V)*dft.ifft(self.delta_k(), L=self.boxlength, a=self.fourier_a, b=self.fourier_b)[0]
-        deltax = np.real(deltax)
+        dk = empty((self.N,)*self.dim,dtype='complex128')
+        dk[...] = self.delta_k()
+        dk[...] = np.sqrt(self.V)*dft.ifft(dk, L=self.boxlength, a=self.fourier_a, b=self.fourier_b)[0]
+        dk = np.real(dk)
 
-        sg = np.var(deltax)
-        return np.exp(deltax - sg/2) - 1
+        sg = np.var(dk)
+        return np.exp(dk - sg/2) - 1
