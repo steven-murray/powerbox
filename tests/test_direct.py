@@ -44,13 +44,13 @@ class TestDirect(object):
         self.pb = PowerBox(N,lambda k: k**-2,dim=1)
 
     def test_hermitian(self):
-        ensure_hermitian(self.pb.delta_k)
+        ensure_hermitian(self.pb.delta_k())
 
     def test_reality_elementwise(self):
-        ensure_reality_elementwise(self.pb.delta_x)
+        ensure_reality_elementwise(self.pb.delta_x())
 
     def test_reality(self):
-        ensure_reality(self.pb.delta_x)
+        ensure_reality(self.pb.delta_x())
 
 
 class TestDirect2(TestDirect):
@@ -76,7 +76,7 @@ class TestDirectEven(TestDirect):
         return True ## It won't be element-wise correct for even case.
 
     def test_reality(self):
-        ensure_reality(self.pb.delta_x)
+        ensure_reality(self.pb.delta_x())
 
 
 

@@ -3,8 +3,6 @@ The main module of :mod:`powerbox`. Provides classes to create structured boxes.
 """
 
 import numpy as np
-import cached_property as cp
-
 import dft
 
 
@@ -141,11 +139,9 @@ class PowerBox(object):
         # Get the grid-size for the final real-space box.
         self.dx = float(boxlength)/N
 
-    @cp.cached_property
     def k(self):
         "The entire grid of wavenumber magitudes"
         return _magnitude_grid(self.kvec, self.dim)
-
 
     @property
     def kvec(self):
@@ -162,7 +158,6 @@ class PowerBox(object):
         "The co-ordinates of the grid along a side"
         return np.arange(-self.boxlength/2, self.boxlength/2, self.dx)[:self.N]
 
-    @cp.cached_property
     def gauss_hermitian(self):
         "A random array which has Gaussian magnitudes and Hermitian symmetry"
         if self.seed:
@@ -179,31 +174,35 @@ class PowerBox(object):
 
         return dk
 
-    @property
     def power_array(self):
         "The Power Spectrum (volume normalised) at `self.k`"
-        k = self.k
-        P = np.zeros_like(k)
-        P[k != 0] = self.pk(k[k != 0])
-        return P
+        k = self.k()
+        #P = np.zeros_like(k)
+        # Re-use the k array to conserve memory
+        k[...] = np.where(k!=0,self.pk(k),0)
+        return k
+#        k[k != 0] = self.pk(k[k != 0])
+#        return P
 
-    @cp.cached_property
     def delta_k(self):
         "A realisation of the delta_k, i.e. the gaussianised square root of the power spectrum (i.e. the Fourier co-efficients)"
-        return np.sqrt(self.power_array)*self.gauss_hermitian
+        p = self.power_array()
+        gh = self.gauss_hermitian()
+        gh[...] = np.sqrt(p)*gh
+        return gh
 
-    @cp.cached_property
     def delta_x(self):
         "The realised field in real-space from the input power spectrum"
         # Here we multiply by V because the (inverse) fourier-transform of the (dimensionless) power has
         # units of 1/V and we require a unitless quantity for delta_x.
-        deltax = self.V*dft.ifft(self.delta_k, L=self.boxlength, a=self.fourier_a, b=self.fourier_b)[0]
-        deltax = np.real(deltax)
+        dk = self.delta_k()
+        dk = self.V*dft.ifft(dk, L=self.boxlength, a=self.fourier_a, b=self.fourier_b)[0]
+        dk = np.real(dk)
 
         if self.ensure_physical:
-            np.clip(deltax, -1, np.inf, deltax)
+            np.clip(dk, -1, np.inf, dk)
 
-        return deltax
+        return dk
 
     def create_discrete_sample(self, nbar, randomise_in_cell=True, min_at_zero=False,
                                store_pos=False, seed=None):
@@ -219,7 +218,9 @@ class PowerBox(object):
         if seed:
             np.random.seed(seed)
 
-        n = (self.delta_x + 1)*self.dx ** self.dim*nbar
+        dx = self.delta_x()
+        dx = (dx + 1)*self.dx ** self.dim*nbar
+        n = dx
         self.n_per_cell = np.random.poisson(n)
 
         # Get all source positions
@@ -285,35 +286,33 @@ class LogNormalPowerBox(PowerBox):
     def __init__(self, *args, **kwargs):
         super(LogNormalPowerBox, self).__init__(*args, **kwargs)
 
-    @cp.cached_property
     def correlation_array(self):
         "The correlation function from the input power, on the grid"
-        return self.V*np.real(dft.ifft(self.power_array, L=self.boxlength, a=self.fourier_a, b=self.fourier_b)[0])
+        return self.V*np.real(dft.ifft(self.power_array(), L=self.boxlength, a=self.fourier_a, b=self.fourier_b)[0])
 
-    @cp.cached_property
     def gaussian_correlation_array(self):
         "The correlation function required for a Gaussian field to produce the input power on a lognormal field"
-        return np.log(1 + self.correlation_array)
+        return np.log(1 + self.correlation_array())
 
-    @cp.cached_property
     def gaussian_power_array(self):
         "The power spectrum required for a Gaussian field to produce the input power on a lognormal field"
-        gpa = np.abs(dft.fft(self.gaussian_correlation_array, L=self.boxlength, a=self.fourier_a, b=self.fourier_b))[0]
-        gpa[self.k == 0] = 0
+        gpa = np.abs(dft.fft(self.gaussian_correlation_array(), L=self.boxlength, a=self.fourier_a, b=self.fourier_b))[0]
+        gpa[self.k() == 0] = 0
         return gpa
 
-    @cp.cached_property
     def delta_k(self):
         """
         A realisation of the delta_k, i.e. the gaussianised square root of the unitless power spectrum
         (i.e. the Fourier co-efficients)
         """
-        return np.sqrt(self.gaussian_power_array)*self.gauss_hermitian
+        p = self.gaussian_power_array()
+        gh = self.gauss_hermitian()
+        gh[...] = np.sqrt(p)*gh
+        return gh
 
-    @cp.cached_property
     def delta_x(self):
         "The real-space over-density field, from the input power spectrum"
-        deltax = np.sqrt(self.V)*dft.ifft(self.delta_k, L=self.boxlength, a=self.fourier_a, b=self.fourier_b)[0]
+        deltax = np.sqrt(self.V)*dft.ifft(self.delta_k(), L=self.boxlength, a=self.fourier_a, b=self.fourier_b)[0]
         deltax = np.real(deltax)
 
         sg = np.var(deltax)
