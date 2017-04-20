@@ -4,6 +4,7 @@ The main module of :mod:`powerbox`. Provides classes to create structured boxes.
 
 import numpy as np
 import dft
+from tools import _magnitude_grid
 
 try:
     from multiprocessing import cpu_count
@@ -16,11 +17,6 @@ except ImportError:
     HAVE_FFTW = False
 
 # TODO: add hankel-transform version of LogNormal
-
-def _magnitude_grid(x, dim):
-    "Return the magnitude of x co-ordinates in dim dimensions as a grid"
-    return np.sqrt(np.sum(np.meshgrid(*([x ** 2]*dim)), axis=0))
-
 
 def _make_hermitian(mag, pha):
     """

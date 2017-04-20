@@ -1,6 +1,21 @@
 Changelog
 =========
 
+dev version
+~~~~~~~~~~~
+**Features**
+- Input boxes to get_power no longer need to have same length on every dimension.
+- New angular_average_nd function to average over first n dimensions of an array.
+
+**Enhancements**
+- Huge (5x or so) speed-up for angular_average function (with resulting speedup for get_power).
+- Huge memory reduction in fft/ifft routines, with potential loss of some speed (TODO: optimise)
+- Better memory consumption in PowerBox classes, at the expense of an API change (cached properties no
+  longer cached, or properties).
+
+**Bugfixes**
+- Fixed issue where if the boxlength was passed as an integer (to fft/ifft), then incorrect results occurred.
+
 v0.4.3 [29 March 2017]
 ~~~~~~~~~~~~~~~~~~~~~~
 **Bugfixes**

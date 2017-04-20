@@ -18,7 +18,7 @@ def angular_average(field,coords,bins):
         The magnitude of the co-ordinates at each point of `field`. Must be the same size as field.
 
     bins : float or array.
-        The ``bins`` argument provided to histogram. Can be a float or array specifying bin edges.
+        The ``bins`` argument provided to histogram. Can be an int or array specifying bin edges.
 
     Returns
     -------
@@ -42,33 +42,129 @@ def angular_average(field,coords,bins):
     >>> plt.plot(bins, np.exp(-bins**2), label="Input Function")   # Plot input function versus ang. avg.
     >>> plt.plot(bins, avgfunc, label="Averaged Function")
     """
-    weights,edges = np.histogram(coords.flatten(), bins=bins)
-    binav = np.histogram(coords.flatten(),bins=edges,weights=coords.flatten())[0]/weights
-    return np.histogram(coords.flatten(),bins=edges,weights=field.flatten())[0]/weights, binav
+    if not np.iterable(bins):
+        bins = np.linspace(coords.min(), coords.max() + 0.1, bins + 1)
+
+    indx = np.digitize(coords.flatten(), bins)
+    weights = np.bincount(indx)
+    binav = np.bincount(indx, weights=coords.flatten())/weights
+    res = np.bincount(indx, weights=field.flatten())/weights
+    return res, binav
+
+def _magnitude_grid(x,dim=None):
+    if dim is not None:
+        return np.sqrt(np.sum(np.meshgrid(*([x ** 2]*dim)), axis=0))
+    else:
+        return np.sqrt(np.sum(np.meshgrid(*([x**2 for x in x])), axis=0))
+
+
+def angular_average_nd(field, coords, bins, n=None):
+    """
+    Take an ND box, and perform a radial average over the first n dimensions.
+
+    Parameters
+    ----------
+    field : array
+        An array of arbitrary dimension specifying the field to be angularly averaged.
+
+    coords : list of arrays
+        A list with length equal to the number of dimensions of `field`. Each entry should be an
+        array specifying the co-ordinates in the corresponding dimension of `field`. Note this 
+        is different from :func:`angular_average`.
+
+    bins : float or array.
+        Specifies the bins for the averaged dimensions. Can be an int or array specifying bin edges.
+
+    n : int, optional
+        The number of dimensions to be averaged. By default, all dimensions are averaged. Always uses
+        the first `n` dimensions.
+        
+    Returns
+    -------
+    field_1d : array
+        The field averaged angularly (finally 1D)
+
+    binavg : array
+        The mean co-ordinate in each radial bin.
+        
+    coords : list of arrays
+        A list of co-ordinates of non-averaged dimensions.
+
+    Examples
+    --------
+    Create a 3D radial function, and average over radial bins. Equivalent to calling :func:`angular_average`:
+
+    >>> import numpy as np
+    >>> import matplotlib.pyplot as plt
+    >>> x = np.linspace(-5,5,128)   # Setup a grid
+    >>> X,Y,Z = np.meshgrid(x,x,x)  # ""
+    >>> r = np.sqrt(X**2+Y**2+Z**2) # Get the radial co-ordinate of grid
+    >>> field = np.exp(-r**2)       # Generate a radial field
+    >>> avgfunc, bins, _ = angular_average_nd(field,[x,x,x],bins=100)   # Call angular_average
+    >>> plt.plot(bins, np.exp(-bins**2), label="Input Function")   # Plot input function versus ang. avg.
+    >>> plt.plot(bins, avgfunc, label="Averaged Function")
+
+    Create a 2D radial function, extended to 3D, and average over first 2 dimensions:
+    
+    >>> r = np.sqrt(X**2+Y**2)
+    >>> field = np.exp(-r**2)    # 2D field
+    >>> field = np.repeat(field,len(x)).reshape((len(x),)*3)   # Extended to 3D
+    >>> avgfunc, avbins, coords = angular_average_nd(field, [x,x,x], bins=50, n=2)
+    >>> plt.plot(avbins, np.exp(-avbins**2), label="Input Function")
+    >>> plt.plot(avbins, avgfunc[:,0], label="Averaged Function")
+    """
+    if n is None:
+        n = len(coords)
+
+    if len(coords) != len(field.shape):
+        raise ValueError("coords should be a list of arrays, one for each dimension.")
+
+    av_coords = _magnitude_grid([c for i, c in enumerate(coords) if i < n])
+
+    if not np.iterable(bins):
+        bins = np.linspace(av_coords.min(), av_coords.max() + 0.1, bins + 1)
+
+    indx = np.digitize(av_coords.flatten(), bins)
+    weights = np.bincount(indx)
+    binav = np.bincount(indx, weights=av_coords.flatten())/weights
+
+    if n == len(coords):
+        return angular_average(field, av_coords, bins), []
+
+    n1 = np.product(field.shape[:n])
+    n2 = np.product(field.shape[n:])
+
+    res = np.zeros((len(binav), n2))
+    for i, fld in enumerate(field.reshape((n1, n2)).T):
+        res[:, i] = np.bincount(indx, weights=fld)/weights
+
+    return res.reshape((len(binav),) + field.shape[n:]), binav, coords[n:]
 
 
 def get_power(deltax,boxlength,deltax2=None,N=None,a=1.,b=1., remove_shotnoise=True,
-              vol_normalised_power=True,bins=None):
+              vol_normalised_power=True,bins=None,first_edge=0, res_ndim=None):
     r"""
     Calculate the isotropic power spectrum of a given field.
 
     Parameters
     ----------
     deltax : array-like
-        The field to calculate the power spectrum of. Can either be arbitrarily n-dimensional, with each dimension
-        the same size, or 2-dimensional with the first being the number of spatial dimensions, and the second
-        the positions of discrete particles in the field. The former should represent a density field, while the latter
-        is a discrete sampling of a field. Note that if a discrete sampling is used, the power spectrum calculated is the
+        The field to calculate the power spectrum of. Can either be arbitrarily n-dimensional, or 2-dimensional with the 
+        first being the number of spatial dimensions, and the second the positions of discrete particles in the field. 
+        The former should represent a density field, while the latter
+        is a discrete sampling of a field. This function chooses which to use by checking the value of `N` (see below).
+        Note that if a discrete sampling is used, the power spectrum calculated is the
         "overdensity" power spectrum, i.e. the field re-centered about zero and rescaled by the mean.
 
-    boxlength : float
-        The length of the box side in real-space.
+    boxlength : float or list of floats
+        The length of the box side(s) in real-space.
 
     deltax2 : array-like
         If given, a box of the same shape as deltax, against which deltax will be cross correlated.
 
     N : int, optional
-        The number of grid cells per side in the box. Only required if deltax is a discrete sample.
+        The number of grid cells per side in the box. Only required if deltax is a discrete sample. If given,
+        the function will assume a discrete sample.
 
     a,b : float, optional
         These define the Fourier convention used. See :mod:`powerbox.dft` for details. The defaults define the standard
@@ -86,6 +182,12 @@ def get_power(deltax,boxlength,deltax2=None,N=None,a=1.,b=1., remove_shotnoise=T
         Defines the final k-bins output. If None, chooses a number based on the input resolution of the box. Otherwise,
         if int, this defines the number of kbins, or if an array, it defines the exact bin edges.
 
+    first_edge : float or list of floats
+        The location of the first edge of the desired bins.
+        
+    res_ndim : int, optional
+        Only perform angular averaging over first `res_ndim` dimensions. By default, uses all dimensions. 
+        
     Returns
     -------
     p_k : array
@@ -108,48 +210,88 @@ def get_power(deltax,boxlength,deltax2=None,N=None,a=1.,b=1., remove_shotnoise=T
     >>> plt.xscale('log')
     >>> plt.yscale('log')
     """
+
     # Check if the input data is in sampled particle format
-    if len(deltax.shape)==2 and deltax.shape[0]!=deltax.shape[1]:
+    if N is not None:
+
+
         if deltax.shape[1]>deltax.shape[0]:
             raise ValueError("It seems that there are more dimensions than particles! Try transposing deltax.")
 
-        dim = deltax.shape[1]
-        Npart = deltax.shape[0]
+        if deltax2 is not None and deltax2.shape[1]>deltax2.shape[0]:
+            raise ValueError("It seems that there are more dimensions than particles! Try transposing deltax2.")
 
-        # If so, generate a histogram of the data, with appropriate number of bins.
-        edges = np.linspace(deltax.min(),deltax.min()+boxlength,N+1)
-        deltax = np.histogramdd(deltax,bins=[edges]*dim)[0].astype("float")
+        dim = deltax.shape[1]
+        if deltax2 is not None and dim != deltax2.shape[1]:
+            raise ValueError("deltax and deltax2 must have the same number of dimensions!")
+
+        if not np.iterable(first_edge):
+            first_edge = [first_edge]*dim
+
+        if not np.iterable(boxlength):
+            boxlength = [boxlength]*dim
+
+        Npart1 = deltax.shape[0]
+
+        if deltax2 is not None:
+            Npart2 = deltax2.shape[0]
+        else:
+            Npart2 = Npart1
+
+        # Generate a histogram of the data, with appropriate number of bins.
+        edges = [np.linspace(f,f+L, N+1) for f,L in zip(first_edge,boxlength)]
+
+        deltax = np.histogramdd(deltax,bins=edges)[0].astype("float")
+
+        if deltax2 is not None:
+            deltax2 = np.histogramdd(deltax2,bins=edges)[0].astype("float")
 
         # Convert sampled data to mean-zero data
         deltax = deltax/np.mean(deltax) - 1
+        if deltax2 is not None:
+            deltax2 = deltax2/np.mean(deltax2) - 1
 
     else:
         # If input data is already a density field, just get the dimensions.
         dim = len(deltax.shape)
-        N = len(deltax)
-        Npart = None
+
+        if not np.iterable(boxlength):
+            boxlength = [boxlength]*dim
+
+        if deltax2 is not None and deltax.shape != len(deltax2.shape):
+            raise ValueError("deltax and deltax2 must have the same shape!")
+
+        N = deltax.shape
+        Npart1 = None
+
+    V = np.product(boxlength)
 
     # Calculate the n-D power spectrum and align it with the k from powerbox.
-    FT, _, k = dft.fft(deltax, L=boxlength, a=a, b=b, ret_cubegrid=True)
+    FT, freq, k = dft.fft(deltax, L=boxlength, a=a, b=b, ret_cubegrid=True)
 
     if deltax2 is not None:
         FT2 = dft.fft(deltax2, L=boxlength, a=a, b=b)[0]
     else:
         FT2 = FT
 
-    P = np.real(FT*np.conj(FT2)/boxlength**(2*dim))
+
+    P = np.real(FT*np.conj(FT2)/V**2)
+
 
     if vol_normalised_power:
-        P *= boxlength**dim
+        P *= V
 
     # Generate the bin edges
     if bins is None:
-        bins = int(N/2.2)
+        bins = int(np.product(N[:res_ndim])/2**res_ndim)
 
-    p_k, kbins = angular_average(P[k!=0], k[k!=0], bins)
+    p_k, k_av_bins, other_k = angular_average_nd(P, freq, bins, n=res_ndim)
 
     # Remove shot-noise
-    if remove_shotnoise and Npart:
-        p_k -= boxlength**dim / Npart
+    if remove_shotnoise and Npart1:
+        p_k -= np.sqrt( V**2 / Npart1/Npart2)
 
-    return p_k, kbins
+    if res_ndim is None:
+        return p_k, k_av_bins
+    else:
+        return p_k, k_av_bins, other_k
