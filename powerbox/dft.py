@@ -38,8 +38,8 @@ try:
 
     from pyfftw.interfaces.numpy_fft import fftn as _fftn, ifftn as _ifftn, ifftshift, fftshift, fftfreq as _fftfreq
     from pyfftw.interfaces.cache import enable, set_keepalive_time
-    enable()
-    set_keepalive_time(100.)
+#    enable()
+#    set_keepalive_time(100.)
 
     def fftn(*args,**kwargs):
         return _fftn(threads=THREADS,*args,**kwargs)
@@ -124,7 +124,7 @@ def fft(X, L=None, Lk=None, a=0, b=2*np.pi, axes=None, ret_cubegrid=False):
             Lk = Lk * np.ones(len(axes))
         L = N*2*np.pi/(Lk*b) # Take account of the fourier convention.
 
-    V = np.product(L)    # Volume of box
+    V = float(np.product(L))    # Volume of box
     Vx = V/np.product(N) # Volume of cell
 
     ft = Vx*fftshift(fftn(X, axes=axes),axes=axes)*np.sqrt(np.abs(b)/(2*np.pi) ** (1 - a)) ** len(axes)
