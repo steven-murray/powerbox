@@ -12,6 +12,7 @@ dev version
 - Huge memory reduction in fft/ifft routines, with potential loss of some speed (TODO: optimise)
 - Better memory consumption in PowerBox classes, at the expense of an API change (cached properties no
   longer cached, or properties).
+- Modified fftshift in dft to handle astropy Quantity objects (bit of a hack really)
 
 **Bugfixes**
 - Fixed issue where if the boxlength was passed as an integer (to fft/ifft), then incorrect results occurred.

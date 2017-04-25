@@ -36,7 +36,7 @@ try:
     from multiprocessing import cpu_count
     THREADS = cpu_count()
 
-    from pyfftw.interfaces.numpy_fft import fftn as _fftn, ifftn as _ifftn, ifftshift, fftshift, fftfreq as _fftfreq
+    from pyfftw.interfaces.numpy_fft import fftn as _fftn, ifftn as _ifftn, ifftshift, fftshift as _fftshift, fftfreq as _fftfreq
     from pyfftw.interfaces.cache import enable, set_keepalive_time
 #    enable()
 #    set_keepalive_time(100.)
@@ -242,6 +242,14 @@ def ifft(X, Lk=None,L=None, a=0, b=2*np.pi, axes=None,ret_cubegrid=False):
 #             grid = np.add.outer(grid, freq[i] ** 2)
 #
 #         return freq, np.sqrt(grid)
+
+def fftshift(x,*args,**kwargs):
+    out = _fftshift(x,*args,**kwargs)
+
+    if hasattr(x,"unit"):
+        return out*x.unit
+    else:
+        return out
 
 def fftfreq(N,d=1.0,b=2*np.pi):
     """
