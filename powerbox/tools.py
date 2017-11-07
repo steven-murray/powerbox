@@ -5,7 +5,7 @@ for averaging a field isotropically, and generating the isotropic power spectrum
 import dft
 import numpy as np
 
-def angular_average(field,coords,bins):
+def angular_average(field,coords,bins, weights = 1, average=True):
     r"""
     Perform a radial histogram -- averaging within radial bins -- of a field.
 
@@ -20,6 +20,11 @@ def angular_average(field,coords,bins):
     bins : float or array.
         The ``bins`` argument provided to histogram. Can be an int or array specifying bin edges.
 
+    weights : array, optional
+        An array of the same shape as `field`, giving a weight for each entry.
+        
+    average : bool, optional
+        Whether to take the (weighted) average. If False, returns the (unweighted) sum.
     Returns
     -------
     field_1d : array
@@ -43,12 +48,16 @@ def angular_average(field,coords,bins):
     >>> plt.plot(bins, avgfunc, label="Averaged Function")
     """
     if not np.iterable(bins):
-        bins = np.linspace(coords.min(), coords.max() + 0.1, bins + 1)
+        bins = np.linspace(coords.min(), coords.max() * 1.001, bins + 1)
 
-    indx = np.digitize(coords.flatten(), bins)
-    weights = np.bincount(indx)
-    binav = np.bincount(indx, weights=coords.flatten())/weights
-    res = np.bincount(indx, weights=field.flatten())/weights
+    indx, binav, sumweight = _get_binweights(coords, weights, bins, average)
+
+    if len(np.unique(indx)) != len(bins) - 1:
+        print "NOT ALL BINS FILLED: ", len(np.unique(indx)), len(bins) - 1, len(sumweight)
+
+    binav = np.bincount(indx, weights=(weights*coords).flatten())/sumweight
+    res = _field_average(indx,field, weights, sumweight)
+
     return res, binav
 
 def _magnitude_grid(x,dim=None):
@@ -58,7 +67,41 @@ def _magnitude_grid(x,dim=None):
         return np.sqrt(np.sum(np.meshgrid(*([x**2 for x in x])), axis=0))
 
 
-def angular_average_nd(field, coords, bins, n=None):
+def _get_binweights(coords, weights, bins, average=True):
+    # Minus 1 to have first index at 0
+    indx = np.digitize(coords.flatten(), bins) - 1
+
+    if average:
+        if not np.isscalar(weights):
+            sumweights = np.bincount(indx, weights=weights.flatten())
+        else:
+            sumweights = np.bincount(indx)
+
+        binweight = sumweights
+    else:
+        sumweights = 1
+
+        if not np.isscalar(weights):
+            binweight = np.bincount(indx, weights=weights.flatten())
+        else:
+            binweight = np.bincount(indx)
+
+    binav = np.bincount(indx, weights=(weights*coords).flatten())/binweight
+
+    return indx, binav, sumweights
+
+def _field_average(indx, field,weights, sumweights):
+
+    field *= weights
+    rl = np.bincount(indx, weights=np.real(field.flatten()))/sumweights
+    if field.dtype.kind == "c":
+        im = 1j*np.bincount(indx, weights=np.imag(field.flatten()))/sumweights
+    else:
+        im = 0
+
+    return rl + im
+
+def angular_average_nd(field, coords, bins, n=None, weights=1, average=True):
     """
     Take an ND box, and perform a radial average over the first n dimensions.
 
@@ -79,6 +122,11 @@ def angular_average_nd(field, coords, bins, n=None):
         The number of dimensions to be averaged. By default, all dimensions are averaged. Always uses
         the first `n` dimensions.
         
+    weights : array, optional
+        An array of the same shape as the first n dimensions of `field`, giving a weight for each entry.
+        
+    average : bool, optional
+        Whether to take the (weighted) average. If False, returns the (unweighted) sum.
     Returns
     -------
     field_1d : array
@@ -122,27 +170,26 @@ def angular_average_nd(field, coords, bins, n=None):
     av_coords = _magnitude_grid([c for i, c in enumerate(coords) if i < n])
 
     if not np.iterable(bins):
-        bins = np.linspace(av_coords.min(), av_coords.max() + 0.1, bins + 1)
-
-    indx = np.digitize(av_coords.flatten(), bins)
-    weights = np.bincount(indx)
-    binav = np.bincount(indx, weights=av_coords.flatten())/weights
+        bins = np.linspace(av_coords.min(), av_coords.max() *1.001, bins + 1)
 
     if n == len(coords):
-        return angular_average(field, av_coords, bins), []
+        av, bins = angular_average(field, av_coords, bins, weights, average)
+        return av,bins, []
+
+    indx, binav, sumweights = _get_binweights(av_coords, weights, bins, average)
 
     n1 = np.product(field.shape[:n])
     n2 = np.product(field.shape[n:])
 
-    res = np.zeros((len(binav), n2))
+    res = np.zeros((len(binav), n2),dtype=field.dtype)
     for i, fld in enumerate(field.reshape((n1, n2)).T):
-        res[:, i] = np.bincount(indx, weights=fld)/weights
+        res[:,i] = _field_average(indx, fld, weights, sumweights)
 
     return res.reshape((len(binav),) + field.shape[n:]), binav, coords[n:]
 
 
 def get_power(deltax,boxlength,deltax2=None,N=None,a=1.,b=1., remove_shotnoise=True,
-              vol_normalised_power=True,bins=None,first_edge=0, res_ndim=None):
+              vol_normalised_power=True, bins=None, res_ndim=None):
     r"""
     Calculate the isotropic power spectrum of a given field.
 
@@ -181,9 +228,6 @@ def get_power(deltax,boxlength,deltax2=None,N=None,a=1.,b=1., remove_shotnoise=T
     bins : int or array, optional
         Defines the final k-bins output. If None, chooses a number based on the input resolution of the box. Otherwise,
         if int, this defines the number of kbins, or if an array, it defines the exact bin edges.
-
-    first_edge : float or list of floats
-        The location of the first edge of the desired bins.
         
     res_ndim : int, optional
         Only perform angular averaging over first `res_ndim` dimensions. By default, uses all dimensions. 
@@ -225,8 +269,9 @@ def get_power(deltax,boxlength,deltax2=None,N=None,a=1.,b=1., remove_shotnoise=T
         if deltax2 is not None and dim != deltax2.shape[1]:
             raise ValueError("deltax and deltax2 must have the same number of dimensions!")
 
-        if not np.iterable(first_edge):
-            first_edge = [first_edge]*dim
+
+        if not np.iterable(N):
+            N = [N]*dim
 
         if not np.iterable(boxlength):
             boxlength = [boxlength]*dim
@@ -239,12 +284,12 @@ def get_power(deltax,boxlength,deltax2=None,N=None,a=1.,b=1., remove_shotnoise=T
             Npart2 = Npart1
 
         # Generate a histogram of the data, with appropriate number of bins.
-        edges = [np.linspace(f,f+L, N+1) for f,L in zip(first_edge,boxlength)]
+        edges = [np.linspace(0,L, n+1) for L,n in zip(boxlength,N)]
 
-        deltax = np.histogramdd(deltax,bins=edges)[0].astype("float")
+        deltax = np.histogramdd(deltax%boxlength, bins=edges)[0].astype("float")
 
         if deltax2 is not None:
-            deltax2 = np.histogramdd(deltax2,bins=edges)[0].astype("float")
+            deltax2 = np.histogramdd(deltax2%boxlength,bins=edges)[0].astype("float")
 
         # Convert sampled data to mean-zero data
         deltax = deltax/np.mean(deltax) - 1
@@ -281,9 +326,12 @@ def get_power(deltax,boxlength,deltax2=None,N=None,a=1.,b=1., remove_shotnoise=T
     if vol_normalised_power:
         P *= V
 
+    if res_ndim is None:
+        res_ndim = dim
+
     # Generate the bin edges
     if bins is None:
-        bins = int(np.product(N[:res_ndim])/2**res_ndim)
+        bins = int(np.product(N[:res_ndim])**(1./res_ndim)/2.2)
 
     p_k, k_av_bins, other_k = angular_average_nd(P, freq, bins, n=res_ndim)
 
@@ -291,7 +339,7 @@ def get_power(deltax,boxlength,deltax2=None,N=None,a=1.,b=1., remove_shotnoise=T
     if remove_shotnoise and Npart1:
         p_k -= np.sqrt( V**2 / Npart1/Npart2)
 
-    if res_ndim is None:
+    if res_ndim == dim:
         return p_k, k_av_bins
     else:
         return p_k, k_av_bins, other_k

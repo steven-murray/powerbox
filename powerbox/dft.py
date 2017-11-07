@@ -28,7 +28,7 @@ We note that currently, only positive values for b are implemented (in fact, usi
 one must be careful that the frequencies returned are descending, rather than ascending).
 """
 import warnings
-import numpy as np
+
 
 # Try importing the pyFFTW interface
 try:
@@ -36,7 +36,7 @@ try:
     from multiprocessing import cpu_count
     THREADS = cpu_count()
 
-    from pyfftw.interfaces.numpy_fft import fftn as _fftn, ifftn as _ifftn, ifftshift, fftshift as _fftshift, fftfreq as _fftfreq
+    from pyfftw.interfaces.numpy_fft import fftn as _fftn, ifftn as _ifftn, ifftshift as _ifftshift, fftshift as _fftshift, fftfreq as _fftfreq
     from pyfftw.interfaces.cache import enable, set_keepalive_time
 #    enable()
 #    set_keepalive_time(100.)
@@ -52,8 +52,10 @@ try:
 except ImportError:
     warnings.warn("You do not have pyFFTW installed. Installing it should give some speed increase.")
     HAVE_FFTW = False
-    from numpy.fft import fftn, ifftn, ifftshift, fftshift, fftfreq as _fftfreq
+    from numpy.fft import fftn, ifftn, ifftshift as _ifftshift, fftshift as _fftshift, fftfreq as _fftfreq
 
+# NOTE: to avoid MKL-related bugs, numpy needs to be imported after pyfftw: see https://github.com/pyFFTW/pyFFTW/issues/40
+import numpy as np
 
 def fft(X, L=None, Lk=None, a=0, b=2*np.pi, axes=None, ret_cubegrid=False):
     r"""
@@ -230,18 +232,6 @@ def ifft(X, Lk=None,L=None, a=0, b=2*np.pi, axes=None,ret_cubegrid=False):
 
         return ft, freq, np.sqrt(grid)
 
-#
-# def _getfreq(N,dim,dx,b,ret_cubegrid=False):
-#     freq = np.array([fftfreq(n, d=d,b=b) for n, d in zip(N, dx)])
-#
-#     if not ret_cubegrid:
-#         return (freq,)
-#     else:
-#         grid = freq[0] ** 2
-#         for i in range(dim - 1):
-#             grid = np.add.outer(grid, freq[i] ** 2)
-#
-#         return freq, np.sqrt(grid)
 
 def fftshift(x,*args,**kwargs):
     out = _fftshift(x,*args,**kwargs)
@@ -250,6 +240,16 @@ def fftshift(x,*args,**kwargs):
         return out*x.unit
     else:
         return out
+
+
+def ifftshift(x, *args, **kwargs):
+    out = _ifftshift(x, *args, **kwargs)
+
+    if hasattr(x, "unit"):
+        return out * x.unit
+    else:
+        return out
+
 
 def fftfreq(N,d=1.0,b=2*np.pi):
     """

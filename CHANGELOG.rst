@@ -1,8 +1,8 @@
 Changelog
 =========
 
-dev version
-~~~~~~~~~~~
+v0.5.0 [7 Nov 2017]
+~~~~~~~~~~~~~~~~~~~
 **Features**
 - Input boxes to get_power no longer need to have same length on every dimension.
 - New angular_average_nd function to average over first n dimensions of an array.
@@ -16,6 +16,7 @@ dev version
 
 **Bugfixes**
 - Fixed issue where if the boxlength was passed as an integer (to fft/ifft), then incorrect results occurred.
+- Fixed issue where incorrect first_edge assignment in get_power resulted in bad power spectrum. No longer require this arg.
 
 v0.4.3 [29 March 2017]
 ~~~~~~~~~~~~~~~~~~~~~~
