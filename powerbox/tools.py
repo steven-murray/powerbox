@@ -188,8 +188,8 @@ def angular_average_nd(field, coords, bins, n=None, weights=1, average=True):
     return res.reshape((len(binav),) + field.shape[n:]), binav, coords[n:]
 
 
-def get_power(deltax,boxlength,deltax2=None,N=None,a=1.,b=1., remove_shotnoise=True,
-              vol_normalised_power=True, bins=None, res_ndim=None):
+def get_power(deltax,boxlength,deltax2=None,N=None, a=1.,b=1., remove_shotnoise=True,
+              vol_normalised_power=True, bins=None, res_ndim=None, weights=None, weights2=None):
     r"""
     Calculate the isotropic power spectrum of a given field.
 
@@ -231,7 +231,10 @@ def get_power(deltax,boxlength,deltax2=None,N=None,a=1.,b=1., remove_shotnoise=T
         
     res_ndim : int, optional
         Only perform angular averaging over first `res_ndim` dimensions. By default, uses all dimensions. 
-        
+
+    weights, weights2 : array-like, optional
+        If deltax is a discrete sample, these are weights for each point.
+
     Returns
     -------
     p_k : array
@@ -286,10 +289,10 @@ def get_power(deltax,boxlength,deltax2=None,N=None,a=1.,b=1., remove_shotnoise=T
         # Generate a histogram of the data, with appropriate number of bins.
         edges = [np.linspace(0,L, n+1) for L,n in zip(boxlength,N)]
 
-        deltax = np.histogramdd(deltax%boxlength, bins=edges)[0].astype("float")
+        deltax = np.histogramdd(deltax%boxlength, bins=edges, weights=weights)[0].astype("float")
 
         if deltax2 is not None:
-            deltax2 = np.histogramdd(deltax2%boxlength,bins=edges)[0].astype("float")
+            deltax2 = np.histogramdd(deltax2%boxlength,bins=edges, weights=weights2)[0].astype("float")
 
         # Convert sampled data to mean-zero data
         deltax = deltax/np.mean(deltax) - 1
