@@ -17,14 +17,14 @@ def ensure_hermitian(b):
         cutidx = [slice(1,None,None)]*len(b.shape)
         b = b[cutidx]
 
-    print b-b[revidx]
+    print(b-b[revidx])
     assert np.allclose(np.real(b-b[revidx]),0)
     assert np.allclose(np.imag(b+b[revidx]),0)
 
 
 def ensure_reality_elementwise(x):
     if not np.allclose(np.abs(np.imag(x)/np.real(x)), 0, atol=0.01, rtol=0.01):
-        print "Maximum contribution of imaginary part in any element: ", np.max(np.abs(np.imag(x)/np.real(x)))
+        print("Maximum contribution of imaginary part in any element: ", np.max(np.abs(np.imag(x)/np.real(x))))
         return False
     else:
         return True
@@ -35,7 +35,7 @@ def ensure_reality(x):
     if np.isclose(val, 1,rtol=5e-3):
         return True
     else:
-        print "Total fractional contribution of imaginary parts", val - 1
+        print("Total fractional contribution of imaginary parts", val - 1)
         return False
 
 

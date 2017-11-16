@@ -2,7 +2,7 @@
 A set of tools for dealing with structured boxes, such as those output by :mod:`powerbox`. Tools include those
 for averaging a field isotropically, and generating the isotropic power spectrum.
 """
-import dft
+from . import dft
 import numpy as np
 
 def angular_average(field,coords,bins, weights = 1, average=True):
@@ -53,7 +53,7 @@ def angular_average(field,coords,bins, weights = 1, average=True):
     indx, binav, sumweight = _get_binweights(coords, weights, bins, average)
 
     if len(np.unique(indx)) != len(bins) - 1:
-        print "NOT ALL BINS FILLED: ", len(np.unique(indx)), len(bins) - 1, len(sumweight)
+        print("NOT ALL BINS FILLED: ", len(np.unique(indx)), len(bins) - 1, len(sumweight))
 
     binav = np.bincount(indx, weights=(weights*coords).flatten())/sumweight
     res = _field_average(indx,field, weights, sumweight)

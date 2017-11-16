@@ -18,7 +18,7 @@ def test_discrete_power_gaussian():
 
     res =  np.mean(np.abs(power[50:-50] / (0.1*bins[50:-50]**-1.5) -1 ) )
 
-    print res
+    print(res)
     assert res < 1e-1
 
 def test_discrete_power_lognormal():
@@ -29,5 +29,5 @@ def test_discrete_power_lognormal():
 
     res = np.mean(np.abs(power[50:-50]/(0.1*bins[50:-50] ** -1.5) - 1))
 
-    print res
+    print(res)
     assert res < 1e-1

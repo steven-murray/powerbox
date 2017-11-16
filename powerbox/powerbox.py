@@ -3,8 +3,8 @@ The main module of :mod:`powerbox`. Provides classes to create structured boxes.
 """
 
 import numpy as np
-import dft
-from tools import _magnitude_grid
+from . import dft
+from .tools import _magnitude_grid
 
 try:
     from multiprocessing import cpu_count

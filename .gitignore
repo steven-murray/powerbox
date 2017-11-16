@@ -5,3 +5,4 @@ dist/*
 *.pyc
 *checkpoint.ipynb
 docs/_*
+2to3backups/*
