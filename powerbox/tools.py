@@ -189,7 +189,8 @@ def angular_average_nd(field, coords, bins, n=None, weights=1, average=True):
 
 
 def get_power(deltax,boxlength,deltax2=None,N=None, a=1.,b=1., remove_shotnoise=True,
-              vol_normalised_power=True, bins=None, res_ndim=None, weights=None, weights2=None):
+              vol_normalised_power=True, bins=None, res_ndim=None, weights=None, weights2=None,
+              dimensionless=True):
     r"""
     Calculate the isotropic power spectrum of a given field.
 
@@ -234,6 +235,9 @@ def get_power(deltax,boxlength,deltax2=None,N=None, a=1.,b=1., remove_shotnoise=
 
     weights, weights2 : array-like, optional
         If deltax is a discrete sample, these are weights for each point.
+
+    dimensionless: bool, optional
+        Whether to normalise the cube by its mean prior to taking the power.
 
     Returns
     -------
@@ -294,11 +298,16 @@ def get_power(deltax,boxlength,deltax2=None,N=None, a=1.,b=1., remove_shotnoise=
         if deltax2 is not None:
             deltax2 = np.histogramdd(deltax2%boxlength,bins=edges, weights=weights2)[0].astype("float")
 
-        # Convert sampled data to mean-zero data
-        deltax = deltax/np.mean(deltax) - 1
-        if deltax2 is not None:
-            deltax2 = deltax2/np.mean(deltax2) - 1
 
+        # Convert sampled data to mean-zero data
+        if dimensionless:
+            deltax = deltax / np.mean(deltax) - 1
+            if deltax2 is not None:
+                deltax2 = deltax2 / np.mean(deltax2) - 1
+        else:
+            deltax -= np.mean(deltax)
+            if deltax2 is not None:
+                deltax2 -= np.mean(deltax2)
     else:
         # If input data is already a density field, just get the dimensions.
         dim = len(deltax.shape)
@@ -311,6 +320,9 @@ def get_power(deltax,boxlength,deltax2=None,N=None, a=1.,b=1., remove_shotnoise=
 
         N = deltax.shape
         Npart1 = None
+
+
+
 
     V = np.product(boxlength)
 

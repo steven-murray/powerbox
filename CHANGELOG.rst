@@ -1,6 +1,11 @@
 Changelog
 =========
 
+dev
+~~~
+**Enhancements**
+- Added ability to *not* have dimensionless power spectra from get_power.
+
 v0.5.0 [7 Nov 2017]
 ~~~~~~~~~~~~~~~~~~~
 **Features**
