@@ -92,7 +92,7 @@ def _get_binweights(coords, weights, bins, average=True):
 
 def _field_average(indx, field,weights, sumweights):
 
-    field *= weights
+    field = field*weights #Leave like this because field is mutable
     rl = np.bincount(indx, weights=np.real(field.flatten()))/sumweights
     if field.dtype.kind == "c":
         im = 1j*np.bincount(indx, weights=np.imag(field.flatten()))/sumweights
@@ -138,6 +138,9 @@ def angular_average_nd(field, coords, bins, n=None, weights=1, average=True):
     coords : list of arrays
         A list of co-ordinates of non-averaged dimensions.
 
+    linear_bins : array
+        The linearly-space radial bin edges.
+
     Examples
     --------
     Create a 3D radial function, and average over radial bins. Equivalent to calling :func:`angular_average`:
@@ -173,8 +176,8 @@ def angular_average_nd(field, coords, bins, n=None, weights=1, average=True):
         bins = np.linspace(av_coords.min(), av_coords.max() *1.001, bins + 1)
 
     if n == len(coords):
-        av, bins = angular_average(field, av_coords, bins, weights, average)
-        return av,bins, []
+        av, binav = angular_average(field, av_coords, bins, weights, average)
+        return av,binav, []
 
     indx, binav, sumweights = _get_binweights(av_coords, weights, bins, average)
 
@@ -183,9 +186,14 @@ def angular_average_nd(field, coords, bins, n=None, weights=1, average=True):
 
     res = np.zeros((len(binav), n2),dtype=field.dtype)
     for i, fld in enumerate(field.reshape((n1, n2)).T):
-        res[:,i] = _field_average(indx, fld, weights, sumweights)
+        try:
+            w = weights.flatten()
+        except AttributeError:
+            w = weights
 
-    return res.reshape((len(binav),) + field.shape[n:]), binav, coords[n:]
+        res[:,i] = _field_average(indx, fld, w, sumweights)
+
+    return res.reshape((len(binav),) + field.shape[n:]), binav, coords[n:], bins
 
 
 def get_power(deltax,boxlength,deltax2=None,N=None, a=1.,b=1., remove_shotnoise=True,
