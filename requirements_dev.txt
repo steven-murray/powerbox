@@ -13,3 +13,4 @@ pytest-cov
 coveralls
 numpydoc==0.7.0
 nbsphinx
+scipy
