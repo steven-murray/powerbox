@@ -5,7 +5,7 @@ for averaging a field isotropically, and generating the isotropic power spectrum
 from . import dft
 import numpy as np
 
-def angular_average(field,coords,bins, weights = 1, average=True):
+def angular_average(field,coords,bins, weights = 1, average=True, bin_ave=True):
     r"""
     Perform a radial histogram -- averaging within radial bins -- of a field.
 
@@ -25,6 +25,11 @@ def angular_average(field,coords,bins, weights = 1, average=True):
         
     average : bool, optional
         Whether to take the (weighted) average. If False, returns the (unweighted) sum.
+
+    bin_ave : bool, optional
+        Whether to return the bin co-ordinates as the (weighted) average of cells within the bin (if True), or
+        the linearly spaced edges of the bins.
+
     Returns
     -------
     field_1d : array
@@ -58,13 +63,13 @@ def angular_average(field,coords,bins, weights = 1, average=True):
     binav = np.bincount(indx, weights=(weights*coords).flatten())/sumweight
     res = _field_average(indx,field, weights, sumweight)
 
-    return res, binav
+    return res, binav if bin_ave else bins
 
 def _magnitude_grid(x,dim=None):
     if dim is not None:
         return np.sqrt(np.sum(np.meshgrid(*([x ** 2]*dim)), axis=0))
     else:
-        return np.sqrt(np.sum(np.meshgrid(*([x**2 for x in x])), axis=0))
+        return np.sqrt(np.sum(np.meshgrid(*([X**2 for X in x])), axis=0))
 
 
 def _get_binweights(coords, weights, bins, average=True):
@@ -101,7 +106,7 @@ def _field_average(indx, field,weights, sumweights):
 
     return rl + im
 
-def angular_average_nd(field, coords, bins, n=None, weights=1, average=True):
+def angular_average_nd(field, coords, bins, n=None, weights=1, average=True, bin_ave=True):
     """
     Take an ND box, and perform a radial average over the first n dimensions.
 
@@ -127,19 +132,18 @@ def angular_average_nd(field, coords, bins, n=None, weights=1, average=True):
         
     average : bool, optional
         Whether to take the (weighted) average. If False, returns the (unweighted) sum.
+
+    bin_ave : bool, optional
+        Whether to return the bin co-ordinates as the (weighted) average of cells within the bin (if True), or
+        the linearly spaced edges of the bins
+
     Returns
     -------
     field_1d : array
         The field averaged angularly (finally 1D)
 
-    binavg : array
-        The mean co-ordinate in each radial bin.
-        
-    coords : list of arrays
-        A list of co-ordinates of non-averaged dimensions.
-
-    linear_bins : array
-        The linearly-space radial bin edges.
+    bins : array
+        The mean co-ordinate in each radial bin (or the bin edges, if `bin_ave` is False)
 
     Examples
     --------
@@ -176,8 +180,7 @@ def angular_average_nd(field, coords, bins, n=None, weights=1, average=True):
         bins = np.linspace(av_coords.min(), av_coords.max() *1.001, bins + 1)
 
     if n == len(coords):
-        av, binav = angular_average(field, av_coords, bins, weights, average)
-        return av,binav, []
+        return angular_average(field, av_coords, bins, weights, average, bin_ave)
 
     indx, binav, sumweights = _get_binweights(av_coords, weights, bins, average)
 
@@ -193,12 +196,12 @@ def angular_average_nd(field, coords, bins, n=None, weights=1, average=True):
 
         res[:,i] = _field_average(indx, fld, w, sumweights)
 
-    return res.reshape((len(binav),) + field.shape[n:]), binav, coords[n:], bins
+    return res.reshape((len(binav),) + field.shape[n:]), binav if bin_ave else bins
 
 
 def get_power(deltax,boxlength,deltax2=None,N=None, a=1.,b=1., remove_shotnoise=True,
               vol_normalised_power=True, bins=None, res_ndim=None, weights=None, weights2=None,
-              dimensionless=True):
+              dimensionless=True, bin_ave=True):
     r"""
     Calculate the isotropic power spectrum of a given field.
 
@@ -246,6 +249,10 @@ def get_power(deltax,boxlength,deltax2=None,N=None, a=1.,b=1., remove_shotnoise=
 
     dimensionless: bool, optional
         Whether to normalise the cube by its mean prior to taking the power.
+
+    bin_ave : bool, optional
+        Whether to return the bin co-ordinates as the (weighted) average of cells within the bin (if True), or
+        the linearly spaced edges of the bins
 
     Returns
     -------
@@ -356,13 +363,10 @@ def get_power(deltax,boxlength,deltax2=None,N=None, a=1.,b=1., remove_shotnoise=
     if bins is None:
         bins = int(np.product(N[:res_ndim])**(1./res_ndim)/2.2)
 
-    p_k, k_av_bins, other_k = angular_average_nd(P, freq, bins, n=res_ndim)
+    p_k, k_bins = angular_average_nd(P, freq, bins, n=res_ndim, bin_ave=bin_ave)
 
     # Remove shot-noise
     if remove_shotnoise and Npart1:
         p_k -= np.sqrt( V**2 / Npart1/Npart2)
 
-    if res_ndim == dim:
-        return p_k, k_av_bins
-    else:
-        return p_k, k_av_bins, other_k
+    return p_k, k_bins

@@ -30,6 +30,10 @@ Installation
 ------------
 Clone/Download then ``python setup.py install``. Or just ``pip install powerbox``.
 
+Acknowledgment
+--------------
+If you find ``powerbox`` useful in your research, please cite http://ascl.net/1805.001
+
 QuickLinks
 ----------
 * Docs: https://powerbox.readthedocs.io

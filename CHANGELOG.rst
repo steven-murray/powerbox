@@ -1,11 +1,12 @@
 Changelog
 =========
 
-dev
-~~~
+v0.5.1 [4 May 2018]
+-------------------
 **Enhancements**
 - Added ability to *not* have dimensionless power spectra from get_power.
 - Also return linearly-spaced radial bin edges from angular_average_nd
+- Python 3 compatibility
 
 **Bugfixes**
 - Fixed bug where field was modified in-place unexpectedly in angular_average

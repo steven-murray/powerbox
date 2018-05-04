@@ -40,8 +40,8 @@ def ensure_reality(x):
 
 
 class TestDirect(object):
-    def __init__(self):
-        self.pb = PowerBox(N,lambda k: k**-2,dim=1)
+    def setup_method(self, test_method):
+        self.pb = PowerBox(N,lambda k: k**-2.,dim=1)
 
     def test_hermitian(self):
         ensure_hermitian(self.pb.delta_k())
@@ -54,23 +54,23 @@ class TestDirect(object):
 
 
 class TestDirect2(TestDirect):
-    def __init__(self):
-        self.pb = PowerBox(N,lambda k: k**-2,dim=2)
+    def setup_method(self, test_method):
+        self.pb = PowerBox(N,lambda k: k**-2.,dim=2)
 
 
 class TestDirect3(TestDirect):
-    def __init__(self):
-        self.pb = PowerBox(N, lambda k: k ** -2, dim=3)
+    def setup_method(self, test_method):
+        self.pb = PowerBox(N, lambda k: k ** -2., dim=3)
 
 
 class TestDirect4(TestDirect):
-    def __init__(self):
-        self.pb = PowerBox(N, lambda k: k ** -2, dim=4)
+    def setup_method(self, test_method):
+        self.pb = PowerBox(N, lambda k: k ** -2., dim=4)
 
 
 class TestDirectEven(TestDirect):
-    def __init__(self):
-        self.pb = PowerBox(N-1, lambda k: k ** -2, dim=2)
+    def setup_method(self, test_method):
+        self.pb = PowerBox(N-1, lambda k: k ** -2., dim=2)
 
     def test_reality_elementwise(self):
         return True ## It won't be element-wise correct for even case.
