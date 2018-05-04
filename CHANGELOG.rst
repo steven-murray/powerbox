@@ -1,6 +1,16 @@
 Changelog
 =========
 
+dev
+~~~
+**Enhancements**
+- Added ability to *not* have dimensionless power spectra from get_power.
+- Also return linearly-spaced radial bin edges from angular_average_nd
+
+**Bugfixes**
+- Fixed bug where field was modified in-place unexpectedly in angular_average
+- Now correctly flattens weights before getting the field average in angular_average_nd
+
 v0.5.0 [7 Nov 2017]
 ~~~~~~~~~~~~~~~~~~~
 **Features**

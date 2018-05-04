@@ -2,7 +2,7 @@
 A set of tools for dealing with structured boxes, such as those output by :mod:`powerbox`. Tools include those
 for averaging a field isotropically, and generating the isotropic power spectrum.
 """
-import dft
+from . import dft
 import numpy as np
 
 def angular_average(field,coords,bins, weights = 1, average=True):
@@ -53,7 +53,7 @@ def angular_average(field,coords,bins, weights = 1, average=True):
     indx, binav, sumweight = _get_binweights(coords, weights, bins, average)
 
     if len(np.unique(indx)) != len(bins) - 1:
-        print "NOT ALL BINS FILLED: ", len(np.unique(indx)), len(bins) - 1, len(sumweight)
+        print("NOT ALL BINS FILLED: ", len(np.unique(indx)), len(bins) - 1, len(sumweight))
 
     binav = np.bincount(indx, weights=(weights*coords).flatten())/sumweight
     res = _field_average(indx,field, weights, sumweight)
@@ -92,7 +92,7 @@ def _get_binweights(coords, weights, bins, average=True):
 
 def _field_average(indx, field,weights, sumweights):
 
-    field *= weights
+    field = field*weights #Leave like this because field is mutable
     rl = np.bincount(indx, weights=np.real(field.flatten()))/sumweights
     if field.dtype.kind == "c":
         im = 1j*np.bincount(indx, weights=np.imag(field.flatten()))/sumweights
@@ -138,6 +138,9 @@ def angular_average_nd(field, coords, bins, n=None, weights=1, average=True):
     coords : list of arrays
         A list of co-ordinates of non-averaged dimensions.
 
+    linear_bins : array
+        The linearly-space radial bin edges.
+
     Examples
     --------
     Create a 3D radial function, and average over radial bins. Equivalent to calling :func:`angular_average`:
@@ -173,8 +176,8 @@ def angular_average_nd(field, coords, bins, n=None, weights=1, average=True):
         bins = np.linspace(av_coords.min(), av_coords.max() *1.001, bins + 1)
 
     if n == len(coords):
-        av, bins = angular_average(field, av_coords, bins, weights, average)
-        return av,bins, []
+        av, binav = angular_average(field, av_coords, bins, weights, average)
+        return av,binav, []
 
     indx, binav, sumweights = _get_binweights(av_coords, weights, bins, average)
 
@@ -183,13 +186,19 @@ def angular_average_nd(field, coords, bins, n=None, weights=1, average=True):
 
     res = np.zeros((len(binav), n2),dtype=field.dtype)
     for i, fld in enumerate(field.reshape((n1, n2)).T):
-        res[:,i] = _field_average(indx, fld, weights, sumweights)
+        try:
+            w = weights.flatten()
+        except AttributeError:
+            w = weights
 
-    return res.reshape((len(binav),) + field.shape[n:]), binav, coords[n:]
+        res[:,i] = _field_average(indx, fld, w, sumweights)
+
+    return res.reshape((len(binav),) + field.shape[n:]), binav, coords[n:], bins
 
 
 def get_power(deltax,boxlength,deltax2=None,N=None, a=1.,b=1., remove_shotnoise=True,
-              vol_normalised_power=True, bins=None, res_ndim=None, weights=None, weights2=None):
+              vol_normalised_power=True, bins=None, res_ndim=None, weights=None, weights2=None,
+              dimensionless=True):
     r"""
     Calculate the isotropic power spectrum of a given field.
 
@@ -234,6 +243,9 @@ def get_power(deltax,boxlength,deltax2=None,N=None, a=1.,b=1., remove_shotnoise=
 
     weights, weights2 : array-like, optional
         If deltax is a discrete sample, these are weights for each point.
+
+    dimensionless: bool, optional
+        Whether to normalise the cube by its mean prior to taking the power.
 
     Returns
     -------
@@ -294,11 +306,16 @@ def get_power(deltax,boxlength,deltax2=None,N=None, a=1.,b=1., remove_shotnoise=
         if deltax2 is not None:
             deltax2 = np.histogramdd(deltax2%boxlength,bins=edges, weights=weights2)[0].astype("float")
 
-        # Convert sampled data to mean-zero data
-        deltax = deltax/np.mean(deltax) - 1
-        if deltax2 is not None:
-            deltax2 = deltax2/np.mean(deltax2) - 1
 
+        # Convert sampled data to mean-zero data
+        if dimensionless:
+            deltax = deltax / np.mean(deltax) - 1
+            if deltax2 is not None:
+                deltax2 = deltax2 / np.mean(deltax2) - 1
+        else:
+            deltax -= np.mean(deltax)
+            if deltax2 is not None:
+                deltax2 -= np.mean(deltax2)
     else:
         # If input data is already a density field, just get the dimensions.
         dim = len(deltax.shape)
@@ -311,6 +328,9 @@ def get_power(deltax,boxlength,deltax2=None,N=None, a=1.,b=1., remove_shotnoise=
 
         N = deltax.shape
         Npart1 = None
+
+
+
 
     V = np.product(boxlength)
 

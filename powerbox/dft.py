@@ -111,7 +111,7 @@ def fft(X, L=None, Lk=None, a=0, b=2*np.pi, axes=None, ret_cubegrid=False):
 
 
     if axes is None:
-        axes = range(len(X.shape))
+        axes = list(range(len(X.shape)))
 
     N = np.array([X.shape[axis] for axis in axes])
 
@@ -197,7 +197,7 @@ def ifft(X, Lk=None,L=None, a=0, b=2*np.pi, axes=None,ret_cubegrid=False):
 
 
     if axes is None:
-        axes = range(len(X.shape))
+        axes = list(range(len(X.shape)))
 
     N = np.array([X.shape[axis] for axis in axes])
 

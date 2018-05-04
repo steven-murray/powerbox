@@ -130,7 +130,7 @@ def test_mixed_unitary_ordinary_unitary_angular_2d_fb():
 
     fx_, bins = angular_average(fx_, xgrid, 200)
 
-    print np.max(np.abs(fx_ - np.exp(-np.pi*(bins/(2*np.pi)) ** 2)/(2*np.pi)))
+    print(np.max(np.abs(fx_ - np.exp(-np.pi*(bins/(2*np.pi)) ** 2)/(2*np.pi))))
     assert np.max(np.abs(fx_ - np.exp(-np.pi*(bins/(2*np.pi)) ** 2)/(2*np.pi))) < 1e-4
 
 
