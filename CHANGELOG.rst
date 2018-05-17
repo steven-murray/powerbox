@@ -1,8 +1,8 @@
 Changelog
 =========
 
-dev
----
+v0.5.2 [17 May 2018]
+--------------------
 **Enhancements**
 - Added ability to calculate the variance of an angularly averaged quantity.
 - Removed a redundant calculation of the bin weights in angular_average

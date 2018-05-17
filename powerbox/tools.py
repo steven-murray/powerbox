@@ -46,6 +46,12 @@ def angular_average(field, coords, bins, weights=1, average=True, bin_ave=True, 
         The variance of the averaged field, estimated from the mean standard error. Only returned if `get_variance` is
         True.
 
+    Notes
+    -----
+    If desired, the variance is calculated as the weight unbiased variance, using the formula at
+    https://en.wikipedia.org/wiki/Weighted_arithmetic_mean#Reliability_weights for the variance in each cell, and
+    normalising by a factor of :math:`V_2/V_1^2` to estimated the variance of the average.
+
     Examples
     --------
     Create a 3D radial function, and average over radial bins:
@@ -137,7 +143,7 @@ def _field_variance(indx, field, average, weights, V1):
     field = (field.flatten()-average_field)**2 * weights
 
     # This res is the estimated variance of each cell in the bin
-    res = np.bincount(indx, weights=field) / V1
+    res = np.bincount(indx, weights=field) / (V1 - V2/V1)
 
     # Modify to the estimated variance of the sum of the cells in the bin.
     res *= V2 / V1 ** 2

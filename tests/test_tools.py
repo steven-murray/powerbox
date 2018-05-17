@@ -98,6 +98,7 @@ def test_var_trivial_weights():
     print(np.diff(var))
     assert np.all(np.diff(var)<=0)
 
+
 @pytest.mark.skip()
 def test_against_multirealisation():
     x = np.linspace(-3, 3, 1000)
