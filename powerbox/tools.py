@@ -68,7 +68,7 @@ def angular_average(field, coords, bins, weights=1, average=True, bin_ave=True, 
 
     # TODO: change this to formal warning.
     if len(np.unique(indx)) != len(bins) - 1:
-        print("NOT ALL BINS FILLED: ", len(np.unique(indx)), len(bins) - 1, len(sumweight))
+        print("NOT ALL BINS FILLED: ", len(np.unique(indx)), len(bins) - 1)
 
     res = _field_average(indx, field, weights, sumweight)
 
