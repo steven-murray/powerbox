@@ -1,6 +1,11 @@
 Changelog
 =========
 
+v0.5.3 [22 May 2018]
+--------------------
+**Bugfixes**
+- Fixed a bug introduced in v0.5.1 where using bin_ave=False in angular_average_nd would fail.
+
 v0.5.2 [17 May 2018]
 --------------------
 **Enhancements**
