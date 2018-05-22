@@ -146,7 +146,7 @@ def _field_variance(indx, field, average, weights, V1):
     res = np.bincount(indx, weights=field) / (V1 - V2/V1)
 
     # Modify to the estimated variance of the sum of the cells in the bin.
-    res *= V2 / V1 ** 2
+    res *= V2 / V1**2
 
     return res
 
@@ -165,7 +165,7 @@ def angular_average_nd(field, coords, bins, n=None, weights=1, average=True, bin
         array specifying the co-ordinates in the corresponding dimension of `field`. Note this 
         is different from :func:`angular_average`.
 
-    bins : float or array.
+    bins : int or array.
         Specifies the bins for the averaged dimensions. Can be an int or array specifying bin edges.
 
     n : int, optional
@@ -251,9 +251,9 @@ def angular_average_nd(field, coords, bins, n=None, weights=1, average=True, bin
             var[:, i] = _field_variance(indx, fld, res[:,i], w, sumweights)
 
     if not get_variance:
-        return res.reshape((len(binav),) + field.shape[n:]), binav if bin_ave else bins
+        return res.reshape((len(bins)-1,) + field.shape[n:]), binav if bin_ave else bins
     else:
-        return res.reshape((len(binav),) + field.shape[n:]), binav if bin_ave else bins, var
+        return res.reshape((len(bins)-1,) + field.shape[n:]), binav if bin_ave else bins, var
 
 
 def get_power(deltax, boxlength, deltax2=None, N=None, a=1., b=1., remove_shotnoise=True,
