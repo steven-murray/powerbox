@@ -6,10 +6,12 @@ v0.5.4 [30 May 2018]
 **Enhancements**
 - Added ability to do angular averaging in log-space bins
 - When not all radial bins have co-ordinates in them, a more reasonable warning message is emitted.
+- Removed redundant bincount call when only summing, not averaging (angularly).
 
 **Bugfixes**
 - Now properly deals with co-ordinates outside the bin range in angular_average (will only make a difference when bins
-  is passed as a vector).
+  is passed as a vector). Note that this has meant that by default the highest-valued co-ordinate in the box will *not*
+  contribute to any bins any more.
 - Fixed a bunch of tests in test_power which were using the wrong power index!
 
 **Internals**

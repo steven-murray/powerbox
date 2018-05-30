@@ -113,19 +113,23 @@ def _get_binweights(coords, weights, bins, average=True, bin_ave=True, log_bins=
     # Minus 1 to have first index at 0
     indx = np.digitize(coords.flatten(), bins)
 
-    if not np.isscalar(weights):
-        sumweights = np.bincount(indx, weights=weights.flatten(), minlength=len(bins)+1)[1:-1]
-    else:
-        sumweights = np.bincount(indx, minlength=len(bins)+1)[1:-1]
+    if average or bin_ave:
+        if not np.isscalar(weights):
+            sumweights = np.bincount(indx, weights=weights.flatten(), minlength=len(bins)+1)[1:-1]
+        else:
+            sumweights = np.bincount(indx, minlength=len(bins)+1)[1:-1]
 
-    if average:
-        binweight = sumweights
-    else:
-        binweight = 1*sumweights
-        sumweights = np.ones_like(binweight)
+        if average:
+            binweight = sumweights
+        else:
+            binweight = 1*sumweights
+            sumweights = np.ones_like(binweight)
 
-    if bin_ave:
-        bins = np.bincount(indx, weights=(weights * coords).flatten(), minlength=len(bins)+1)[1:-1] / binweight
+        if bin_ave:
+            bins = np.bincount(indx, weights=(weights * coords).flatten(), minlength=len(bins)+1)[1:-1] / binweight
+
+    else:
+        sumweights = np.ones(len(bins)-1)
 
     return indx, bins, sumweights
 
