@@ -4,9 +4,22 @@ for averaging a field isotropically, and generating the isotropic power spectrum
 """
 from . import dft
 import numpy as np
+import warnings
 
 
-def angular_average(field, coords, bins, weights=1, average=True, bin_ave=True, get_variance=False):
+def _getbins(bins, coords, log):
+    mx = coords.max()
+    if not np.iterable(bins):
+        if not log:
+            bins = np.linspace(coords.min(), mx, bins + 1)
+        else:
+            mn = coords[coords>0].min()
+            bins = np.logspace(np.log10(mn), np.log10(mx), bins + 1)
+
+    return bins
+
+
+def angular_average(field, coords, bins, weights=1, average=True, bin_ave=True, get_variance=False, log_bins=False):
     r"""
     Perform a radial histogram -- averaging within radial bins -- of a field.
 
@@ -33,6 +46,9 @@ def angular_average(field, coords, bins, weights=1, average=True, bin_ave=True, 
 
     get_variance : bool, optional
         Whether to also return an estimate of the variance of the power in each bin.
+
+    log_bins : bool, optional
+        Whether to create bins in log-space.
 
     Returns
     -------
@@ -67,22 +83,20 @@ def angular_average(field, coords, bins, weights=1, average=True, bin_ave=True, 
     >>> plt.plot(bins, avgfunc, label="Averaged Function")
     """
     # TODO: really shouldn't *have* to pass magnitudes for coords here.
-    if not np.iterable(bins):
-        bins = np.linspace(coords.min(), coords.max() * 1.001, bins + 1)
+    bins = _getbins(bins, coords, log_bins)
 
-    indx, binav, sumweight = _get_binweights(coords, weights, bins, average, bin_ave=bin_ave)
+    indx, bins, sumweight = _get_binweights(coords, weights, bins, average, bin_ave=bin_ave, log_bins=log_bins)
 
-    # TODO: change this to formal warning.
-    if len(np.unique(indx)) != len(bins) - 1:
-        print("NOT ALL BINS FILLED: ", len(np.unique(indx)), len(bins) - 1)
+    if np.any(sumweight==0):
+        warnings.warn("One or more radial bins had no cells within it.")
 
     res = _field_average(indx, field, weights, sumweight)
 
     if get_variance:
         var = _field_variance(indx, field, res, weights, sumweight)
-        return res, binav if bin_ave else bins, var
+        return res, bins, var
     else:
-        return res, binav if bin_ave else bins
+        return res, bins
 
 
 def _magnitude_grid(x, dim=None):
@@ -92,34 +106,35 @@ def _magnitude_grid(x, dim=None):
         return np.sqrt(np.sum(np.meshgrid(*([X ** 2 for X in x])), axis=0))
 
 
-def _get_binweights(coords, weights, bins, average=True, bin_ave=True):
+def _get_binweights(coords, weights, bins, average=True, bin_ave=True, log_bins=False):
+    # Get a vector of bin edges
+    bins = _getbins(bins, coords, log_bins)
+
     # Minus 1 to have first index at 0
-    indx = np.digitize(coords.flatten(), bins) - 1
+    indx = np.digitize(coords.flatten(), bins)
 
     if not np.isscalar(weights):
-        sumweights = np.bincount(indx, weights=weights.flatten())
+        sumweights = np.bincount(indx, weights=weights.flatten(), minlength=len(bins)+1)[1:-1]
     else:
-        sumweights = np.bincount(indx)
+        sumweights = np.bincount(indx, minlength=len(bins)+1)[1:-1]
 
     if average:
         binweight = sumweights
     else:
         binweight = 1*sumweights
-        sumweights = 1
+        sumweights = np.ones_like(binweight)
 
     if bin_ave:
-        binav = np.bincount(indx, weights=(weights * coords).flatten()) / binweight
-    else:
-        binav = None
+        bins = np.bincount(indx, weights=(weights * coords).flatten(), minlength=len(bins)+1)[1:-1] / binweight
 
-    return indx, binav, sumweights
+    return indx, bins, sumweights
 
 
 def _field_average(indx, field, weights, sumweights):
     field = field * weights  # Leave like this because field is mutable
-    rl = np.bincount(indx, weights=np.real(field.flatten())) / sumweights
+    rl = np.bincount(indx, weights=np.real(field.flatten()), minlength=len(sumweights)+2)[1:-1] / sumweights
     if field.dtype.kind == "c":
-        im = 1j * np.bincount(indx, weights=np.imag(field.flatten())) / sumweights
+        im = 1j * np.bincount(indx, weights=np.imag(field.flatten()), minlength=len(sumweights)+2)[1:-1] / sumweights
     else:
         im = 0
 
@@ -131,19 +146,20 @@ def _field_variance(indx, field, average, weights, V1):
         raise NotImplementedError("Cannot use a complex field when computing variance, yet.")
 
     # Create a full flattened array of the same shape as field, with the average in that bin.
-    average_field = average[indx]
+    # We have to pad the average vector with 0s on either side to account for cells outside the bin range.
+    average_field = np.concatenate(([0],average, [0]))[indx]
 
     # Create the V2 array
     if not np.isscalar(weights):
         weights = weights.flatten()
-        V2 = np.bincount(indx, weights=weights**2)
+        V2 = np.bincount(indx, weights=weights**2, minlength=len(V1)+2)[1:-1]
     else:
         V2 = V1
 
     field = (field.flatten()-average_field)**2 * weights
 
     # This res is the estimated variance of each cell in the bin
-    res = np.bincount(indx, weights=field) / (V1 - V2/V1)
+    res = np.bincount(indx, weights=field, minlength=len(V1)+2)[1:-1] / (V1 - V2/V1)
 
     # Modify to the estimated variance of the sum of the cells in the bin.
     res *= V2 / V1**2
@@ -151,7 +167,8 @@ def _field_variance(indx, field, average, weights, V1):
     return res
 
 
-def angular_average_nd(field, coords, bins, n=None, weights=1, average=True, bin_ave=True, get_variance=False):
+def angular_average_nd(field, coords, bins, n=None, weights=1, average=True, bin_ave=True, get_variance=False,
+                       log_bins=False):
     """
     Take an ND box, and perform a radial average over the first n dimensions.
 
@@ -184,6 +201,9 @@ def angular_average_nd(field, coords, bins, n=None, weights=1, average=True, bin
 
     get_variance : bool, optional
         Whether to also return an estimate of the variance of the power in each bin.
+
+    log_bins : bool, optional
+        Whether to create bins in log-space.
 
     Returns
     -------
@@ -224,18 +244,17 @@ def angular_average_nd(field, coords, bins, n=None, weights=1, average=True, bin
 
     av_coords = _magnitude_grid([c for i, c in enumerate(coords) if i < n])
 
-    if not np.iterable(bins):
-        bins = np.linspace(av_coords.min(), av_coords.max() * 1.001, bins + 1)
+    # bins = _getbins(bins, av_coords, log_bins)
 
     if n == len(coords):
         return angular_average(field, av_coords, bins, weights, average, bin_ave, get_variance)
 
-    indx, binav, sumweights = _get_binweights(av_coords, weights, bins, average, bin_ave=bin_ave)
+    indx, bins, sumweights = _get_binweights(av_coords, weights, bins, average, bin_ave=bin_ave, log_bins=log_bins)
 
     n1 = np.product(field.shape[:n])
     n2 = np.product(field.shape[n:])
 
-    res = np.zeros((len(bins)-1, n2), dtype=field.dtype)
+    res = np.zeros((len(sumweights), n2), dtype=field.dtype)
     if get_variance:
         var = np.zeros_like(res)
 
@@ -251,14 +270,14 @@ def angular_average_nd(field, coords, bins, n=None, weights=1, average=True, bin
             var[:, i] = _field_variance(indx, fld, res[:,i], w, sumweights)
 
     if not get_variance:
-        return res.reshape((len(bins)-1,) + field.shape[n:]), binav if bin_ave else bins
+        return res.reshape((len(sumweights),) + field.shape[n:]), bins
     else:
-        return res.reshape((len(bins)-1,) + field.shape[n:]), binav if bin_ave else bins, var
+        return res.reshape((len(sumweights),) + field.shape[n:]), bins, var
 
 
 def get_power(deltax, boxlength, deltax2=None, N=None, a=1., b=1., remove_shotnoise=True,
               vol_normalised_power=True, bins=None, res_ndim=None, weights=None, weights2=None,
-              dimensionless=True, bin_ave=True, get_variance=False):
+              dimensionless=True, bin_ave=True, get_variance=False, log_bins=False):
     r"""
     Calculate the isotropic power spectrum of a given field.
 
@@ -313,6 +332,9 @@ def get_power(deltax, boxlength, deltax2=None, N=None, a=1., b=1., remove_shotno
 
     get_variance : bool, optional
         Whether to also return an estimate of the variance of the power in each bin.
+
+    log_bins : bool, optional
+        Whether to create bins in log-space.
 
     Returns
     -------
@@ -415,12 +437,12 @@ def get_power(deltax, boxlength, deltax2=None, N=None, a=1., b=1., remove_shotno
     if res_ndim is None:
         res_ndim = dim
 
-    # Generate the bin edges
+    # Determine a nice number of bins.
     if bins is None:
         bins = int(np.product(N[:res_ndim]) ** (1. / res_ndim) / 2.2)
 
     # res is (P, k, <var>)
-    res = angular_average_nd(P, freq, bins, n=res_ndim, bin_ave=bin_ave, get_variance=get_variance)
+    res = angular_average_nd(P, freq, bins, n=res_ndim, bin_ave=bin_ave, get_variance=get_variance, log_bins=log_bins)
     res = list(res)
     # Remove shot-noise
     if remove_shotnoise and Npart1:

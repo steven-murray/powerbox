@@ -99,6 +99,16 @@ def test_var_trivial_weights():
     assert np.all(np.diff(var)<=0)
 
 
+def test_logbins():
+    x = np.linspace(-3, 3, 400)
+    X, Y = np.meshgrid(x, x)
+    r2 = X ** 2 + Y ** 2
+    P = np.ones_like(r2)
+    ave, coord = angular_average(P, np.sqrt(r2), bins=10, bin_ave=False, log_bins=True)
+
+    assert np.all(np.isclose(np.diff(coord[1:]/coord[:-1]), 0))
+
+
 @pytest.mark.skip()
 def test_against_multirealisation():
     x = np.linspace(-3, 3, 1000)
