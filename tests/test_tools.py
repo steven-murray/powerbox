@@ -85,7 +85,7 @@ def test_sum():
     r2 = X ** 2 + Y ** 2
     P = r2 ** -1.
     ave, coord = angular_average(P, np.sqrt(r2), bins=20, bin_ave=False, average=False)
-    assert np.sum(P) == np.sum(ave)
+    assert np.sum(P[r2 < 18.]) == np.sum(ave)
 
 
 def test_var_trivial_weights():
