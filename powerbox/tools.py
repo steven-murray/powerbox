@@ -251,7 +251,7 @@ def angular_average_nd(field, coords, bins, n=None, weights=1, average=True, bin
     # bins = _getbins(bins, av_coords, log_bins)
 
     if n == len(coords):
-        return angular_average(field, av_coords, bins, weights, average, bin_ave, get_variance)
+        return angular_average(field, av_coords, bins, weights, average, bin_ave, get_variance, log_bins=log_bins)
 
     indx, bins, sumweights = _get_binweights(av_coords, weights, bins, average, bin_ave=bin_ave, log_bins=log_bins)
 
