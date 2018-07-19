@@ -1,8 +1,8 @@
 Changelog
 =========
 
-v0.5.5
-------
+v0.5.5 [19 July 2018]
+---------------------
 **Bugfixes**
 
 - log_bins wasn't being passed through to angular_average correctly.
@@ -11,6 +11,7 @@ v0.5.5
 
 - ``angular_average()`` no longer requires coords to be passed as box of magnitudes.
 - improved docs.
+- fixed source divide by zero warning in PowerBox()
 
 v0.5.4 [30 May 2018]
 --------------------
