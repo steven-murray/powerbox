@@ -1,5 +1,9 @@
 """
-The main module of :mod:`powerbox`. Provides classes to create structured boxes.
+A module defining two classes which can create arbitrary-dimensional fields with given power spectra. One such function
+produces *Gaussian* fields, and the other *LogNormal* fields.
+
+In principle, these may be extended to other 1-point density distributions by subclassing :class:`PowerBox` and
+over-writing the same methods as are over-written in :class:`LogNormalPowerBox`.
 """
 
 import numpy as np
@@ -18,9 +22,10 @@ except ImportError:
 
 # TODO: add hankel-transform version of LogNormal
 
+
 def _make_hermitian(mag, pha):
-    """
-    rTake random arrays and convert them to a complex hermitian array.
+    r"""
+    Take random arrays and convert them to a complex hermitian array.
 
     Note that this assumes that mag is distributed normally.
 
@@ -45,17 +50,16 @@ def _make_hermitian(mag, pha):
 
 class PowerBox(object):
     r"""
-    An object which calculates and stores the real-space and fourier-space fields generated with a given power
-    spectrum.
+    Calculate real- and fourier-space Gaussian fields generated with a given power spectrum.
 
     Parameters
     ----------
     N : int
         Number of grid-points on a side for the resulting box (equivalently, number of wavenumbers to use).
 
-    pk : func
-        A function of a single (vector) variable k, which is the isotropic power spectrum. The relationship of the
-        `k` of which this is a function to the real-space co-ordinates is determined by the parameters ``a,b``.
+    pk : callable
+        A callable of a single (vector) variable `k`, which is the isotropic power spectrum. The relationship of the
+        `k` of which this is a function to the real-space co-ordinates, `x`, is determined by the parameters ``a,b``.
 
     dim : int, default 2
         Number of dimensions of resulting box.
@@ -67,17 +71,20 @@ class PowerBox(object):
     ensure_physical : bool, optional
         Interpreting the power spectrum as a spectrum of density fluctuations, the minimum physical value of the
         real-space field, :meth:`delta_x`, is -1. With ``ensure_physical`` set to ``True``, :meth:`delta_x` is
-        clipped to return values >-1. If this is happening a lot, consider using a log-normal box.
+        clipped to return values >-1. If this is happening a lot, consider using :class:`LogNormalPowerBox`.
 
     a,b : float, optional
         These define the Fourier convention used. See :mod:`powerbox.dft` for details. The defaults define the standard
         usage in *cosmology* (for example, as defined in Cosmological Physics, Peacock, 1999, pg. 496.). Standard
         numerical usage (eg. numpy) is (a,b) = (0,2pi).
 
-    vol_weighted_power : bool, optional
+    vol_normalised_power : bool, optional
         Whether the input power spectrum, ``pk``, is volume-weighted. Default True because of standard cosmological
         usage.
 
+    seed: int, optional
+        A random seed to define the initial conditions. If not set, it will remain random, and each call to eg.
+        :meth:`delta_x()` will produce a *different* realisation.
 
     Notes
     -----
@@ -89,19 +96,26 @@ class PowerBox(object):
     The important convention is the relationship between `x` and `k`, or in other words, whether `k` is interpreted
     as an angular frequency or ordinary frequency. By default, because of cosmological conventions, `k` is an
     angular frequency, so that the fourier transform integrand is delta_k*exp(-ikx). The conventions can be changed
-    arbitrarily by setting the ``a,b`` parameters, in line with Mathematica's definition.
+    arbitrarily by setting the ``a,b`` parameters (see :mod:`powerbox.dft` for details).
 
-    The primary quantity of interest is ``delta_x``, which is a zero-mean Gaussian field with a power spectrum
+    The primary quantity of interest is :meth:`delta_x`, which is a zero-mean Gaussian field with a power spectrum
     equivalent to that which was input. Being zero-mean enables its direct interpretation as an overdensity
-    field, and this interpretation is enforced in the ``make_discrete_sample`` method.
+    field, and this interpretation is enforced in the :meth:`make_discrete_sample` method.
+
+    .. note:: None of the n-dimensional arrays that are created within the class are stored, due to the inefficiency
+              in memory consumption that this would imply. Thus, each large array is created and *returned* by their
+              respective method, to be stored/discarded by the user.
+
+    .. warning:: Due to the above note, repeated calls to eg. :meth:`delta_x()` will produce *different* realisations
+                 of the real-space field, unless the `seed` parameter is set in the constructor.
 
     Examples
     --------
-    To create a 3-dimensional box of gaussian over-densities, with side length 1 Mpc, gridded equally into
-    100 bins, and where k=2pi/x, with a power-law power spectrum, simply use
+    To create a 3-dimensional box of gaussian over-densities, gridded into 100 bins, with cosmological conventions,
+    and a power-law power spectrum, simply use
 
     >>> pb = PowerBox(100,lambda k : 0.1*k**-3., dim=3, boxlength=100.0)
-    >>> overdensities = pb.delta_x
+    >>> overdensities = pb.delta_x()
     >>> grid = pb.x
     >>> radii = pb.r
 
@@ -109,7 +123,7 @@ class PowerBox(object):
 
     >>> import matplotlib.pyplot as plt
     >>> pb = PowerBox(1000, lambda k : k**-7./5.)
-    >>> plt.imshow(pb.delta_x)
+    >>> plt.imshow(pb.delta_x())
     """
 
     def __init__(self, N, pk, dim=2, boxlength=1.0, ensure_physical=False, a=1., b=1.,
@@ -182,12 +196,10 @@ class PowerBox(object):
     def power_array(self):
         "The Power Spectrum (volume normalised) at `self.k`"
         k = self.k()
-        #P = np.zeros_like(k)
+        mask = k != 0
         # Re-use the k array to conserve memory
-        k[...] = np.where(k!=0,self.pk(k),0)
+        k[mask] = self.pk(k[mask])
         return k
-#        k[k != 0] = self.pk(k[k != 0])
-#        return P
 
     def delta_k(self):
         "A realisation of the delta_k, i.e. the gaussianised square root of the power spectrum (i.e. the Fourier co-efficients)"
@@ -250,7 +262,7 @@ class PowerBox(object):
 
 class LogNormalPowerBox(PowerBox):
     r"""
-    A subclass of :class:`PowerBox` which calculates Log-Normal density fields with given power spectra.
+    Calculate Log-Normal density fields with given power spectra.
 
     See the documentation of :class:`PowerBox` for a detailed explanation of the arguments, as this class
     has exactly the same arguments.

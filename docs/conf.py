@@ -39,14 +39,21 @@ extensions = ['sphinx.ext.autodoc',
               'numpydoc',
               'sphinx.ext.autosummary',
               'nbsphinx',
-              'IPython.sphinxext.ipython_console_highlighting'
+              'IPython.sphinxext.ipython_console_highlighting',
+              'sphinx_automodapi.automodapi'
               ]
 
-autosummary_generate = True
+automodapi_toctreedirnm = "_api"
+automodsumm_inherited_members=True
+
+#autosummary_generate = True
 numpydoc_show_class_members=False
 
 # Add any paths that contain templates here, relative to this directory.
-templates_path = ['templates']
+#templates_path = ['templates']
+
+#autodoc_mock_imports = ['numpy']
+#imported_members = False
 
 # The suffix(es) of source filenames.
 # You can specify multiple suffix as a list of string:

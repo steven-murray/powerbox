@@ -8,9 +8,6 @@ Fourier conventions.
 The actual FFT backend is provided by ``pyFFTW`` if it is installed, which provides a significant speedup, and
 multi-threading.
 
-Notes
------
-
 Conveniently, we allow for arbitrary Fourier convention, according to the scheme in
 http://mathworld.wolfram.com/FourierTransform.html. That is, we define the forward and inverse *n*-dimensional
 transforms respectively as
@@ -29,6 +26,7 @@ one must be careful that the frequencies returned are descending, rather than as
 """
 import warnings
 
+__all__ = ['fft', 'ifft', 'fftfreq', 'fftshift', 'ifftshift']
 
 # Try importing the pyFFTW interface
 try:
@@ -54,8 +52,9 @@ except ImportError:
     HAVE_FFTW = False
     from numpy.fft import fftn, ifftn, ifftshift as _ifftshift, fftshift as _fftshift, fftfreq as _fftfreq
 
-# NOTE: to avoid MKL-related bugs, numpy needs to be imported after pyfftw: see https://github.com/pyFFTW/pyFFTW/issues/40
+# To avoid MKL-related bugs, numpy needs to be imported after pyfftw: see https://github.com/pyFFTW/pyFFTW/issues/40
 import numpy as np
+
 
 def fft(X, L=None, Lk=None, a=0, b=2*np.pi, axes=None, ret_cubegrid=False):
     r"""
@@ -65,7 +64,7 @@ def fft(X, L=None, Lk=None, a=0, b=2*np.pi, axes=None, ret_cubegrid=False):
     is equivalent to what would be expected from a continuous Fourier Transform (including normalisations etc.). In
     addition, arbitrary conventions are supported (see :mod:`powerbox.dft` for details).
 
-    Default parameters return exactly what ``numpy.fft.fftn`` would return.
+    Default parameters have the same normalising conventions as ``numpy.fft.fftn``.
 
     The output object always has the zero in the centre, with monotonically increasing spectral arguments.
 
@@ -152,7 +151,7 @@ def ifft(X, Lk=None,L=None, a=0, b=2*np.pi, axes=None,ret_cubegrid=False):
     is equivalent to what would be expected from a continuous inverse Fourier Transform (including normalisations etc.).
     In addition, arbitrary conventions are supported (see :mod:`powerbox.dft` for details).
 
-    Default parameters return exactly what ``numpy.fft.ifftn`` would return.
+    Default parameters have the same normalising conventions as ``numpy.fft.ifftn``.
 
     Parameters
     ----------
@@ -234,6 +233,11 @@ def ifft(X, Lk=None,L=None, a=0, b=2*np.pi, axes=None,ret_cubegrid=False):
 
 
 def fftshift(x,*args,**kwargs):
+    """
+    The same as numpy's fftshift, except that it preserves units (if Astropy quantities are used)
+    
+    All extra arguments are passed directly to numpy's `fftshift`.
+    """
     out = _fftshift(x,*args,**kwargs)
 
     if hasattr(x,"unit"):
@@ -243,6 +247,11 @@ def fftshift(x,*args,**kwargs):
 
 
 def ifftshift(x, *args, **kwargs):
+    """
+    The same as numpy's ifftshift, except that it preserves units (if Astropy quantities are used)
+
+    All extra arguments are passed directly to numpy's `ifftshift`.
+    """
     out = _ifftshift(x, *args, **kwargs)
 
     if hasattr(x, "unit"):

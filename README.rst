@@ -28,7 +28,7 @@ Features
 
 Installation
 ------------
-Clone/Download then ``python setup.py install``. Or just ``pip install powerbox``.
+Clone/Download then ``pip install .``. Or just ``pip install powerbox``.
 
 Acknowledgment
 --------------

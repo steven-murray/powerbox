@@ -1,5 +1,6 @@
-git+https://github.com/sphinx-doc/sphinx
+sphinx
 numpydoc
 nbsphinx
 ipykernel
 pandoc
+sphinx_rtd_theme

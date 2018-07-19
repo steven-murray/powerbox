@@ -1,6 +1,6 @@
 """
 A set of tools for dealing with structured boxes, such as those output by :mod:`powerbox`. Tools include those
-for averaging a field isotropically, and generating the isotropic power spectrum.
+for averaging a field angularly, and generating the isotropic power spectrum.
 """
 from . import dft
 import numpy as np
@@ -21,28 +21,36 @@ def _getbins(bins, coords, log):
 
 def angular_average(field, coords, bins, weights=1, average=True, bin_ave=True, get_variance=False, log_bins=False):
     r"""
-    Perform a radial histogram -- averaging within radial bins -- of a field.
+    Average a given field within radial bins.
+
+    This function can be used in fields of arbitrary dimension (memory permitting), and the field need not be centred
+    at the origin. The averaging assumes that the grid cells fall completely into the bin which encompasses the
+    co-ordinate point for the cell (i.e. there is no weighted splitting of cells if they intersect a bin edge).
+
+    It is optimized for applying a set of weights, and obtaining the variance of the mean, at the same time as
+    averaging.
 
     Parameters
     ----------
-    field : array
+    field: nd-array
         An array of arbitrary dimension specifying the field to be angularly averaged.
 
-    coords : array
-        The magnitude of the co-ordinates at each point of `field`. Must be the same size as field.
+    coords: nd-array or list of n arrays.
+        Either the *magnitude* of the co-ordinates at each point of `field`, or a list of 1D arrays specifying the
+        co-ordinates in each dimension.
 
-    bins : float or array.
-        The ``bins`` argument provided to histogram. Can be an int or array specifying bin edges.
+    bins: float or array.
+        The ``bins`` argument provided to histogram. Can be an int or array specifying radial bin edges.
 
-    weights : array, optional
+    weights: array, optional
         An array of the same shape as `field`, giving a weight for each entry.
         
-    average : bool, optional
+    average: bool, optional
         Whether to take the (weighted) average. If False, returns the (unweighted) sum.
 
     bin_ave : bool, optional
         Whether to return the bin co-ordinates as the (weighted) average of cells within the bin (if True), or
-        the linearly spaced edges of the bins.
+        the regularly spaced edges of the bins.
 
     get_variance : bool, optional
         Whether to also return an estimate of the variance of the power in each bin.
@@ -52,21 +60,22 @@ def angular_average(field, coords, bins, weights=1, average=True, bin_ave=True, 
 
     Returns
     -------
-    field_1d : array
-        The field averaged angularly (finally 1D)
+    field_1d : 1D-array
+        The angularly-averaged field.
 
-    binavg : array
-        The mean co-ordinate in each radial bin.
+    bins : 1D-array
+        Array of same shape as field_1d specifying the radial co-ordinates of the bins. Either the mean co-ordinate
+        from the input data, or the regularly spaced bins, dependent on `bin_ave`.
 
-    var : array
-        The variance of the averaged field, estimated from the mean standard error. Only returned if `get_variance` is
-        True.
+    var : 1D-array, optional
+        The variance of the averaged field (same shape as bins), estimated from the mean standard error.
+        Only returned if `get_variance` is True.
 
     Notes
     -----
     If desired, the variance is calculated as the weight unbiased variance, using the formula at
     https://en.wikipedia.org/wiki/Weighted_arithmetic_mean#Reliability_weights for the variance in each cell, and
-    normalising by a factor of :math:`V_2/V_1^2` to estimated the variance of the average.
+    normalising by a factor of :math:`V_2/V_1^2` to estimate the variance of the average.
 
     Examples
     --------
@@ -75,15 +84,21 @@ def angular_average(field, coords, bins, weights=1, average=True, bin_ave=True, 
     >>> import numpy as np
     >>> import matplotlib.pyplot as plt
     >>> x = np.linspace(-5,5,128)   # Setup a grid
-    >>> X,Y,Z = np.meshgrid(x,x,x)  # ""
+    >>> X,Y,Z = np.meshgrid(x,x,x)
     >>> r = np.sqrt(X**2+Y**2+Z**2) # Get the radial co-ordinate of grid
     >>> field = np.exp(-r**2)       # Generate a radial field
     >>> avgfunc, bins = angular_average(field,r,bins=100)   # Call angular_average
     >>> plt.plot(bins, np.exp(-bins**2), label="Input Function")   # Plot input function versus ang. avg.
     >>> plt.plot(bins, avgfunc, label="Averaged Function")
+
+    See Also
+    --------
+    angular_average_nd : Perform an angular average in a subset of the total dimensions.
+
     """
-    # TODO: really shouldn't *have* to pass magnitudes for coords here.
-    bins = _getbins(bins, coords, log_bins)
+    if len(coords) == len(field.shape):
+        # coords are a segmented list of dimensional co-ordinates
+        coords = _magnitude_grid(coords)
 
     indx, bins, sumweight = _get_binweights(coords, weights, bins, average, bin_ave=bin_ave, log_bins=log_bins)
 
@@ -107,6 +122,7 @@ def _magnitude_grid(x, dim=None):
 
 
 def _get_binweights(coords, weights, bins, average=True, bin_ave=True, log_bins=False):
+
     # Get a vector of bin edges
     bins = _getbins(bins, coords, log_bins)
 
@@ -115,6 +131,8 @@ def _get_binweights(coords, weights, bins, average=True, bin_ave=True, log_bins=
 
     if average or bin_ave:
         if not np.isscalar(weights):
+            if coords.shape != weights.shape:
+                raise ValueError("coords and weights must have the same shape!")
             sumweights = np.bincount(indx, weights=weights.flatten(), minlength=len(bins)+1)[1:-1]
         else:
             sumweights = np.bincount(indx, minlength=len(bins)+1)[1:-1]
@@ -135,7 +153,11 @@ def _get_binweights(coords, weights, bins, average=True, bin_ave=True, log_bins=
 
 
 def _field_average(indx, field, weights, sumweights):
+    if not np.isscalar(weights) and field.shape != weights.shape:
+        raise ValueError("the field and weights must have the same shape!")
+
     field = field * weights  # Leave like this because field is mutable
+
     rl = np.bincount(indx, weights=np.real(field.flatten()), minlength=len(sumweights)+2)[1:-1] / sumweights
     if field.dtype.kind == "c":
         im = 1j * np.bincount(indx, weights=np.imag(field.flatten()), minlength=len(sumweights)+2)[1:-1] / sumweights
@@ -174,27 +196,34 @@ def _field_variance(indx, field, average, weights, V1):
 def angular_average_nd(field, coords, bins, n=None, weights=1, average=True, bin_ave=True, get_variance=False,
                        log_bins=False):
     """
-    Take an ND box, and perform a radial average over the first n dimensions.
+    Average the first n dimensions of a given field within radial bins.
+
+    This function be used to take "hyper-cylindrical" averages of fields. For a 3D field, with `n=2`, this is exactly
+    a cylindrical average. This function can be used in fields of arbitrary dimension (memory permitting), and the field
+    need not be centred at the origin. The averaging assumes that the grid cells fall completely into the bin which
+    encompasses the co-ordinate point for the cell (i.e. there is no weighted splitting of cells if they intersect a bin
+    edge).
+
+    It is optimized for applying a set of weights, and obtaining the variance of the mean, at the same time as
+    averaging.
 
     Parameters
     ----------
-    field : array
+    field : md-array
         An array of arbitrary dimension specifying the field to be angularly averaged.
 
-    coords : list of arrays
-        A list with length equal to the number of dimensions of `field`. Each entry should be an
-        array specifying the co-ordinates in the corresponding dimension of `field`. Note this 
-        is different from :func:`angular_average`.
+    coords : list of n arrays
+        A list of 1D arrays specifying the co-ordinates in each dimension *to be average*.
 
     bins : int or array.
-        Specifies the bins for the averaged dimensions. Can be an int or array specifying bin edges.
+        Specifies the radial bins for the averaged dimensions. Can be an int or array specifying radial bin edges.
 
     n : int, optional
         The number of dimensions to be averaged. By default, all dimensions are averaged. Always uses
         the first `n` dimensions.
         
     weights : array, optional
-        An array of the same shape as the first n dimensions of `field`, giving a weight for each entry.
+        An array of the same shape as the first `n` dimensions of `field`, giving a weight for each entry.
         
     average : bool, optional
         Whether to take the (weighted) average. If False, returns the (unweighted) sum.
@@ -211,11 +240,17 @@ def angular_average_nd(field, coords, bins, n=None, weights=1, average=True, bin
 
     Returns
     -------
-    field_1d : array
-        The field averaged angularly (finally 1D)
+    field : (m-n+1)-array
+        The angularly-averaged field. The first dimension corresponds to `bins`, while the rest correspond to the
+        unaveraged dimensions.
 
-    bins : array
-        The mean co-ordinate in each radial bin (or the bin edges, if `bin_ave` is False)
+    bins : 1D-array
+        The radial co-ordinates of the bins. Either the mean co-ordinate from the input data, or the regularly spaced
+        bins, dependent on `bin_ave`.
+
+    var : (m-n+1)-array, optional
+        The variance of the averaged field (same shape as `field`), estimated from the mean standard error.
+        Only returned if `get_variance` is True.
 
     Examples
     --------
@@ -231,7 +266,7 @@ def angular_average_nd(field, coords, bins, n=None, weights=1, average=True, bin
     >>> plt.plot(bins, np.exp(-bins**2), label="Input Function")   # Plot input function versus ang. avg.
     >>> plt.plot(bins, avgfunc, label="Averaged Function")
 
-    Create a 2D radial function, extended to 3D, and average over first 2 dimensions:
+    Create a 2D radial function, extended to 3D, and average over first 2 dimensions (cylindrical average):
     
     >>> r = np.sqrt(X**2+Y**2)
     >>> field = np.exp(-r**2)    # 2D field
@@ -246,14 +281,12 @@ def angular_average_nd(field, coords, bins, n=None, weights=1, average=True, bin
     if len(coords) != len(field.shape):
         raise ValueError("coords should be a list of arrays, one for each dimension.")
 
-    av_coords = _magnitude_grid([c for i, c in enumerate(coords) if i < n])
-
-    # bins = _getbins(bins, av_coords, log_bins)
-
     if n == len(coords):
-        return angular_average(field, av_coords, bins, weights, average, bin_ave, get_variance, log_bins=log_bins)
+        return angular_average(field, coords, bins, weights, average, bin_ave, get_variance, log_bins=log_bins)
 
-    indx, bins, sumweights = _get_binweights(av_coords, weights, bins, average, bin_ave=bin_ave, log_bins=log_bins)
+    coords = _magnitude_grid([c for i, c in enumerate(coords) if i < n])
+
+    indx, bins, sumweights = _get_binweights(coords, weights, bins, average, bin_ave=bin_ave, log_bins=log_bins)
 
     n1 = np.product(field.shape[:n])
     n2 = np.product(field.shape[n:])
@@ -283,12 +316,15 @@ def get_power(deltax, boxlength, deltax2=None, N=None, a=1., b=1., remove_shotno
               vol_normalised_power=True, bins=None, res_ndim=None, weights=None, weights2=None,
               dimensionless=True, bin_ave=True, get_variance=False, log_bins=False):
     r"""
-    Calculate the isotropic power spectrum of a given field.
+    Calculate the isotropic power spectrum of a given field, or cross-power of two similar fields.
+
+    This function, by default, conforms to typical cosmological power spectrum conventions -- normalising by the volume
+    of the box and removing shot noise if applicable. These options are configurable.
 
     Parameters
     ----------
     deltax : array-like
-        The field to calculate the power spectrum of. Can either be arbitrarily n-dimensional, or 2-dimensional with the 
+        The field on which to calculate the power spectrum . Can either be arbitrarily n-dimensional, or 2-dimensional with the
         first being the number of spatial dimensions, and the second the positions of discrete particles in the field. 
         The former should represent a density field, while the latter
         is a discrete sampling of a field. This function chooses which to use by checking the value of `N` (see below).
@@ -343,7 +379,7 @@ def get_power(deltax, boxlength, deltax2=None, N=None, a=1., b=1., remove_shotno
     Returns
     -------
     p_k : array
-        The power spectrum averaged over bins of equal ``|k|``.
+        The power spectrum averaged over bins of equal :math:`|k|`.
 
     meank : array
         The bin-centres for the p_k array (in k). This is the mean k-value for cells in that bin.
@@ -452,4 +488,7 @@ def get_power(deltax, boxlength, deltax2=None, N=None, a=1., b=1., remove_shotno
     if remove_shotnoise and Npart1:
         res[0] -= np.sqrt(V ** 2 / Npart1 / Npart2)
 
-    return res
+    if res_ndim < dim:
+        return res + [freq[res_ndim:]]
+    else:
+        return res
