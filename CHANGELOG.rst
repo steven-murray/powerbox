@@ -63,7 +63,7 @@ v0.5.1 [4 May 2018]
 - Now correctly flattens weights before getting the field average in angular_average_nd
 
 v0.5.0 [7 Nov 2017]
-~~~~~~~~~~~~~~~~~~~
+------------------~
 **Features**
 
 - Input boxes to get_power no longer need to have same length on every dimension.
@@ -83,26 +83,26 @@ v0.5.0 [7 Nov 2017]
 - Fixed issue where incorrect first_edge assignment in get_power resulted in bad power spectrum. No longer require this arg.
 
 v0.4.3 [29 March 2017]
-~~~~~~~~~~~~~~~~~~~~~~
+----------------------
 **Bugfixes**
 
 - Fixed volume normalisation in get_power.
 
 v0.4.2 [28 March 2017]
-~~~~~~~~~~~~~~~~~~~~~~
+----------------------
 **Features**
 
 - Added ability to cross-correlate boxes in get_power.
 
 v0.4.1
-~~~~~~
+------
 **Bugfixes**
 
 - Fixed cubegrid return value for dft functions when input boxes have different sizes on each dimension.
 
 
 v0.4.0
-~~~~~~
+------
 **Features**
 
 - Added fft/ifft wrappers which consistently return fourier transforms with arbitrary Fourier conventions.
@@ -122,19 +122,19 @@ v0.4.0
 - Ensure mean density is correct in LogNormalPowerBox
 
 v0.3.2
-~~~~~~
+------
 **Bugfixes**
 
 - Fixed bug in pyFFTW cache setting
 
 v0.3.1
-~~~~~~
+------
 **Enhancements**
 
 - New interface with pyFFTW to make fourier transforms ~twice as fast. No difference to the API.
 
 v0.3.0
-~~~~~~
+------
 **Features**
 
 - New functionality in `get_power` function to measure power-spectra of discrete samples.
@@ -145,19 +145,19 @@ v0.3.0
 - `get_power` now more streamlined and intuitive in its API
 
 v0.2.3 [11 Jan 2017]
-~~~~~~~~~~~~~~~~~~~~
+--------------------
 **Enhancements**
 
 - Improved estimation of power (in ``get_power``) for lowest k bin.
 
 v0.2.2 [11 Jan 2017]
-~~~~~~~~~~~~~~~~~~~~
+--------------------
 **Bugfixes**
 
 - Fixed a bug in which the output power spectrum was a factor of sqrt(2) off in normalisation
 
 v0.2.1 [10 Jan 2017]
-~~~~~~~~~~~~~~~~~~~~
+--------------------
 **Bugfixes**
 
 - Fixed output of ``create_discrete_sample`` when not randomising positions.
@@ -167,7 +167,7 @@ v0.2.1 [10 Jan 2017]
 - New option to set bounds of discrete particles to (0, boxlength) rather than centring at 0.
 
 v0.2.0 [10 Jan 2017]
-~~~~~~~~~~~~~~~~~~~~
+--------------------
 **Features**
 
 - New ``LogNormalPowerBox`` class for creating log-normal fields
@@ -177,5 +177,5 @@ v0.2.0 [10 Jan 2017]
 - Restructuring of code for more flexibility after creation. Now requires ``cached_property`` package.
 
 v0.1.0 [27 Oct 2016]
-~~~~~~~~~~~~~~~~~~~~
+--------------------
 First working version. Only Gaussian fields working.
