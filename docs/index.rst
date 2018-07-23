@@ -12,7 +12,7 @@ Contents
 .. toctree::
    :maxdepth: 2
 
-   example_toc
+   examples
    license
    changelog
    api
