@@ -4,3 +4,4 @@ nbsphinx
 ipykernel
 pandoc
 sphinx_rtd_theme
+sphinx-automodapi==0.7
