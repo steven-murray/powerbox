@@ -80,7 +80,6 @@ to the requirements of research of a similar nature. Furthermore, as previously 
 every effort has been made to sufficiently generalize its scope to be of use in related
 fields of research. It has already been instrumental in several publications [@Murray2017; @Wolz2018],
 and we hope it will be a useful tool for approximate theoretical simulations by many others.
-The source-code for ``powerbox`` is available on Github: [@github].
 
 # Acknowledgements
 
