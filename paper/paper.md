@@ -29,7 +29,7 @@ description of a purely Gaussian process -- for such statistical processes, no i
 is contained in higher-order statistics. The prevalence of such processes (or 
 close approximations to them) in physical systems serves to justify the popularity
 of the power spectrum as a key descriptive statistic in various physical sciences, 
-eg. cosmology [@Peacock:1999] and fluid mechanics [@Monin:2007]. It furthermore 
+eg. cosmology [@Peacock1999] and fluid mechanics [@Monin2007]. It furthermore 
 readily avails itself to efficient numerical evaluation, being the  absolute square of 
 the Fourier Transform. 
    
@@ -50,9 +50,9 @@ precise machinery for *creating* a field from a given power spectrum depends on 
 probability density function (PDF) of the process itself. The machinery for creating a 
 Gaussian field is well-known. However, other PDF's -- especially those that are positively
 bounded -- are extremely useful for describing such physical entities as density fields.
-In these cases, the *log-normal* PDF has become a standard approximation [@Coles:1991],
+In these cases, the *log-normal* PDF has become a standard approximation [@Coles1991],
 and ``powerbox`` makes a point of supporting the machinery for generating log-normal 
-fields [@Beutler:2011] for this purpose. Indeed, ``powerbox`` is *primarily* geared
+fields [@Beutler2011] for this purpose. Indeed, ``powerbox`` is *primarily* geared
 towards supporting cosmological applications, such as measuring and and producing
 samples of galaxy positions in a log-normal density field (while account for standard
 effects such as shot-noise and standard normalisation conventions). It is nevertheless
@@ -78,9 +78,9 @@ that is based on the homogeneous and isotropic power spectrum.
 ``Powerbox`` was written due to research-demand, and as such it is highly likely to be suited
 to the requirements of research of a similar nature. Furthermore, as previously stated,
 every effort has been made to sufficiently generalize its scope to be of use in related
-fields of research. It has already been instrumental in several publications [@Murray:2017], [@Wolz:2018],
+fields of research. It has already been instrumental in several publications [@Murray2017; @Wolz2018],
 and we hope it will be a useful tool for approximate theoretical simulations by many others.
-The source-code for ``powerbox`` is available on Github: [@github]
+The source-code for ``powerbox`` is available on Github: [@github].
 
 # Acknowledgements
 
