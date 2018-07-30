@@ -8,14 +8,12 @@ tags:
 authors:
   - name: Steven G. Murray
     orcid: 0000-0003-3059-3823
-    affiliation: 1, 2, 3
+    affiliation: 1, 2
 affiliations:
- - name: ARC Centre of Excellence for All-sky Astrophysics (CAASTRO)
-   index: 1
  - name: International Centre for Radio Astronomy Research (ICRAR), Curtin University,  Bentley, WA 6102, Australia
-   index: 2
+   index: 1
  - name: ARC Centre of Excellence for All-Sky Astrophysics in 3 Dimensions (ASTRO 3D)
-   index: 3
+   index: 2
 date: 19 July 2018
 bibliography: paper.bib
 ---
@@ -85,5 +83,7 @@ and we hope it will be a useful tool for approximate theoretical simulations by 
 
 The author acknowledges helpful discussions and contributions from Cathryn Trott, Chris Jordan
 and Laura Wolz during the initial development of this project.
+Parts of this research were supported by the Australian Research Council Centre of Excellence 
+for All Sky Astrophysics in 3 Dimensions (ASTRO 3D), through project number CE170100013
 
 # References
