@@ -12,13 +12,16 @@ from .tools import _magnitude_grid
 
 try:
     from multiprocessing import cpu_count
+
     THREADS = cpu_count()
 
     from pyfftw import empty_aligned as empty
+
     HAVE_FFTW = True
 except ImportError:
     empty = np.empty
     HAVE_FFTW = False
+
 
 # TODO: add hankel-transform version of LogNormal
 
@@ -42,10 +45,10 @@ def _make_hermitian(mag, pha):
     kspace : array
         A complex hermitian array with normally distributed amplitudes.
     """
-    revidx = [slice(None, None, -1)]*len(mag.shape)
-    mag = (mag + mag[revidx])/np.sqrt(2)
-    pha = (pha - pha[revidx])/2 + np.pi
-    return mag*(np.cos(pha) + 1j*np.sin(pha))
+    revidx = [slice(None, None, -1)] * len(mag.shape)
+    mag = (mag + mag[revidx]) / np.sqrt(2)
+    pha = (pha - pha[revidx]) / 2 + np.pi
+    return mag * (np.cos(pha) + 1j * np.sin(pha))
 
 
 class PowerBox(object):
@@ -139,7 +142,7 @@ class PowerBox(object):
         self.V = self.boxlength ** self.dim
 
         if self.vol_normalised_power:
-            self.pk = lambda k: pk(k)/self.V
+            self.pk = lambda k: pk(k) / self.V
         else:
             self.pk = pk
 
@@ -148,7 +151,7 @@ class PowerBox(object):
 
         self.seed = seed
 
-        if N%2 == 0:
+        if N % 2 == 0:
             self._even = True
         else:
             self._even = False
@@ -156,7 +159,7 @@ class PowerBox(object):
         self.n = N + 1 if self._even else N
 
         # Get the grid-size for the final real-space box.
-        self.dx = float(boxlength)/N
+        self.dx = float(boxlength) / N
 
     def k(self):
         "The entire grid of wavenumber magitudes"
@@ -175,20 +178,20 @@ class PowerBox(object):
     @property
     def x(self):
         "The co-ordinates of the grid along a side"
-        return np.arange(-self.boxlength/2, self.boxlength/2, self.dx)[:self.N]
+        return np.arange(-self.boxlength / 2, self.boxlength / 2, self.dx)[:self.N]
 
     def gauss_hermitian(self):
         "A random array which has Gaussian magnitudes and Hermitian symmetry"
         if self.seed:
             np.random.seed(self.seed)
 
-        mag = np.random.normal(0, 1, size=[self.n]*self.dim)
-        pha = 2*np.pi*np.random.uniform(size=[self.n]*self.dim)
+        mag = np.random.normal(0, 1, size=[self.n] * self.dim)
+        pha = 2 * np.pi * np.random.uniform(size=[self.n] * self.dim)
 
         dk = _make_hermitian(mag, pha)
 
         if self._even:
-            cutidx = [slice(None, -1)]*self.dim
+            cutidx = [slice(None, -1)] * self.dim
             dk = dk[cutidx]
 
         return dk
@@ -205,20 +208,20 @@ class PowerBox(object):
         "A realisation of the delta_k, i.e. the gaussianised square root of the power spectrum (i.e. the Fourier co-efficients)"
         p = self.power_array()
 
-        if np.any(p<0):
+        if np.any(p < 0):
             raise ValueError("The power spectrum function has returned negative values.")
 
         gh = self.gauss_hermitian()
-        gh[...] = np.sqrt(p)*gh
+        gh[...] = np.sqrt(p) * gh
         return gh
 
     def delta_x(self):
         "The realised field in real-space from the input power spectrum"
         # Here we multiply by V because the (inverse) fourier-transform of the (dimensionless) power has
         # units of 1/V and we require a unitless quantity for delta_x.
-        dk = empty((self.N,)*self.dim,dtype='complex128')
+        dk = empty((self.N,) * self.dim, dtype='complex128')
         dk[...] = self.delta_k()
-        dk[...] = self.V*dft.ifft(dk, L=self.boxlength, a=self.fourier_a, b=self.fourier_b)[0]
+        dk[...] = self.V * dft.ifft(dk, L=self.boxlength, a=self.fourier_a, b=self.fourier_b)[0]
         dk = np.real(dk)
 
         if self.ensure_physical:
@@ -252,22 +255,22 @@ class PowerBox(object):
             a single tracer's co-ordinates.
         """
         dx = self.delta_x()
-        dx = (dx + 1)*self.dx ** self.dim*nbar
+        dx = (dx + 1) * self.dx ** self.dim * nbar
         n = dx
         self.n_per_cell = np.random.poisson(n)
 
         # Get all source positions
-        args = [self.x]*self.dim
+        args = [self.x] * self.dim
         X = np.meshgrid(*args)
 
         tracer_positions = np.array([x.flatten() for x in X]).T
         tracer_positions = tracer_positions.repeat(self.n_per_cell.flatten(), axis=0)
 
         if randomise_in_cell:
-            tracer_positions += np.random.uniform(size=(np.sum(self.n_per_cell), self.dim))*self.dx
+            tracer_positions += np.random.uniform(size=(np.sum(self.n_per_cell), self.dim)) * self.dx
 
         if min_at_zero:
-            tracer_positions += self.boxlength/2.0
+            tracer_positions += self.boxlength / 2.0
 
         if store_pos:
             self.tracer_positions = tracer_positions
@@ -321,9 +324,9 @@ class LogNormalPowerBox(PowerBox):
 
     def correlation_array(self):
         "The correlation function from the input power, on the grid"
-        pa = empty((self.N,)*self.dim)
+        pa = empty((self.N,) * self.dim)
         pa[...] = self.power_array()
-        return self.V*np.real(dft.ifft(pa, L=self.boxlength, a=self.fourier_a, b=self.fourier_b)[0])
+        return self.V * np.real(dft.ifft(pa, L=self.boxlength, a=self.fourier_a, b=self.fourier_b)[0])
 
     def gaussian_correlation_array(self):
         "The correlation function required for a Gaussian field to produce the input power on a lognormal field"
@@ -331,7 +334,7 @@ class LogNormalPowerBox(PowerBox):
 
     def gaussian_power_array(self):
         "The power spectrum required for a Gaussian field to produce the input power on a lognormal field"
-        gca = empty((self.N,)*self.dim)
+        gca = empty((self.N,) * self.dim)
         gca[...] = self.gaussian_correlation_array()
         gpa = np.abs(dft.fft(gca, L=self.boxlength, a=self.fourier_a, b=self.fourier_b))[0]
         gpa[self.k() == 0] = 0
@@ -344,15 +347,15 @@ class LogNormalPowerBox(PowerBox):
         """
         p = self.gaussian_power_array()
         gh = self.gauss_hermitian()
-        gh[...] = np.sqrt(p)*gh
+        gh[...] = np.sqrt(p) * gh
         return gh
 
     def delta_x(self):
         "The real-space over-density field, from the input power spectrum"
-        dk = empty((self.N,)*self.dim,dtype='complex128')
+        dk = empty((self.N,) * self.dim, dtype='complex128')
         dk[...] = self.delta_k()
-        dk[...] = np.sqrt(self.V)*dft.ifft(dk, L=self.boxlength, a=self.fourier_a, b=self.fourier_b)[0]
+        dk[...] = np.sqrt(self.V) * dft.ifft(dk, L=self.boxlength, a=self.fourier_a, b=self.fourier_b)[0]
         dk = np.real(dk)
 
         sg = np.var(dk)
-        return np.exp(dk - sg/2) - 1
+        return np.exp(dk - sg / 2) - 1
