@@ -9,6 +9,9 @@ powerbox
     :target: https://coveralls.io/github/steven-murray/powerbox?branch=master
 .. image:: https://api.codacy.com/project/badge/Grade/5853411c78444a5a9c6ec4058c6dbda9
     :target: https://www.codacy.com/app/steven-murray/powerbox?utm_source=github.com&amp;utm_medium=referral&amp;utm_content=steven-murray/powerbox&amp;utm_campaign=Badge_Grade
+.. image:: https://zenodo.org/badge/72076717.svg
+   :target: https://zenodo.org/badge/latestdoi/72076717
+
 
 **Make arbitrarily structured, arbitrary-dimension boxes and log-normal mocks.**
 
