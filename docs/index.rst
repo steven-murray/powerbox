@@ -15,6 +15,8 @@ Contents
    examples
    license
    changelog
+   authors
+   contributing
    api
 
 

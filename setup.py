@@ -33,7 +33,7 @@ setup(
     name="powerbox",
     version=find_version("powerbox", "__init__.py"),
     packages=['powerbox'],
-    install_requires=["numpy>=1.6.2","cached_property"],
+    install_requires=["numpy>=1.6.2"],
     author="Steven Murray",
     author_email="steven.murray@curtin.edu.au",
     description="Create arbitrary boxes with isotropic power spectra",

@@ -28,7 +28,25 @@ Features
 
 Installation
 ------------
-Clone/Download then ``pip install .``. Or just ``pip install powerbox``.
+``powerbox`` only depends on ``numpy >= 1.6.2``, which will be installed automatically if ``powerbox`` is installed
+using ``pip`` (see below). Furthermore, it has the optional dependency of ``pyfftw``, which if installed will offer
+~2x performance increase in large fourier transforms. This will be seamlessly used if installed.
+
+To install ``pyfftw``, simply do::
+
+    pip install pyfftw
+
+To install ``powerbox``, do::
+
+    pip install powerbox
+
+Alternatively, the bleeding-edge version from git can be installed with::
+
+    pip install git+git://github.com/steven-murray/powerbox.git
+
+Finally, for a development installation, download the source code and then run (in the top-level directory)::
+
+    pip install -e .
 
 Acknowledgment
 --------------
