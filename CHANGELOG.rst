@@ -1,6 +1,12 @@
 Changelog
 =========
 
+dev
+---------------------
+**Bugfixes**
+
+- Removed redundant `seed` parameter from `create_discrete_sample()`.
+
 v0.5.5 [19 July 2018]
 ---------------------
 **Bugfixes**
