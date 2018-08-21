@@ -11,7 +11,8 @@ powerbox
     :target: https://www.codacy.com/app/steven-murray/powerbox?utm_source=github.com&amp;utm_medium=referral&amp;utm_content=steven-murray/powerbox&amp;utm_campaign=Badge_Grade
 .. image:: https://zenodo.org/badge/72076717.svg
    :target: https://zenodo.org/badge/latestdoi/72076717
-
+.. image:: http://joss.theoj.org/papers/10.21105/joss.00850/status.svg
+   :target: https://doi.org/10.21105/joss.00850
 
 **Make arbitrarily structured, arbitrary-dimension boxes and log-normal mocks.**
 
@@ -53,7 +54,8 @@ Finally, for a development installation, download the source code and then run (
 
 Acknowledgment
 --------------
-If you find ``powerbox`` useful in your research, please cite http://ascl.net/1805.001
+If you find ``powerbox`` useful in your research, please cite the Journal of Open Source Software paper at
+https://doi.org/10.21105/joss.00850.
 
 QuickLinks
 ----------
