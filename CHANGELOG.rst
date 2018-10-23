@@ -1,8 +1,12 @@
 Changelog
 =========
 
-dev
----------------------
+v0.5.6 [23 Oct 2018]
+--------------------
+**Enhancements**
+
+- Added `ignore_zero_mode` parameter to `get_power`.
+
 **Bugfixes**
 
 - Removed redundant `seed` parameter from `create_discrete_sample()`.

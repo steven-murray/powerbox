@@ -1,4 +1,4 @@
-__version__ = "0.5.5"
+__version__ = "0.5.6"
 
 from .powerbox import PowerBox, LogNormalPowerBox
 from .tools import get_power, angular_average, angular_average_nd
