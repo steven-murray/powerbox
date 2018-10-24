@@ -1,6 +1,17 @@
 Changelog
 =========
 
+v0.5.7 [24 Oct 2018]
+--------------------
+**Enhancements**
+
+- Added ability to use weights on k-modes in `get_power`.
+
+**Bugfixes**
+
+- Fixed bug on using `ignore_zero_mode` introduced in v0.5.6
+- Added tests for `ignore_zero_mode` and `k_weights`
+
 v0.5.6 [23 Oct 2018]
 --------------------
 **Enhancements**

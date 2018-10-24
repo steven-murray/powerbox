@@ -45,7 +45,7 @@ def _make_hermitian(mag, pha):
     kspace : array
         A complex hermitian array with normally distributed amplitudes.
     """
-    revidx = [slice(None, None, -1)] * len(mag.shape)
+    revidx = (slice(None, None, -1),) * len(mag.shape)
     mag = (mag + mag[revidx]) / np.sqrt(2)
     pha = (pha - pha[revidx]) / 2 + np.pi
     return mag * (np.cos(pha) + 1j * np.sin(pha))
@@ -191,7 +191,7 @@ class PowerBox(object):
         dk = _make_hermitian(mag, pha)
 
         if self._even:
-            cutidx = [slice(None, -1)] * self.dim
+            cutidx = (slice(None, -1),) * self.dim
             dk = dk[cutidx]
 
         return dk

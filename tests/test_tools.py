@@ -96,7 +96,7 @@ def test_var_trivial_weights():
     P += np.random.normal(scale=1, size=(len(x), len(x)))
     ave, coord, var = angular_average(P, np.sqrt(r2), bins=np.linspace(0,x.max(), 20), get_variance=True, weights=np.ones_like(r2))
     print(np.diff(var))
-    assert np.all(np.diff(var)<=0)
+    assert np.all(np.diff(var)<=1e-6)
 
 
 def test_logbins():
@@ -107,6 +107,7 @@ def test_logbins():
     ave, coord = angular_average(P, np.sqrt(r2), bins=10, bin_ave=False, log_bins=True)
 
     assert np.all(np.isclose(np.diff(coord[1:]/coord[:-1]), 0))
+
 
 
 @pytest.mark.skip()

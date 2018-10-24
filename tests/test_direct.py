@@ -11,10 +11,10 @@ from powerbox import PowerBox
 N = 5
 
 def ensure_hermitian(b):
-    revidx = [slice(None, None, -1)]*len(b.shape)
+    revidx = (slice(None, None, -1),)*len(b.shape)
 
     if len(b)%2==0:
-        cutidx = [slice(1,None,None)]*len(b.shape)
+        cutidx = (slice(1,None,None),)*len(b.shape)
         b = b[cutidx]
 
     print(b-b[revidx])

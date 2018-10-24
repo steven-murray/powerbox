@@ -314,7 +314,9 @@ def angular_average_nd(field, coords, bins, n=None, weights=1, average=True, bin
 
 def get_power(deltax, boxlength, deltax2=None, N=None, a=1., b=1., remove_shotnoise=True,
               vol_normalised_power=True, bins=None, res_ndim=None, weights=None, weights2=None,
-              dimensionless=True, bin_ave=True, get_variance=False, log_bins=False, ignore_zero_mode=False):
+              dimensionless=True, bin_ave=True, get_variance=False, log_bins=False, ignore_zero_mode=False,
+              k_weights = 1,
+              ):
     r"""
     Calculate the isotropic power spectrum of a given field, or cross-power of two similar fields.
 
@@ -378,6 +380,9 @@ def get_power(deltax, boxlength, deltax2=None, N=None, a=1., b=1., remove_shotno
 
     ignore_zero_mode : bool, optional
         Whether to ignore the k=0 mode (or DC term).
+
+    k_weights : nd-array, optional
+        The weights of the n-dimensional k modes. This can be used to filter out some modes completely.
 
     Returns
     -------
@@ -484,17 +489,17 @@ def get_power(deltax, boxlength, deltax2=None, N=None, a=1., b=1., remove_shotno
     if bins is None:
         bins = int(np.product(N[:res_ndim]) ** (1. / res_ndim) / 2.2)
 
-    # Set weights so that k=0 mode is ignore if desired.
+    # Set k_weights so that k=0 mode is ignore if desired.
     if ignore_zero_mode:
-        weights = np.ones_like(freq)
         kmag = _magnitude_grid([c for i, c in enumerate(freq) if i < res_ndim])
-        weights[kmag==0] = 0
-    else:
-        weights = 1
+        if np.isscalar(k_weights):
+            k_weights = np.ones_like(kmag)
+
+        k_weights[kmag == 0] = 0
 
     # res is (P, k, <var>)
     res = angular_average_nd(P, freq, bins, n=res_ndim, bin_ave=bin_ave, get_variance=get_variance, log_bins=log_bins,
-                             weights=weights)
+                             weights=k_weights)
     res = list(res)
     # Remove shot-noise
     if remove_shotnoise and Npart1:

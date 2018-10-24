@@ -6,3 +6,5 @@ dist/*
 *checkpoint.ipynb
 docs/_*
 \.pytest_cache/v/cache/
+.tox/*
+\.coverage
