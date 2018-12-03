@@ -132,7 +132,7 @@ def fft(X, L=None, Lk=None, a=0, b=2*np.pi, axes=None, ret_cubegrid=False):
 
     dx = np.array([float(l)/float(n) for l, n in zip(L, N)])
 
-    freq = np.array([fftfreq(n, d=d,b=b) for n, d in zip(N, dx)])
+    freq = np.array([fftfreq(n, d=d, b=b) for n, d in zip(N, dx)])
     if not ret_cubegrid:
         return ft, freq
     else:

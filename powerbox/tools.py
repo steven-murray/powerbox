@@ -126,7 +126,6 @@ def _get_binweights(coords, weights, bins, average=True, bin_ave=True, log_bins=
     # Get a vector of bin edges
     bins = _getbins(bins, coords, log_bins)
 
-    # Minus 1 to have first index at 0
     indx = np.digitize(coords.flatten(), bins)
 
     if average or bin_ave:

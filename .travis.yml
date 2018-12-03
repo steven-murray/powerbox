@@ -15,11 +15,6 @@ install: pip install -U tox-travis coverage coveralls
 script:
   - tox
   - coverage report
-#  - coverage run --source pydftools -m py.test
-#  - coverage report -m
-
-after_success:
-  - coveralls
 
 
 # Calculate coverage
