@@ -1,6 +1,12 @@
 Changelog
 =========
 
+dev
+---
+**Bugfixes**
+
+- Make warning about pyFFTW slightly less obnoxious.
+
 v0.5.7 [24 Oct 2018]
 --------------------
 **Enhancements**

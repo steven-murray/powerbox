@@ -48,7 +48,6 @@ try:
     HAVE_FFTW = True
 
 except ImportError:
-    warnings.warn("You do not have pyFFTW installed. Installing it should give some speed increase.")
     HAVE_FFTW = False
     from numpy.fft import fftn, ifftn, ifftshift as _ifftshift, fftshift as _fftshift, fftfreq as _fftfreq
 
@@ -108,6 +107,8 @@ def fft(X, L=None, Lk=None, a=0, b=2*np.pi, axes=None, ret_cubegrid=False):
         of the frequencies at each point of the fourier transform.
     """
 
+    if not HAVE_FFTW:
+        warnings.warn("You do not have pyFFTW installed. Installing it should give some speed increase.")
 
     if axes is None:
         axes = list(range(len(X.shape)))
@@ -194,6 +195,8 @@ def ifft(X, Lk=None,L=None, a=0, b=2*np.pi, axes=None,ret_cubegrid=False):
         of the real-space co-ordinates at each point of the inverse fourier transform.
     """
 
+    if not HAVE_FFTW:
+        warnings.warn("You do not have pyFFTW installed. Installing it should give some speed increase.")
 
     if axes is None:
         axes = list(range(len(X.shape)))
