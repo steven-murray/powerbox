@@ -32,18 +32,24 @@ __all__ = ['fft', 'ifft', 'fftfreq', 'fftshift', 'ifftshift']
 try:
 
     from multiprocessing import cpu_count
+
     THREADS = cpu_count()
 
-    from pyfftw.interfaces.numpy_fft import fftn as _fftn, ifftn as _ifftn, ifftshift as _ifftshift, fftshift as _fftshift, fftfreq as _fftfreq
+    from pyfftw.interfaces.numpy_fft import fftn as _fftn, ifftn as _ifftn, ifftshift as _ifftshift, \
+        fftshift as _fftshift, fftfreq as _fftfreq
     from pyfftw.interfaces.cache import enable, set_keepalive_time
-#    enable()
-#    set_keepalive_time(100.)
 
-    def fftn(*args,**kwargs):
-        return _fftn(threads=THREADS,*args,**kwargs)
+
+    #    enable()
+    #    set_keepalive_time(100.)
+
+    def fftn(*args, **kwargs):
+        return _fftn(threads=THREADS, *args, **kwargs)
+
 
     def ifftn(*args, **kwargs):
-        return _ifftn(threads=THREADS,*args, **kwargs)
+        return _ifftn(threads=THREADS, *args, **kwargs)
+
 
     HAVE_FFTW = True
 
@@ -55,7 +61,7 @@ except ImportError:
 import numpy as np
 
 
-def fft(X, L=None, Lk=None, a=0, b=2*np.pi, axes=None, ret_cubegrid=False):
+def fft(X, L=None, Lk=None, a=0, b=2 * np.pi, left_edge=None, axes=None, ret_cubegrid=False):
     r"""
     Arbitrary-dimension nice Fourier Transform.
 
@@ -88,6 +94,10 @@ def fft(X, L=None, Lk=None, a=0, b=2*np.pi, axes=None, ret_cubegrid=False):
         These define the Fourier convention used. See :mod:`powerbox.dft` for details. The defaults return the standard DFT
         as defined in :mod:`numpy.fft`.
 
+    left_edge : float or array-like, optional
+        The co-ordinate at the left-edge for each dimension that is being transformed. By default, sets the left
+        edge to 0, equivalent to the standard numpy fft. This affects only the phases of the result.
+
     axes : sequence of ints, optional
         The axes to take the transform over. The default is to use all axes for the transform.
 
@@ -118,33 +128,41 @@ def fft(X, L=None, Lk=None, a=0, b=2*np.pi, axes=None, ret_cubegrid=False):
     # Get the box volume if given the fourier-space box volume
     if L is None and Lk is None:
         L = N
-    elif L is not None:    # give precedence to L
+    elif L is not None:  # give precedence to L
         if np.isscalar(L):
-            L = L*np.ones(len(axes))
+            L = L * np.ones(len(axes))
     elif Lk is not None:
         if np.isscalar(Lk):
             Lk = Lk * np.ones(len(axes))
-        L = N*2*np.pi/(Lk*b) # Take account of the fourier convention.
+        L = N * 2 * np.pi / (Lk * b)  # Take account of the fourier convention.
 
-    V = float(np.product(L))    # Volume of box
-    Vx = V/np.product(N) # Volume of cell
+    if left_edge is None:
+        left_edge = [-l / 2 for l in L]
+    else:
+        if np.isscalar(left_edge):
+            left_edge = [left_edge] * len(axes)
+        else:
+            assert len(left_edge) == len(axes)
 
-    ft = Vx*fftshift(fftn(X, axes=axes),axes=axes)*np.sqrt(np.abs(b)/(2*np.pi) ** (1 - a)) ** len(axes)
+    V = float(np.product(L))  # Volume of box
+    Vx = V / np.product(N)  # Volume of cell
 
-    dx = np.array([float(l)/float(n) for l, n in zip(L, N)])
+    ft = Vx * fftshift(fftn(X, axes=axes), axes=axes) * np.sqrt(np.abs(b) / (2 * np.pi) ** (1 - a)) ** len(axes)
+
+    dx = np.array([float(l) / float(n) for l, n in zip(L, N)])
 
     freq = np.array([fftfreq(n, d=d, b=b) for n, d in zip(N, dx)])
-    if not ret_cubegrid:
-        return ft, freq
-    else:
-        grid = freq[0] ** 2
-        for i in range(len(axes) - 1):
-            grid = np.add.outer(grid, freq[i+1] ** 2)
 
-        return ft, freq, np.sqrt(grid)
+    # Adjust phases of the result to align with the left edge properly.
+    for i, (l, f) in zip(left_edge, freq):
+        xp = np.exp(b * 1j * f * l)
+        obj = tuple([None] * axes[i]) + (slice(None, None, None),) + tuple([None] * (len(X.shape) - len(axes) - 1))
+        ft *= xp[obj]
+
+    return _retfunc(ft, freq, axes, ret_cubegrid)
 
 
-def ifft(X, Lk=None,L=None, a=0, b=2*np.pi, axes=None,ret_cubegrid=False):
+def ifft(X, Lk=None, L=None, a=0, b=2 * np.pi, axes=None, ret_cubegrid=False):
     r"""
     Arbitrary-dimension nice inverse Fourier Transform.
 
@@ -208,43 +226,47 @@ def ifft(X, Lk=None,L=None, a=0, b=2*np.pi, axes=None,ret_cubegrid=False):
         Lk = 1
     elif L is not None:
         if np.isscalar(L):
-            L = np.array([L]*len(axes))
+            L = np.array([L] * len(axes))
 
-        dx = L/N
-        Lk = 2*np.pi/(dx*b)
+        dx = L / N
+        Lk = 2 * np.pi / (dx * b)
 
     elif np.isscalar(Lk):
-        Lk = [Lk]*len(axes)
+        Lk = [Lk] * len(axes)
 
     Lk = np.array(Lk)
 
     V = np.product(Lk)
-    dk = np.array([float(lk)/float(n) for lk, n in zip(Lk, N)])
+    dk = np.array([float(lk) / float(n) for lk, n in zip(Lk, N)])
 
-    ft = V*ifftn(ifftshift(X,axes=axes), axes=axes)*np.sqrt(np.abs(b)/(2*np.pi) ** (1 + a)) ** len(axes)
+    ft = V * ifftn(ifftshift(X, axes=axes), axes=axes) * np.sqrt(np.abs(b) / (2 * np.pi) ** (1 + a)) ** len(axes)
 
-    freq = np.array([fftfreq(n, d=d,b=b) for n, d in zip(N, dk)])
+    freq = np.array([fftfreq(n, d=d, b=b) for n, d in zip(N, dk)])
 
+    return _retfunc(ft, freq, axes, ret_cubegrid)
+
+
+def _retfunc(ft, freq, axes, ret_cubegrid):
     if not ret_cubegrid:
         return ft, freq
     else:
         grid = freq[0] ** 2
-        for i in range(len(axes) - 1):
+        for i in range(1, len(axes)):
             grid = np.add.outer(grid, freq[i] ** 2)
 
         return ft, freq, np.sqrt(grid)
 
 
-def fftshift(x,*args,**kwargs):
+def fftshift(x, *args, **kwargs):
     """
     The same as numpy's fftshift, except that it preserves units (if Astropy quantities are used)
     
     All extra arguments are passed directly to numpy's `fftshift`.
     """
-    out = _fftshift(x,*args,**kwargs)
+    out = _fftshift(x, *args, **kwargs)
 
-    if hasattr(x,"unit"):
-        return out*x.unit
+    if hasattr(x, "unit"):
+        return out * x.unit
     else:
         return out
 
@@ -263,7 +285,7 @@ def ifftshift(x, *args, **kwargs):
         return out
 
 
-def fftfreq(N,d=1.0,b=2*np.pi):
+def fftfreq(N, d=1.0, b=2 * np.pi):
     """
     Return the fourier frequencies for a box with N cells, using general Fourier convention.
 
@@ -284,4 +306,4 @@ def fftfreq(N,d=1.0,b=2*np.pi):
         The N symmetric frequency components of the Fourier transform. Always centred at 0.
 
     """
-    return fftshift(_fftfreq(N, d=d))*(2*np.pi/b)
+    return fftshift(_fftfreq(N, d=d)) * (2 * np.pi / b)
