@@ -96,7 +96,7 @@ def fft(X, L=None, Lk=None, a=0, b=2 * np.pi, left_edge=None, axes=None, ret_cub
 
     left_edge : float or array-like, optional
         The co-ordinate at the left-edge for each dimension that is being transformed. By default, sets the left
-        edge to 0, equivalent to the standard numpy fft. This affects only the phases of the result.
+        edge to -L/2, so that the input is centred before transforming (i.e. equivalent to ``fftshift(fft(fftshift(X)))``)
 
     axes : sequence of ints, optional
         The axes to take the transform over. The default is to use all axes for the transform.
@@ -136,13 +136,7 @@ def fft(X, L=None, Lk=None, a=0, b=2 * np.pi, left_edge=None, axes=None, ret_cub
             Lk = Lk * np.ones(len(axes))
         L = N * 2 * np.pi / (Lk * b)  # Take account of the fourier convention.
 
-    if left_edge is None:
-        left_edge = [-l / 2 for l in L]
-    else:
-        if np.isscalar(left_edge):
-            left_edge = [left_edge] * len(axes)
-        else:
-            assert len(left_edge) == len(axes)
+    left_edge = _set_left_edge(left_edge, axes, L)
 
     V = float(np.product(L))  # Volume of box
     Vx = V / np.product(N)  # Volume of cell
@@ -154,15 +148,11 @@ def fft(X, L=None, Lk=None, a=0, b=2 * np.pi, left_edge=None, axes=None, ret_cub
     freq = np.array([fftfreq(n, d=d, b=b) for n, d in zip(N, dx)])
 
     # Adjust phases of the result to align with the left edge properly.
-    for i, (l, f) in zip(left_edge, freq):
-        xp = np.exp(b * 1j * f * l)
-        obj = tuple([None] * axes[i]) + (slice(None, None, None),) + tuple([None] * (len(X.shape) - len(axes) - 1))
-        ft *= xp[obj]
-
+    ft = _adjust_phase(ft, left_edge, freq, axes, b)
     return _retfunc(ft, freq, axes, ret_cubegrid)
 
 
-def ifft(X, Lk=None, L=None, a=0, b=2 * np.pi, axes=None, ret_cubegrid=False):
+def ifft(X, Lk=None, L=None, a=0, b=2 * np.pi, axes=None, left_edge=None, ret_cubegrid=False):
     r"""
     Arbitrary-dimension nice inverse Fourier Transform.
 
@@ -177,7 +167,8 @@ def ifft(X, Lk=None, L=None, a=0, b=2 * np.pi, axes=None, ret_cubegrid=False):
     X : array
         An array with arbitrary dimensions defining the field to be transformed. Should correspond exactly
         to the continuous function for which it is an analogue. A lower-dimensional transform can be specified by using
-        the ``axes`` argument. Note that this should have its zero in the center.
+        the ``axes`` argument. Note that if using a non-periodic function, the co-ordinates should be monotonically
+        increasing.
 
     Lk : float or array-like, optional
         The length of the box which defines ``X``. If a scalar, each transformed dimension in ``X`` is assumed to have
@@ -196,6 +187,10 @@ def ifft(X, Lk=None, L=None, a=0, b=2 * np.pi, axes=None, ret_cubegrid=False):
 
     axes : sequence of ints, optional
         The axes to take the transform over. The default is to use all axes for the transform.
+
+    left_edge : float or array-like, optional
+        The co-ordinate at the left-edge (in k-space) for each dimension that is being transformed. By default, sets the
+        left edge to -Lk/2, equivalent to the standard numpy ifft. This affects only the phases of the result.
 
     ret_cubegrid : bool, optional
         Whether to return the entire grid of real-space co-ordinate magnitudes.
@@ -235,15 +230,38 @@ def ifft(X, Lk=None, L=None, a=0, b=2 * np.pi, axes=None, ret_cubegrid=False):
         Lk = [Lk] * len(axes)
 
     Lk = np.array(Lk)
+    left_edge = _set_left_edge(left_edge, axes, Lk)
 
     V = np.product(Lk)
     dk = np.array([float(lk) / float(n) for lk, n in zip(Lk, N)])
 
-    ft = V * ifftn(ifftshift(X, axes=axes), axes=axes) * np.sqrt(np.abs(b) / (2 * np.pi) ** (1 + a)) ** len(axes)
+    ft = V * ifftn(X, axes=axes) * np.sqrt(np.abs(b) / (2 * np.pi) ** (1 + a)) ** len(axes)
+    ft = ifftshift(ft, axes=axes)
 
     freq = np.array([fftfreq(n, d=d, b=b) for n, d in zip(N, dk)])
 
+    ft = _adjust_phase(ft, left_edge, freq, axes, -b)
     return _retfunc(ft, freq, axes, ret_cubegrid)
+
+
+def _adjust_phase(ft, left_edge, freq, axes, b):
+    for i, (l, f) in enumerate(zip(left_edge, freq)):
+        xp = np.exp(-b * 1j * f * l)
+        obj = tuple([None] * axes[i]) + (slice(None, None, None),) + tuple([None] * (ft.ndim - axes[i] - 1))
+        ft *= xp[obj]
+    return ft
+
+
+def _set_left_edge(left_edge, axes, L):
+    if left_edge is None:
+        left_edge = [-l/2 for l in L]
+    else:
+        if np.isscalar(left_edge):
+            left_edge = [left_edge] * len(axes)
+        else:
+            assert len(left_edge) == len(axes)
+
+    return left_edge
 
 
 def _retfunc(ft, freq, axes, ret_cubegrid):

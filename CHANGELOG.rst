@@ -3,9 +3,19 @@ Changelog
 
 dev
 ---
+**Features**
+
+- New ``left_edge`` argument in fft/ifft which gives the ability to specify where
+  the x- (or k-) co-ordinates are, in order to set appropriate phase information.
+  NOTE: this changes the default behaviour of the function. While the forward and
+  inverse transforms remain inverses by default, the phases are interpreted as
+  having zero at the centre (for both transforms). See the phasing tutorial for
+  more information.
+
 **Bugfixes**
 
 - Make warning about pyFFTW slightly less obnoxious.
+
 
 v0.5.7 [24 Oct 2018]
 --------------------

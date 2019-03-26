@@ -9,4 +9,5 @@ pytest
 pytest-runner
 pytest-cov
 coveralls
+scipy
 -r docs/requirements.txt
