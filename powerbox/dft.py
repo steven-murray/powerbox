@@ -254,7 +254,7 @@ def _adjust_phase(ft, left_edge, freq, axes, b):
 
 def _set_left_edge(left_edge, axes, L):
     if left_edge is None:
-        left_edge = [-l/2 for l in L]
+        left_edge = [-l/2. for l in L]
     else:
         if np.isscalar(left_edge):
             left_edge = [left_edge] * len(axes)

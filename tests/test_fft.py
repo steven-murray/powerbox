@@ -69,7 +69,7 @@ def test_forward_only(g1d, a, b):
 
 
 def analytic_mix(x, a, b, ainv, binv, n=2):
-    return (binv / (b * (2 * np.pi) ** (ainv - a))) ** (n / 2) * gauss(binv * x / b)
+    return (binv / (b * (2 * np.pi) ** (ainv - a))) ** (n / 2.) * gauss(binv * x / b)
 
 
 @pytest.mark.parametrize("a,b, ainv, binv", ABCOMBOS)
