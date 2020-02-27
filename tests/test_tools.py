@@ -1,5 +1,6 @@
 import numpy as np
-from powerbox.tools import angular_average_nd, angular_average
+from powerbox.tools import angular_average_nd, angular_average, get_power
+from powerbox.powerbox import PowerBox
 import pytest
 
 def test_angular_avg_nd_3():
@@ -108,6 +109,13 @@ def test_logbins():
 
     assert np.all(np.isclose(np.diff(coord[1:]/coord[:-1]), 0))
 
+
+def test_cross_power_identity():
+    pb = PowerBox(200, dim=2, pk=lambda k: 1.0 * k ** -2., boxlength=1.0, b=1)
+    dx = pb.delta_x()
+    p, k = get_power(dx, pb.boxlength, b=1)
+    p_cross, k = get_power(dx, pb.boxlength, b=1, deltax2=dx)
+    assert np.all(np.isclose(p, p_cross))
 
 
 @pytest.mark.skip()

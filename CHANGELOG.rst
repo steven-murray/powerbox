@@ -1,8 +1,14 @@
 Changelog
 =========
 
-dev
----
+0.6.1
+-----
+**Bugfixes**
+
+- Fix error when doing cross-power [Issue #5].
+
+0.6.0
+-----
 **Features**
 
 - New ``left_edge`` argument in fft/ifft which gives the ability to specify where
