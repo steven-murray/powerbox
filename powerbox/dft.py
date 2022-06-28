@@ -226,7 +226,7 @@ def ifft(X, Lk=None, L=None, a=0, b=2 * np.pi, axes=None, left_edge=None, ret_cu
         dx = L / N
         Lk = 2 * np.pi / (dx * b)
 
-    elif np.isscalar(Lk):
+    if np.isscalar(Lk):
         Lk = [Lk] * len(axes)
 
     Lk = np.array(Lk)

@@ -16,10 +16,13 @@ try:
     THREADS = cpu_count()
 
     from pyfftw import empty_aligned as empty
+    from pyfftw import zeros_aligned as zeros
+    
 
     HAVE_FFTW = True
 except ImportError:
     empty = np.empty
+    zeros = np.zeros
     HAVE_FFTW = False
 
 
@@ -36,7 +39,6 @@ def _make_hermitian(mag, pha):
     ----------
     mag : array
         Normally-distributed magnitudes of the complex vector.
-
     pha : array
         Uniformly distributed phases of the complex vector
 
@@ -44,10 +46,44 @@ def _make_hermitian(mag, pha):
     -------
     kspace : array
         A complex hermitian array with normally distributed amplitudes.
+    
+    Notes
+    -----
+    The output array is "hermitian" in the sense that pairs of :math:`\vec{k}` with 
+    the same magnitude and opposite sign are complex conjugates. This applies to arrays
+    of any dimension. Furthermore, it is true under the assumption that the 
+    :math:`\vec{k}` are ordering in ascending order from left to right (negative to 
+    positive), which is consistent with the way that outputs from :module:`powerbox.dft`
+    are ordered (but not standard FFT ordering).
+
+    This is *different* from being a "Hermitian Matrix" in the sense that 
+    :math:`A = A^\star`. That kind of hermitian-ness only applies to square 2D matrices.
+
+    The output of this function has a purely real value at :math:`\vec{k} = 0`, and 
+    elsewhere has only the constraint that the value in the opposite quadrant is its
+    conjugate.
+
+    Thus for example a 1D array of three elements will output in the form 
+    ``[a + bi, c, a - bi]``. 
+
+    A 2D array of nine elements will output in the form::
+
+        [[a + bi, c + di, e + fi],
+         [g + hi, k,      g - hi],
+         [e - fi, c - di, a -bi]]
+    
+    Note that the input must be odd-length in all dimensions. 
     """
-    revidx = (slice(None, None, -1),) * len(mag.shape)
+    # Reverse each dimension, rather than taking transpose. Transpose only gives
+    # "standard" hermitian matrix.
+    revidx = (slice(None, None, -1),) * mag.ndim
     mag = (mag + mag[revidx]) / np.sqrt(2)
     pha = (pha - pha[revidx]) / 2 + np.pi
+    
+    # There's no extra information in the nyquist sample.
+    pha.flatten()[0] = np.real(pha.flatten()[0])
+    pha.flatten()[-1] = np.real(pha.flatten()[-1])
+    
     return mag * (np.cos(pha) + 1j * np.sin(pha))
 
 
@@ -141,20 +177,14 @@ class PowerBox(object):
         self.vol_normalised_power = vol_normalised_power
         self.V = self.boxlength ** self.dim
 
-        if self.vol_normalised_power:
-            self.pk = lambda k: pk(k) / self.V
-        else:
-            self.pk = pk
+        self.pk = (lambda k: pk(k) / self.V) if self.vol_normalised_power else pk
 
         self.ensure_physical = ensure_physical
         self.Ntot = self.N ** self.dim
 
         self.seed = seed
 
-        if N % 2 == 0:
-            self._even = True
-        else:
-            self._even = False
+        self._even = (N % 2 == 0)
 
         self.n = N + 1 if self._even else N
 
@@ -180,7 +210,7 @@ class PowerBox(object):
         "The co-ordinates of the grid along a side"
         return np.arange(-self.boxlength / 2, self.boxlength / 2, self.dx)[:self.N]
 
-    def gauss_hermitian(self):
+    def gauss_hermitian(self, to_size: bool=True):
         "A random array which has Gaussian magnitudes and Hermitian symmetry"
         if self.seed:
             np.random.seed(self.seed)
@@ -190,7 +220,7 @@ class PowerBox(object):
 
         dk = _make_hermitian(mag, pha)
 
-        if self._even:
+        if self._even and to_size:
             cutidx = (slice(None, -1),) * self.dim
             dk = dk[cutidx]
 
@@ -204,14 +234,14 @@ class PowerBox(object):
         k[mask] = self.pk(k[mask])
         return k
 
-    def delta_k(self):
+    def delta_k(self, to_size: bool=True):
         "A realisation of the delta_k, i.e. the gaussianised square root of the power spectrum (i.e. the Fourier co-efficients)"
         p = self.power_array()
 
         if np.any(p < 0):
             raise ValueError("The power spectrum function has returned negative values.")
 
-        gh = self.gauss_hermitian()
+        gh = self.gauss_hermitian(to_size)
         gh[...] = np.sqrt(p) * gh
         return gh
 
@@ -219,8 +249,9 @@ class PowerBox(object):
         "The realised field in real-space from the input power spectrum"
         # Here we multiply by V because the (inverse) fourier-transform of the (dimensionless) power has
         # units of 1/V and we require a unitless quantity for delta_x.
-        dk = empty((self.N,) * self.dim, dtype='complex128')
-        dk[...] = self.delta_k()
+        dk = zeros((self.n,) * self.dim, dtype='complex128')
+        slc = (slice(None, self.n, None), )*self.dim
+        dk[slc] = self.delta_k()
         dk[...] = self.V * dft.ifft(dk, L=self.boxlength, a=self.fourier_a, b=self.fourier_b)[0]
         dk = np.real(dk)
 
