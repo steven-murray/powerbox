@@ -336,7 +336,7 @@ class LogNormalPowerBox(PowerBox):
         "The power spectrum required for a Gaussian field to produce the input power on a lognormal field"
         gca = empty((self.N,) * self.dim)
         gca[...] = self.gaussian_correlation_array()
-        gpa = np.abs(dft.fft(gca, L=self.boxlength, a=self.fourier_a, b=self.fourier_b))[0]
+        gpa = np.abs(dft.fft(gca, L=self.boxlength, a=self.fourier_a, b=self.fourier_b)[0])
         gpa[self.k() == 0] = 0
         return gpa
 
