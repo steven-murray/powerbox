@@ -17,6 +17,9 @@ Changelog
   inverse transforms remain inverses by default, the phases are interpreted as
   having zero at the centre (for both transforms). See the phasing tutorial for
   more information.
+- Fixed transpose issue caused by default behavior of ``numpy.meshgrid``, which
+  led to broken correspondence between discrete sample of field and original
+  field. See [Issue #15].
 
 **Bugfixes**
 
