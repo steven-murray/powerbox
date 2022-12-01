@@ -257,11 +257,12 @@ class PowerBox(object):
         dx = self.delta_x()
         dx = (dx + 1) * self.dx ** self.dim * nbar
         n = dx
+
         self.n_per_cell = np.random.poisson(n)
 
         # Get all source positions
         args = [self.x] * self.dim
-        X = np.meshgrid(*args)
+        X = np.meshgrid(*args, indexing='ij')
 
         tracer_positions = np.array([x.flatten() for x in X]).T
         tracer_positions = tracer_positions.repeat(self.n_per_cell.flatten(), axis=0)
