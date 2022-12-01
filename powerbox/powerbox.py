@@ -230,7 +230,7 @@ class PowerBox(object):
         return dk
 
     def create_discrete_sample(self, nbar, randomise_in_cell=True, min_at_zero=False,
-                               store_pos=False):
+                               store_pos=False, delta_x=None):
         r"""
         Assuming that the real-space signal represents an over-density with respect to some mean, create a sample
         of tracers of the underlying density distribution.
@@ -247,6 +247,13 @@ class PowerBox(object):
             origin.
         store_pos : bool, optional
             Whether to store the sample of tracers as an instance variable `tracer_positions`.
+        delta_x : numpy.ndarray
+            Field from which to draw discrete samples. This is likely the
+            output of a previous call to `delta_x()`, but could in principle be
+            any field. Note that if not supplied, the field will be generated
+            from scratch. As a result, unless the user has supplied a random seed
+            at initialization, the discrete samples will be a new realization of
+            a field with the specified power spectrum.
 
         Returns
         -------
@@ -254,7 +261,17 @@ class PowerBox(object):
             ``(n, d)``-array, with ``n`` the number of tracers and ``d`` the number of dimensions. Each row represents
             a single tracer's co-ordinates.
         """
-        dx = self.delta_x()
+
+        if delta_x is None:
+            if self.seed is None:
+                warn = "WARNING: should provide `seed` at initialization if one"
+                warn += " wants a correspondence between parent field and"
+                warn += " discrete samples."
+                print(warn)
+            dx = self.delta_x()
+        else:
+            dx = delta_x
+
         dx = (dx + 1) * self.dx ** self.dim * nbar
         n = dx
 
