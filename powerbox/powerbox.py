@@ -6,6 +6,7 @@ In principle, these may be extended to other 1-point density distributions by su
 over-writing the same methods as are over-written in :class:`LogNormalPowerBox`.
 """
 
+import warnings
 import numpy as np
 from . import dft
 from .tools import _magnitude_grid
@@ -264,10 +265,11 @@ class PowerBox(object):
 
         if delta_x is None:
             if self.seed is None:
-                warn = "WARNING: should provide `seed` at initialization if one"
-                warn += " wants a correspondence between parent field and"
-                warn += " discrete samples."
-                print(warn)
+                warnings.warn(
+                    "WARNING: should provide `seed` at initialization if one"
+                    " wants a correspondence between parent field and"
+                    " discrete samples."
+                )
             dx = self.delta_x()
         else:
             dx = delta_x
