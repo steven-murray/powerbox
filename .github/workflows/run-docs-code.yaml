@@ -9,7 +9,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        demo: ["algorithm", "cosmological_fields", "dft", "getting_started"]
+        demo: ["cosmological_fields", "dft", "getting_started"]
     steps:
       - uses: actions/checkout@master
         with:

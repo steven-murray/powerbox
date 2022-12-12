@@ -44,6 +44,7 @@ docs = [
     "pandoc",
     "sphinx_rtd_theme",
     "sphinx-automodapi==0.7",
+    "matplotlib",
 ]
 dev = [
     "powerbox[tests,docs]",
