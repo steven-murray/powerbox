@@ -20,7 +20,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
-          python-version: ${{ env.PYTHON }}
+          python-version: ${{ matrix.python }}
 
       - name: Install Test Deps
         run: |
