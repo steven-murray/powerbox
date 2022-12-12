@@ -31,7 +31,8 @@ def test_discrete_power_gaussian():
     # Check cross spectrum and assert a strong correlation
     cross, bins = get_power(delta_samp, pb.boxlength, deltax2=box)
     p2, bins = get_power(box, pb.boxlength)
-    corr = cross / np.sqrt(power) / np.sqrt(p2)
+    mask = (power > 0) & (p2 > 0)
+    corr = cross[mask] / np.sqrt(power[mask]) / np.sqrt(p2[mask])
     corr_bar = np.mean(corr[np.isfinite(corr)])
     assert corr_bar > 10
 
@@ -43,6 +44,7 @@ def test_discrete_power_lognormal():
         boxlength=100.0,
         pk=lambda u: 0.1 * u**-1.5,
         ensure_physical=True,
+        seed=1212,
     )
 
     sample = pb.create_discrete_sample(nbar=1000.0)

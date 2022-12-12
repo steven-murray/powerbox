@@ -4,7 +4,7 @@ on: [push]
 
 jobs:
   tests:
-    name: With Errors
+    name: With Warnings
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false

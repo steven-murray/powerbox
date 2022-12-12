@@ -71,7 +71,7 @@ class TestDirectEven(TestDirect):
         self.pb = PowerBox(N - 1, lambda k: k**-2.0, dim=2)
 
     def test_reality_elementwise(self):
-        return True  # It won't be element-wise correct for even case.
+        pass  # It won't be element-wise correct for even case.
 
     def test_reality(self):
         ensure_reality(self.pb.delta_x())
