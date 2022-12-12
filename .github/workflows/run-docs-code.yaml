@@ -1,0 +1,54 @@
+name: Run Demo
+on: [push, pull_request]
+
+
+jobs:
+  tests:
+    name: Run Demo
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash -l {0}
+    env:
+      ENV_NAME: testing
+    strategy:
+      fail-fast: false
+      matrix:
+        demo: ["algorithm", "cosmological_fields", "dft", "getting_started"]
+    steps:
+      - uses: actions/checkout@master
+        with:
+          fetch-depth: 1
+
+      - name: Setup Miniconda
+        uses: conda-incubator/setup-miniconda@v2.0.0
+        with:
+          auto-update-conda: true
+          mamba-version: "*"
+          channels: conda-forge,defaults
+          channel-priority: true
+          python-version: ${{ matrix.python-version }}
+          activate-environment: docs-tests
+
+      - name: Conda Info
+        run: |
+          conda info
+          python --version
+
+      - name: Install Deps
+        run: |
+          pip install .
+          pip install papermill ipykernel
+          conda list
+
+      - name: Install ipykernel
+        run: python -m ipykernel install --user --name sense --display-name "docs"
+
+      - name: Run Notebook
+        run: |
+          papermill -k docs docs/tutorials/${{ matrix.demo }}.ipynb output-${{ matrix.demo }}.ipynb
+
+      - uses: actions/upload-artifact@v3
+        with:
+          name: ${{ matrix.demo }}
+          path: output-${{ matrix.demo }}.ipynb

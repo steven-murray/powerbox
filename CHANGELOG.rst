@@ -30,22 +30,22 @@ v0.5.7 [24 Oct 2018]
 --------------------
 **Enhancements**
 
-- Added ability to use weights on k-modes in `get_power`.
+- Added ability to use weights on k-modes in ``get_power``.
 
 **Bugfixes**
 
-- Fixed bug on using `ignore_zero_mode` introduced in v0.5.6
-- Added tests for `ignore_zero_mode` and `k_weights`
+- Fixed bug on using ``ignore_zero_mode`` introduced in v0.5.6
+- Added tests for ``ignore_zero_mode``` and ``k_weights``
 
 v0.5.6 [23 Oct 2018]
 --------------------
 **Enhancements**
 
-- Added `ignore_zero_mode` parameter to `get_power`.
+- Added ``ignore_zero_mode`` parameter to ``get_power``.
 
 **Bugfixes**
 
-- Removed redundant `seed` parameter from `create_discrete_sample()`.
+- Removed redundant ``seed`` parameter from ``create_discrete_sample()``.
 
 v0.5.5 [19 July 2018]
 ---------------------
@@ -183,12 +183,12 @@ v0.3.0
 ------
 **Features**
 
-- New functionality in `get_power` function to measure power-spectra of discrete samples.
+- New functionality in ``get_power`` function to measure power-spectra of discrete samples.
 
 **Enhancements**
 
 - Added option to not store discrete positions in class (just return them)
-- `get_power` now more streamlined and intuitive in its API
+- ``get_power`` now more streamlined and intuitive in its API
 
 v0.2.3 [11 Jan 2017]
 --------------------

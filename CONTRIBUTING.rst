@@ -34,7 +34,7 @@ If you are proposing a feature:
 Development
 ~~~~~~~~~~~
 
-To set up `powerbox` for local development:
+To set up ``powerbox`` for local development:
 
 1. Fork `powerbox <https://github.com/steven-murray/powerbox>`_
    (look for the "Fork" button).

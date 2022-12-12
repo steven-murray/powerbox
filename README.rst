@@ -16,9 +16,10 @@ powerbox
 
 **Make arbitrarily structured, arbitrary-dimension boxes and log-normal mocks.**
 
-``powerbox`` is a pure-python code for creating density grids (or boxes) that have an arbitrary two-point distribution
-(i.e. power spectrum). Primary motivations for creating the code were the simple creation of log-normal mock galaxy
-distributions, but the methodology can be used for other applications.
+``powerbox`` is a pure-python code for creating density grids (or boxes) that have an
+arbitrary two-point distribution (i.e. power spectrum). Primary motivations for creating
+the code were the simple creation of log-normal mock galaxy distributions, but the
+methodology can be used for other applications.
 
 Features
 --------
@@ -32,25 +33,10 @@ Features
 
 Installation
 ------------
-``powerbox`` only depends on ``numpy >= 1.6.2``, which will be installed automatically if ``powerbox`` is installed
-using ``pip`` (see below). Furthermore, it has the optional dependency of ``pyfftw``, which if installed will offer
-~2x performance increase in large fourier transforms. This will be seamlessly used if installed.
-
-To install ``pyfftw``, simply do::
-
-    pip install pyfftw
-
-To install ``powerbox``, do::
-
-    pip install powerbox
-
-Alternatively, the bleeding-edge version from git can be installed with::
-
-    pip install git+git://github.com/steven-murray/powerbox.git
-
-Finally, for a development installation, download the source code and then run (in the top-level directory)::
-
-    pip install -e .
+Simply ``pip install powerbox``. If you want ~2x speedup for large boxes, you can also
+install ``pyfftw`` by doing ``pip install powerbox[all]``. If you are a conda user, you
+may want to install ``numpy`` with conda first. If you want to develop ``powerbox``,
+clone the repo and install with ``python -m pip install -e ".[dev]"``.
 
 Acknowledgment
 --------------
