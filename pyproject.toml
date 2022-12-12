@@ -48,6 +48,7 @@ docs = [
     "sphinx_rtd_theme",
     "sphinx-automodapi==0.7",
     "matplotlib",
+    "hmf"
 ]
 dev = [
     "powerbox[tests,docs]",
