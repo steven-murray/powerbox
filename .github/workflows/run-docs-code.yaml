@@ -22,7 +22,7 @@ jobs:
 
       - name: Install Deps
         run: |
-          pip install .
+          pip install .[dev]
           pip install papermill ipykernel
           conda list
 
