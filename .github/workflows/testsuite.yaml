@@ -28,7 +28,7 @@ jobs:
 
       - name: Install Test Deps
         run: |
-          pip install .[test]
+          pip install .[tests]
 
       - name: Run Tests
         run: |
