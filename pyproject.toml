@@ -3,6 +3,9 @@ requires = ["setuptools>=45", "setuptools_scm[toml]>=6.2"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools_scm]
+write_to = "src/powerbox/_version.py"
+parentdir_prefix_version = "powerbox-"
+fallback_version = "0.0.0"
 
 [project]
 name="powerbox"
