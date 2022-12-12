@@ -27,7 +27,7 @@ jobs:
           conda list
 
       - name: Install ipykernel
-        run: python -m ipykernel install --user --name sense --display-name "docs"
+        run: python -m ipykernel install --user --name docs --display-name "docs"
 
       - name: Run Notebook
         run: |
