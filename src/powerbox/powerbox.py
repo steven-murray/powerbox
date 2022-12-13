@@ -1,13 +1,15 @@
-"""
-A module defining two classes which can create arbitrary-dimensional fields with given power spectra. One such function
-produces *Gaussian* fields, and the other *LogNormal* fields.
+"""Classes that can create arbitrary-dimensional fields with given power spectra.
 
-In principle, these may be extended to other 1-point density distributions by subclassing :class:`PowerBox` and
-over-writing the same methods as are over-written in :class:`LogNormalPowerBox`.
+One such function produces *Gaussian* fields, and the other *LogNormal* fields.
+
+In principle, these may be extended to other 1-point density distributions by
+subclassing :class:`PowerBox` and over-writing the same methods as are over-written in
+:class:`LogNormalPowerBox`.
 """
 
-import warnings
 import numpy as np
+import warnings
+
 from . import dft
 from .tools import _magnitude_grid
 
@@ -52,7 +54,7 @@ def _make_hermitian(mag, pha):
     return mag * (np.cos(pha) + 1j * np.sin(pha))
 
 
-class PowerBox(object):
+class PowerBox:
     r"""
     Calculate real- and fourier-space Gaussian fields generated with a given power spectrum.
 
@@ -130,8 +132,18 @@ class PowerBox(object):
     >>> plt.imshow(pb.delta_x())
     """
 
-    def __init__(self, N, pk, dim=2, boxlength=1.0, ensure_physical=False, a=1., b=1.,
-                 vol_normalised_power=True, seed=None):
+    def __init__(
+        self,
+        N,
+        pk,
+        dim=2,
+        boxlength=1.0,
+        ensure_physical=False,
+        a=1.0,
+        b=1.0,
+        vol_normalised_power=True,
+        seed=None,
+    ):
 
         self.N = N
         self.dim = dim
@@ -140,7 +152,7 @@ class PowerBox(object):
         self.fourier_a = a
         self.fourier_b = b
         self.vol_normalised_power = vol_normalised_power
-        self.V = self.boxlength ** self.dim
+        self.V = self.boxlength**self.dim
 
         if self.vol_normalised_power:
             self.pk = lambda k: pk(k) / self.V
@@ -148,7 +160,7 @@ class PowerBox(object):
             self.pk = pk
 
         self.ensure_physical = ensure_physical
-        self.Ntot = self.N ** self.dim
+        self.Ntot = self.N**self.dim
 
         self.seed = seed
 
@@ -163,26 +175,26 @@ class PowerBox(object):
         self.dx = float(boxlength) / N
 
     def k(self):
-        "The entire grid of wavenumber magitudes"
+        """The entire grid of wavenumber magitudes."""
         return _magnitude_grid(self.kvec, self.dim)
 
     @property
     def kvec(self):
-        "The vector of wavenumbers along a side"
+        """The vector of wavenumbers along a side."""
         return dft.fftfreq(self.N, d=self.dx, b=self.fourier_b)
 
     @property
     def r(self):
-        "The radial position of every point in the grid"
+        """The radial position of every point in the grid."""
         return _magnitude_grid(self.x, self.dim)
 
     @property
     def x(self):
-        "The co-ordinates of the grid along a side"
-        return np.arange(-self.boxlength / 2, self.boxlength / 2, self.dx)[:self.N]
+        """The co-ordinates of the grid along a side."""
+        return np.arange(-self.boxlength / 2, self.boxlength / 2, self.dx)[: self.N]
 
     def gauss_hermitian(self):
-        "A random array which has Gaussian magnitudes and Hermitian symmetry"
+        """A random array which has Gaussian magnitudes and Hermitian symmetry."""
         if self.seed:
             np.random.seed(self.seed)
 
@@ -198,7 +210,7 @@ class PowerBox(object):
         return dk
 
     def power_array(self):
-        "The Power Spectrum (volume normalised) at `self.k`"
+        """The Power Spectrum (volume normalised) at `self.k`."""
         k = self.k()
         mask = k != 0
         # Re-use the k array to conserve memory
@@ -206,23 +218,32 @@ class PowerBox(object):
         return k
 
     def delta_k(self):
-        "A realisation of the delta_k, i.e. the gaussianised square root of the power spectrum (i.e. the Fourier co-efficients)"
+        """A realisation of the delta_k.
+
+        i.e. the gaussianised square root of the power spectrum
+        (i.e. the Fourier co-efficients)
+        """
         p = self.power_array()
 
         if np.any(p < 0):
-            raise ValueError("The power spectrum function has returned negative values.")
+            raise ValueError(
+                "The power spectrum function has returned negative values."
+            )
 
         gh = self.gauss_hermitian()
         gh[...] = np.sqrt(p) * gh
         return gh
 
     def delta_x(self):
-        "The realised field in real-space from the input power spectrum"
+        """The realised field in real-space from the input power spectrum."""
         # Here we multiply by V because the (inverse) fourier-transform of the (dimensionless) power has
         # units of 1/V and we require a unitless quantity for delta_x.
-        dk = empty((self.N,) * self.dim, dtype='complex128')
+        dk = empty((self.N,) * self.dim, dtype="complex128")
         dk[...] = self.delta_k()
-        dk[...] = self.V * dft.ifft(dk, L=self.boxlength, a=self.fourier_a, b=self.fourier_b)[0]
+        dk[...] = (
+            self.V
+            * dft.ifft(dk, L=self.boxlength, a=self.fourier_a, b=self.fourier_b)[0]
+        )
         dk = np.real(dk)
 
         if self.ensure_physical:
@@ -230,24 +251,32 @@ class PowerBox(object):
 
         return dk
 
-    def create_discrete_sample(self, nbar, randomise_in_cell=True, min_at_zero=False,
-                               store_pos=False, delta_x=None):
-        r"""
-        Assuming that the real-space signal represents an over-density with respect to some mean, create a sample
-        of tracers of the underlying density distribution.
+    def create_discrete_sample(
+        self,
+        nbar,
+        randomise_in_cell=True,
+        min_at_zero=False,
+        store_pos=False,
+        delta_x=None,
+    ):
+        r"""Create a sample of tracers of the underlying density distribution.
+
+        This function assumes that the real-space signal represents an over-density
+        with respect to some mean,.
 
         Parameters
         ----------
         nbar : float
             Mean tracer density within the box.
         randomise_in_cell : bool, optional
-            Whether to randomise the positions of the tracers within the cells, or put them at the grid-points (more
-            efficient).
+            Whether to randomise the positions of the tracers within the cells, or put
+            them at the grid-points (more efficient).
         min_at_zero : bool, optional
-            Whether to make the lower corner of the box at the origin, otherwise the centre of the box is at the
-            origin.
+            Whether to make the lower corner of the box at the origin, otherwise the
+            centre of the box is at the origin.
         store_pos : bool, optional
-            Whether to store the sample of tracers as an instance variable `tracer_positions`.
+            Whether to store the sample of tracers as an instance variable
+            ``tracer_positions``.
         delta_x : numpy.ndarray
             Field from which to draw discrete samples. This is likely the
             output of a previous call to `delta_x()`, but could in principle be
@@ -259,14 +288,13 @@ class PowerBox(object):
         Returns
         -------
         tracer_positions : float, array_like
-            ``(n, d)``-array, with ``n`` the number of tracers and ``d`` the number of dimensions. Each row represents
-            a single tracer's co-ordinates.
+            ``(n, d)``-array, with ``n`` the number of tracers and ``d`` the number of
+            dimensions. Each row represents a single tracer's co-ordinates.
         """
-
         if delta_x is None:
             if self.seed is None:
                 warnings.warn(
-                    "WARNING: should provide `seed` at initialization if one"
+                    "You Should provide `seed` at initialization if one"
                     " wants a correspondence between parent field and"
                     " discrete samples."
                 )
@@ -274,20 +302,22 @@ class PowerBox(object):
         else:
             dx = delta_x
 
-        dx = (dx + 1) * self.dx ** self.dim * nbar
+        dx = (dx + 1) * self.dx**self.dim * nbar
         n = dx
 
         self.n_per_cell = np.random.poisson(n)
 
         # Get all source positions
         args = [self.x] * self.dim
-        X = np.meshgrid(*args, indexing='ij')
+        X = np.meshgrid(*args, indexing="ij")
 
         tracer_positions = np.array([x.flatten() for x in X]).T
         tracer_positions = tracer_positions.repeat(self.n_per_cell.flatten(), axis=0)
 
         if randomise_in_cell:
-            tracer_positions += np.random.uniform(size=(np.sum(self.n_per_cell), self.dim)) * self.dx
+            tracer_positions += (
+                np.random.uniform(size=(np.sum(self.n_per_cell), self.dim)) * self.dx
+            )
 
         if min_at_zero:
             tracer_positions += self.boxlength / 2.0
@@ -299,14 +329,14 @@ class PowerBox(object):
 
 
 class LogNormalPowerBox(PowerBox):
-    r"""
-    Calculate Log-Normal density fields with given power spectra.
+    r"""Calculate Log-Normal density fields with given power spectra.
 
-    See the documentation of :class:`PowerBox` for a detailed explanation of the arguments, as this class
-    has exactly the same arguments.
+    See the documentation of :class:`PowerBox` for a detailed explanation of the
+    arguments, as this class has exactly the same arguments.
 
-    This class calculates an (over-)density field of arbitrary dimension given an input isotropic power spectrum. In
-    this case, the field has a log-normal distribution of over-densities, always yielding a physically valid field.
+    This class calculates an (over-)density field of arbitrary dimension given an input
+    isotropic power spectrum. In this case, the field has a log-normal distribution of
+    over-densities, always yielding a physically valid field.
 
     Examples
     --------
@@ -333,36 +363,43 @@ class LogNormalPowerBox(PowerBox):
 
     To create and plot a discrete version of the field:
 
-    >>> positions = lnpb.create_discrete_sample(nbar=1000.0, # Number density in terms of boxlength units
-    >>>                                         randomise_in_cell=True)
+    >>> positions = lnpb.create_discrete_sample(
+    >>>     nbar=1000.0, # Number density in terms of boxlength units
+    >>>     randomise_in_cell=True
+    >>> )
     >>> plt.scatter(positions[:,0],positions[:,1],s=2,alpha=0.5,lw=0)
-
     """
 
     def __init__(self, *args, **kwargs):
-        super(LogNormalPowerBox, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
 
     def correlation_array(self):
-        "The correlation function from the input power, on the grid"
+        """The correlation function from the input power, on the grid."""
         pa = empty((self.N,) * self.dim)
         pa[...] = self.power_array()
-        return self.V * np.real(dft.ifft(pa, L=self.boxlength, a=self.fourier_a, b=self.fourier_b)[0])
+        return self.V * np.real(
+            dft.ifft(pa, L=self.boxlength, a=self.fourier_a, b=self.fourier_b)[0]
+        )
 
     def gaussian_correlation_array(self):
-        "The correlation function required for a Gaussian field to produce the input power on a lognormal field"
+        """The correlation function required for a Gaussian field to produce the input power on a lognormal field."""
         return np.log(1 + self.correlation_array())
 
     def gaussian_power_array(self):
-        "The power spectrum required for a Gaussian field to produce the input power on a lognormal field"
+        """The power spectrum required for a Gaussian field to produce the input power on a lognormal field."""
         gca = empty((self.N,) * self.dim)
         gca[...] = self.gaussian_correlation_array()
-        gpa = np.abs(dft.fft(gca, L=self.boxlength, a=self.fourier_a, b=self.fourier_b)[0])
+        gpa = np.abs(
+            dft.fft(gca, L=self.boxlength, a=self.fourier_a, b=self.fourier_b)[0]
+        )
         gpa[self.k() == 0] = 0
         return gpa
 
     def delta_k(self):
         """
-        A realisation of the delta_k, i.e. the gaussianised square root of the unitless power spectrum
+        A realisation of the delta_k.
+
+        i.e. the gaussianised square root of the unitless power spectrum
         (i.e. the Fourier co-efficients)
         """
         p = self.gaussian_power_array()
@@ -371,10 +408,13 @@ class LogNormalPowerBox(PowerBox):
         return gh
 
     def delta_x(self):
-        "The real-space over-density field, from the input power spectrum"
-        dk = empty((self.N,) * self.dim, dtype='complex128')
+        """The real-space over-density field, from the input power spectrum."""
+        dk = empty((self.N,) * self.dim, dtype="complex128")
         dk[...] = self.delta_k()
-        dk[...] = np.sqrt(self.V) * dft.ifft(dk, L=self.boxlength, a=self.fourier_a, b=self.fourier_b)[0]
+        dk[...] = (
+            np.sqrt(self.V)
+            * dft.ifft(dk, L=self.boxlength, a=self.fourier_a, b=self.fourier_b)[0]
+        )
         dk = np.real(dk)
 
         sg = np.var(dk)

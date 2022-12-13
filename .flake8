@@ -1,0 +1,37 @@
+[flake8]
+ignore =
+    E203
+    E266
+    E501
+    W503
+    F403
+    F401
+    D401  # Imperative mood -- doesn't work for cached-property.
+    N802  # TODO: remove this (function name should be lower-case)
+    B019  # no using lru_cache on methods
+    G004  # logging uses f-string
+    D107  # no docstring in __init__
+    N806  # no upper-case variables (we have lots...)
+    N803  # no upper case argument names
+max-line-length = 88
+max-complexity = 19
+rst-roles =
+    class
+    func
+    mod
+    data
+    const
+    meth
+    attr
+    exc
+    obj
+rst-directives =
+    note
+    warning
+    versionadded
+    versionchanged
+    deprecated
+    seealso
+per-file-ignores =
+    tests/*:D, T201
+    setup.py:D

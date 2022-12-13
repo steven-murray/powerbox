@@ -1,0 +1,62 @@
+[build-system]
+requires = ["setuptools>=45", "setuptools_scm[toml]>=6.2"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools_scm]
+write_to = "src/powerbox/_version.py"
+parentdir_prefix_version = "powerbox-"
+fallback_version = "0.0.0"
+
+[project]
+name="powerbox"
+authors=[
+    {name = "Steven Murray", email = "steven.g.murray@asu.edu"}
+]
+description="Create arbitrary boxes with isotropic power spectra"
+license= {text= "MIT"}
+requires-python = ">=3.8"
+keywords=["power-spectrum", "signal processing"]
+dependencies = [
+    "numpy>1.6.2"
+]
+classifiers = [
+    "Programming Language :: Python :: 3",
+]
+dynamic = ["readme", "version"]
+
+[project.urls]
+repository="https://github.com/steven-murray/powerbox"
+documentation="https://powerbox.readthedocs.io"
+
+[tool.setuptools.dynamic]
+readme = {file = ["README.rst"]}
+
+[project.optional-dependencies]
+tests = [
+    "wheel",
+    "flake8",
+    "pytest",
+    "pytest-cov",
+    "scipy",
+]
+docs = [
+    "sphinx",
+    "numpydoc",
+    "nbsphinx",
+    "ipykernel",
+    "pandoc",
+    "sphinx_rtd_theme",
+    "sphinx-automodapi==0.7",
+    "matplotlib",
+    "hmf"
+]
+dev = [
+    "powerbox[tests,docs]",
+    "pre-commit"
+]
+fftw = [
+    'pyfftw'
+]
+all = [
+    "powerbox[fftw]"
+]

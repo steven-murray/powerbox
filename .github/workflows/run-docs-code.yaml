@@ -1,0 +1,39 @@
+name: Run Demo
+on: [pull_request]
+
+
+jobs:
+  tests:
+    name: Run Demo
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        demo: ["cosmological_fields", "dft", "getting_started"]
+    steps:
+      - uses: actions/checkout@master
+        with:
+          fetch-depth: 1
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+
+      - name: Install Deps
+        run: |
+          pip install .[dev]
+          pip install papermill ipykernel
+          conda list
+
+      - name: Install ipykernel
+        run: python -m ipykernel install --user --name docs --display-name "docs"
+
+      - name: Run Notebook
+        run: |
+          papermill -k docs docs/demos/${{ matrix.demo }}.ipynb output-${{ matrix.demo }}.ipynb
+
+      - uses: actions/upload-artifact@v3
+        with:
+          name: ${{ matrix.demo }}
+          path: output-${{ matrix.demo }}.ipynb

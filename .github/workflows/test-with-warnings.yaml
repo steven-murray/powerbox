@@ -1,0 +1,35 @@
+name: Test Suite
+on: [push]
+
+
+jobs:
+  tests:
+    name: With Warnings
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        python: ["3.11"]
+    steps:
+      - uses: actions/checkout@master
+        with:
+          fetch-depth: 1
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ matrix.python }}
+
+      - name: Install Test Deps
+        run: |
+          pip install .[tests]
+
+      - name: Run Tests
+        run: |
+          python -m pytest -W error
+
+      - uses: codecov/codecov-action@v2
+        if: success()
+        with:
+          file: ./coverage.xml #optional

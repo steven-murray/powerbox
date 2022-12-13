@@ -589,7 +589,7 @@ LaTeX Info: Redefining \] on input line 2818.
 )
 (/usr/share/texmf-dist/tex/latex/seqsplit/seqsplit.sty
 Package: seqsplit 2006/08/07 v0.1 Splitting long sequences (DNA, RNA, proteins,
- etc.) 
+ etc.)
 )
 (/usr/share/texmf-dist/tex/latex/base/fixltx2e.sty
 Package: fixltx2e 2016/12/29 v2.1a fixes to LaTeX (obsolete)
@@ -820,7 +820,7 @@ Package biblatex Info: Trying to load configuration file...
 Package biblatex Info: ... file 'biblatex.cfg' found.
 
 (/usr/share/texmf-dist/tex/latex/biblatex/biblatex.cfg
-File: biblatex.cfg 
+File: biblatex.cfg
 ))
 (/usr/share/texmf-dist/tex/latex/geometry/geometry.sty
 Package: geometry 2018/03/24 v5.7 Page Geometry
@@ -857,7 +857,7 @@ r XeLaTeX)
 (/usr/share/texmf-dist/tex/latex/fontspec/fontspec.sty
 (/usr/share/texmf-dist/tex/latex/l3packages/xparse/xparse.sty
 (/usr/share/texmf-dist/tex/latex/l3kernel/expl3.sty
-Package: expl3 2018/03/05 L3 programming layer (loader) 
+Package: expl3 2018/03/05 L3 programming layer (loader)
 
 (/usr/share/texmf-dist/tex/latex/l3kernel/expl3-code.tex
 Package: expl3 2018/03/05 L3 programming layer (code)
@@ -1036,172 +1036,172 @@ LaTeX Font Info:    Redeclaring font encoding TU on input line 82.
 ))
 .................................................
 . LaTeX info: "xparse/define-command"
-. 
+.
 . Defining command \fontspec with sig. 'O{}mO{}' on line 542.
 .................................................
 .................................................
 . LaTeX info: "xparse/define-command"
-. 
+.
 . Defining command \setmainfont with sig. 'O{}mO{}' on line 546.
 .................................................
 .................................................
 . LaTeX info: "xparse/define-command"
-. 
+.
 . Defining command \setsansfont with sig. 'O{}mO{}' on line 550.
 .................................................
 .................................................
 . LaTeX info: "xparse/define-command"
-. 
+.
 . Defining command \setmonofont with sig. 'O{}mO{}' on line 554.
 .................................................
 .................................................
 . LaTeX info: "xparse/define-command"
-. 
+.
 . Defining command \setmathrm with sig. 'O{}mO{}' on line 558.
 .................................................
 .................................................
 . LaTeX info: "xparse/define-command"
-. 
+.
 . Defining command \setboldmathrm with sig. 'O{}mO{}' on line 562.
 .................................................
 .................................................
 . LaTeX info: "xparse/define-command"
-. 
+.
 . Defining command \setmathsf with sig. 'O{}mO{}' on line 566.
 .................................................
 .................................................
 . LaTeX info: "xparse/define-command"
-. 
+.
 . Defining command \setmathtt with sig. 'O{}mO{}' on line 570.
 .................................................
 .................................................
 . LaTeX info: "xparse/define-command"
-. 
+.
 . Defining command \setromanfont with sig. 'O{}mO{}' on line 574.
 .................................................
 .................................................
 . LaTeX info: "xparse/define-command"
-. 
+.
 . Defining command \newfontfamily with sig. 'mO{}mO{}' on line 578.
 .................................................
 .................................................
 . LaTeX info: "xparse/define-command"
-. 
+.
 . Defining command \newfontface with sig. 'mO{}mO{}' on line 582.
 .................................................
 .................................................
 . LaTeX info: "xparse/define-command"
-. 
+.
 . Defining command \defaultfontfeatures with sig. 't+om' on line 586.
 .................................................
 .................................................
 . LaTeX info: "xparse/define-command"
-. 
+.
 . Defining command \addfontfeatures with sig. 'm' on line 590.
 .................................................
 .................................................
 . LaTeX info: "xparse/define-command"
-. 
+.
 . Defining command \addfontfeature with sig. 'm' on line 594.
 .................................................
 .................................................
 . LaTeX info: "xparse/define-command"
-. 
+.
 . Defining command \newfontfeature with sig. 'mm' on line 598.
 .................................................
 .................................................
 . LaTeX info: "xparse/define-command"
-. 
+.
 . Defining command \newAATfeature with sig. 'mmmm' on line 602.
 .................................................
 .................................................
 . LaTeX info: "xparse/define-command"
-. 
+.
 . Defining command \newopentypefeature with sig. 'mmm' on line 606.
 .................................................
 .................................................
 . LaTeX info: "xparse/define-command"
-. 
+.
 . Defining command \newICUfeature with sig. 'mmm' on line 610.
 .................................................
 .................................................
 . LaTeX info: "xparse/define-command"
-. 
+.
 . Defining command \aliasfontfeature with sig. 'mm' on line 614.
 .................................................
 .................................................
 . LaTeX info: "xparse/define-command"
-. 
+.
 . Defining command \aliasfontfeatureoption with sig. 'mmm' on line 618.
 .................................................
 .................................................
 . LaTeX info: "xparse/define-command"
-. 
+.
 . Defining command \newfontscript with sig. 'mm' on line 622.
 .................................................
 .................................................
 . LaTeX info: "xparse/define-command"
-. 
+.
 . Defining command \newfontlanguage with sig. 'mm' on line 626.
 .................................................
 .................................................
 . LaTeX info: "xparse/define-command"
-. 
+.
 . Defining command \DeclareFontsExtensions with sig. 'm' on line 630.
 .................................................
 .................................................
 . LaTeX info: "xparse/define-command"
-. 
+.
 . Defining command \IfFontFeatureActiveTF with sig. 'mmm' on line 634.
 .................................................
 .................................................
 . LaTeX info: "xparse/define-command"
-. 
+.
 . Defining command \EncodingCommand with sig. 'mO{}m' on line 3632.
 .................................................
 .................................................
 . LaTeX info: "xparse/define-command"
-. 
+.
 . Defining command \EncodingAccent with sig. 'mm' on line 3638.
 .................................................
 .................................................
 . LaTeX info: "xparse/define-command"
-. 
+.
 . Defining command \EncodingSymbol with sig. 'mm' on line 3644.
 .................................................
 .................................................
 . LaTeX info: "xparse/define-command"
-. 
+.
 . Defining command \EncodingComposite with sig. 'mmm' on line 3650.
 .................................................
 .................................................
 . LaTeX info: "xparse/define-command"
-. 
+.
 . Defining command \EncodingCompositeCommand with sig. 'mmm' on line 3656.
 .................................................
 .................................................
 . LaTeX info: "xparse/define-command"
-. 
+.
 . Defining command \DeclareUnicodeEncoding with sig. 'mm' on line 3681.
 .................................................
 .................................................
 . LaTeX info: "xparse/define-command"
-. 
+.
 . Defining command \UndeclareSymbol with sig. 'm' on line 3687.
 .................................................
 .................................................
 . LaTeX info: "xparse/define-command"
-. 
+.
 . Defining command \UndeclareAccent with sig. 'm' on line 3693.
 .................................................
 .................................................
 . LaTeX info: "xparse/define-command"
-. 
+.
 . Defining command \UndeclareCommand with sig. 'm' on line 3699.
 .................................................
 .................................................
 . LaTeX info: "xparse/define-command"
-. 
+.
 . Defining command \UndeclareComposite with sig. 'mm' on line 3706.
 .................................................
 
@@ -1215,12 +1215,12 @@ LaTeX Info: Redefining \emph on input line 3961.
 LaTeX Info: Redefining \- on input line 4015.
 .................................................
 . LaTeX info: "xparse/redefine-command"
-. 
+.
 . Redefining command \oldstylenums with sig. 'm' on line 4110.
 .................................................
 .................................................
 . LaTeX info: "xparse/define-command"
-. 
+.
 . Defining command \liningnums with sig. 'm' on line 4114.
 .................................................
 ))
@@ -1443,7 +1443,7 @@ Package biblatex Info: Reference segment=0 on input line 191.
 * paper: a4paper
 * layout: <same size as paper>
 * layoutoffset:(h,v)=(0.0pt,0.0pt)
-* modes: includemp 
+* modes: includemp
 * h-part:(L,W,R)=(28.45274pt, 526.376pt, 42.67912pt)
 * v-part:(T,H,B)=(99.58464pt, 660.10394pt, 85.35826pt)
 * \paperwidth=597.50787pt
@@ -1486,7 +1486,7 @@ Package microtype Info: Loading generic protrusion settings for font family
 (microtype)             See the microtype manual for details.
 
 (/usr/share/texmf-dist/tex/latex/microtype/mt-cmr.cfg
-File: mt-cmr.cfg 2013/05/19 v2.2 microtype config. file: Computer Modern Roman 
+File: mt-cmr.cfg 2013/05/19 v2.2 microtype config. file: Computer Modern Roman
 (RS)
 )
 LaTeX Font Info:    Try loading font information for U+msa on input line 192.
@@ -1509,7 +1509,7 @@ File: joss-logo.png Graphic file (type bmp)
 <joss-logo.png>
 
 
-Package Fancyhdr Warning: \headheight is too small (62.59596pt): 
+Package Fancyhdr Warning: \headheight is too small (62.59596pt):
  Make it at least 63.55022pt.
  We now make it that large for the rest of the document.
  This may cause the page layout to be inconsistent, however.
@@ -1523,7 +1523,7 @@ File: joss-logo.png Graphic file (type bmp)
 <joss-logo.png>
 
 
-Package Fancyhdr Warning: \headheight is too small (62.59596pt): 
+Package Fancyhdr Warning: \headheight is too small (62.59596pt):
  Make it at least 63.55022pt.
  We now make it that large for the rest of the document.
  This may cause the page layout to be inconsistent, however.
@@ -1539,7 +1539,7 @@ Package rerunfilecheck Info: File `paper.out' has not changed.
 Package logreq Info: Writing requests to 'paper.run.xml'.
 \openout1 = `paper.run.xml'.
 
- ) 
+ )
 Here is how much of TeX's memory you used:
  41116 strings out of 492970
  803698 string characters out of 6139408

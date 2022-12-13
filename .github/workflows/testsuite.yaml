@@ -1,0 +1,36 @@
+name: Test Suite
+on: [push, pull_request]
+
+
+jobs:
+  tests:
+    name: Test Suite
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        python: ["3.8", "3.9", "3.10", "3.11"]
+    steps:
+      - uses: actions/checkout@master
+        with:
+          fetch-depth: 1
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ matrix.python }}
+
+      - name: Install Test Deps
+        run: |
+          pip install .[tests]
+
+      - name: Run Tests
+        run: |
+          python -m pytest --cov=powerbox --cov-config=.coveragerc --cov-report xml:./coverage.xml --junitxml=test-reports/xunit.xml
+
+      - uses: codecov/codecov-action@v2
+        if: success()
+        with:
+          file: ./coverage.xml #optional
