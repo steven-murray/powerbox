@@ -2,7 +2,7 @@ exclude: '^docs/conf.py'
 
 repos:
 - repo: https://github.com/pre-commit/pre-commit-hooks
-  rev: v4.2.0
+  rev: v4.4.0
   hooks:
   - id: trailing-whitespace
   - id: check-added-large-files
@@ -17,7 +17,7 @@ repos:
     args: ['--fix=no']
 
 - repo: https://github.com/PyCQA/flake8
-  rev: 4.0.1
+  rev: 6.0.0
   hooks:
   - id: flake8
     additional_dependencies:
@@ -38,12 +38,12 @@ repos:
 
 
 - repo: https://github.com/psf/black
-  rev: 22.3.0
+  rev: 22.12.0
   hooks:
   - id: black
 
 - repo: https://github.com/PyCQA/isort
-  rev: 5.10.1
+  rev: 5.11.4
   hooks:
   - id: isort
 
@@ -53,7 +53,7 @@ repos:
     - id: rst-backticks
 
 - repo: https://github.com/asottile/pyupgrade
-  rev: v2.32.0
+  rev: v3.3.1
   hooks:
   -   id: pyupgrade
       args: [--py38-plus]
