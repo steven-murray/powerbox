@@ -21,19 +21,17 @@ repos:
   hooks:
   - id: flake8
     additional_dependencies:
-      - flake8-comprehensions
-      - flake8-logging-format
       - flake8-builtins
-      - flake8-eradicate
+#      - flake8-eradicate  # flake8 6 incompatible
       - pep8-naming
       - flake8-pytest
       - flake8-docstrings
       - flake8-rst-docstrings
       - flake8-rst
-      - flake8-copyright
+#      - flake8-copyright  # flake8 6 incompatible
       - flake8-markdown
       - flake8-bugbear
-      - flake8-comprehensions
+ #     - flake8-comprehensions  # flake8 6 incompatible
       - flake8-print
 
 
