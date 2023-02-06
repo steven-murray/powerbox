@@ -135,7 +135,6 @@ def _magnitude_grid(x, dim=None):
 
 
 def _get_binweights(coords, weights, bins, average=True, bin_ave=True, log_bins=False):
-
     # Get a vector of bin edges
     bins = _getbins(bins, coords, log_bins)
 
@@ -472,7 +471,6 @@ def get_power(
     """
     # Check if the input data is in sampled particle format
     if N is not None:
-
         if deltax.shape[1] > deltax.shape[0]:
             raise ValueError(
                 "It seems that there are more dimensions than particles! "

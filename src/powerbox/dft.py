@@ -30,7 +30,6 @@ __all__ = ["fft", "ifft", "fftfreq", "fftshift", "ifftshift"]
 
 # Try importing the pyFFTW interface
 try:
-
     from multiprocessing import cpu_count
 
     THREADS = cpu_count()
