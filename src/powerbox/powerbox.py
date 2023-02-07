@@ -144,7 +144,6 @@ class PowerBox:
         vol_normalised_power=True,
         seed=None,
     ):
-
         self.N = N
         self.dim = dim
         self.boxlength = boxlength
