@@ -116,7 +116,7 @@ def angular_average(
     )
 
     if np.any(sumweight == 0):
-        warnings.warn("One or more radial bins had no cells within it.")
+        warnings.warn("One or more radial bins had no cells within it.", stacklevel=2)
 
     res = _field_average(indx, field, weights, sumweight)
 

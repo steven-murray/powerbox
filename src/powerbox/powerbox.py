@@ -295,7 +295,8 @@ class PowerBox:
                 warnings.warn(
                     "You Should provide `seed` at initialization if one"
                     " wants a correspondence between parent field and"
-                    " discrete samples."
+                    " discrete samples.",
+                    stacklevel=2,
                 )
             dx = self.delta_x()
         else:
