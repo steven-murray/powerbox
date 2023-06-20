@@ -339,8 +339,8 @@ def angular_average_nd(
         coords, weights, bins, average, bin_ave=bin_ave, log_bins=log_bins
     )
 
-    n1 = np.product(field.shape[:n])
-    n2 = np.product(field.shape[n:])
+    n1 = np.prod(field.shape[:n])
+    n2 = np.prod(field.shape[n:])
 
     res = np.zeros((len(sumweights), n2), dtype=field.dtype)
     if get_variance:
@@ -533,7 +533,7 @@ def get_power(
         N = deltax.shape
         Npart1 = None
 
-    V = np.product(boxlength)
+    V = np.prod(boxlength)
 
     # Calculate the n-D power spectrum and align it with the k from powerbox.
     FT, freq, k = dft.fft(deltax, L=boxlength, a=a, b=b, ret_cubegrid=True)
@@ -549,7 +549,7 @@ def get_power(
 
     # Determine a nice number of bins.
     if bins is None:
-        bins = int(np.product(N[:res_ndim]) ** (1.0 / res_ndim) / 2.2)
+        bins = int(np.prod(N[:res_ndim]) ** (1.0 / res_ndim) / 2.2)
 
     # Set k_weights so that k=0 mode is ignore if desired.
     if ignore_zero_mode:

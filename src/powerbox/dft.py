@@ -136,8 +136,8 @@ def fft(
 
     left_edge = _set_left_edge(left_edge, axes, L)
 
-    V = float(np.product(L))  # Volume of box
-    Vx = V / np.product(N)  # Volume of cell
+    V = float(np.prod(L))  # Volume of box
+    Vx = V / np.prod(N)  # Volume of cell
 
     ft = (
         Vx
@@ -232,7 +232,7 @@ def ifft(
     Lk = np.array(Lk)
     left_edge = _set_left_edge(left_edge, axes, Lk)
 
-    V = np.product(Lk)
+    V = np.prod(Lk)
     dk = np.array([float(lk) / float(n) for lk, n in zip(Lk, N)])
 
     ft = (
