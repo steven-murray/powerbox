@@ -242,7 +242,7 @@ def ifft(
     )
     ft = ifftshift(ft, axes=axes)
 
-    freq = np.array([fftfreq(n, d=d, b=b) for n, d in zip(N, dk)])
+    freq = [fftfreq(n, d=d, b=b) for n, d in zip(N, dk)]
 
     ft = _adjust_phase(ft, left_edge, freq, axes, -b)
     return _retfunc(ft, freq, axes, ret_cubegrid)
