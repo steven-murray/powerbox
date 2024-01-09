@@ -147,7 +147,7 @@ def fft(
 
     dx = np.array([float(length) / float(n) for length, n in zip(L, N)])
 
-    freq = np.array([fftfreq(n, d=d, b=b) for n, d in zip(N, dx)])
+    freq = [fftfreq(n, d=d, b=b) for n, d in zip(N, dx)]
 
     # Adjust phases of the result to align with the left edge properly.
     ft = _adjust_phase(ft, left_edge, freq, axes, b)

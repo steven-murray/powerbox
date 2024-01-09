@@ -8,3 +8,4 @@ docs/_*
 \.pytest_cache/v/cache/
 .tox/*
 \.coverage
+_version.py
