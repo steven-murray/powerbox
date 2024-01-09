@@ -30,7 +30,11 @@ jobs:
         run: |
           python -m pytest --cov=powerbox --cov-config=.coveragerc --cov-report xml:./coverage.xml --junitxml=test-reports/xunit.xml
 
-      - uses: codecov/codecov-action@v2
-        if: success()
+      - name: Upload Test Coverage
+        uses: codecov/codecov-action@v3.1.4
         with:
-          file: ./coverage.xml #optional
+          token: ${{ secrets.CODECOV_TOKEN }}
+          file: ./coverage.xml
+          flags: unittests
+          name: codecov-umbrella
+          fail_ci_if_error: true
