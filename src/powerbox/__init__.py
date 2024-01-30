@@ -1,4 +1,5 @@
 """A package for creating mocks from input isotropic power spectra."""
+
 try:
     from importlib.metadata import PackageNotFoundError, version
 except ImportError:

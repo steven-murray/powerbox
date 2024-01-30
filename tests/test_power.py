@@ -6,9 +6,7 @@ from powerbox import PowerBox, get_power
 def test_power1d():
     p = [0] * 40
     for i in range(40):
-        pb = PowerBox(
-            8001, dim=1, pk=lambda k: 1.0 * k**-2.0, boxlength=1.0, a=0, b=1
-        )
+        pb = PowerBox(8001, dim=1, pk=lambda k: 1.0 * k**-2.0, boxlength=1.0, a=0, b=1)
 
         p[i], k = get_power(pb.delta_x(), pb.boxlength, a=0, b=1)
 

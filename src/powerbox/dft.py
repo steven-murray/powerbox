@@ -24,6 +24,7 @@ This makes switching from standard frequency to angular frequency very simple.
 We note that currently, only positive values for b are implemented (in fact, using negative b is consistent, but
 one must be careful that the frequencies returned are descending, rather than ascending).
 """
+
 import warnings
 
 __all__ = ["fft", "ifft", "fftfreq", "fftshift", "ifftshift"]
