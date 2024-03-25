@@ -1,5 +1,6 @@
 import numpy as np
 import warnings
+from functools import cache
 
 try:
     import pyfftw
@@ -14,33 +15,13 @@ class FFTBackend:
     def fftn(self):
         pass
 
-    def fftshift(self):
-        pass
-
-    def ifftshift(self):
-        pass
-
-    def fftfreq(self):
-        pass
-
-
-class NumpyFFT(FFTBackend):
-    def __init__(self):
-        self.fftn = np.fft.fftn
-
-        self.ifftn = np.fft.ifftn
-
-        self.empty = np.empty
-
-        self.have_fftw = False
-
     def fftshift(self, x, *args, **kwargs):
         """
         The same as numpy, except that it preserves units (if Astropy quantities are used).
 
         All extra arguments are passed directly to numpy's ``fftshift``.
         """
-        out = np.fft.fftshift(x, *args, **kwargs)
+        out = self._fftshift(x, *args, **kwargs)
 
         return out * x.unit if hasattr(x, "unit") else out
 
@@ -50,9 +31,46 @@ class NumpyFFT(FFTBackend):
 
         All extra arguments are passed directly to numpy's ``ifftshift``.
         """
-        out = np.fft.ifftshift(x, *args, **kwargs)
+        out = self._ifftshift(x, *args, **kwargs)
 
         return out * x.unit if hasattr(x, "unit") else out
+
+    def fftfreq(self, N, d=1.0, b=2 * np.pi):
+        """
+        Return fourier frequencies for a box with N cells, using general Fourier convention.
+
+        Parameters
+        ----------
+        N : int
+            The number of grid cells
+        d : float, optional
+            The interval between cells
+        b : float, optional
+            The fourier-convention of the frequency component (see :mod:`powerbox.dft` for
+            details).
+
+        Returns
+        -------
+        freq : array
+            The N symmetric frequency components of the Fourier transform. Always centred at 0.
+        """
+        return self.fftshift(
+            self._fftfreq(N, d=d)
+        ) * (2 * np.pi / b)
+
+
+class NumpyFFT(FFTBackend):
+    def __init__(self):
+        self.fftn = np.fft.fftn
+
+        self.ifftn = np.fft.ifftn
+
+        self._fftshift = np.fft.fftshift
+        self._ifftshift = np.fft.ifftshift
+        self._fftfreq = np.fft.fftfreq
+
+        self.empty = np.empty
+        self.have_fftw = False
 
     def fftfreq(self, N, d=1.0, b=2 * np.pi):
         """
@@ -76,7 +94,7 @@ class NumpyFFT(FFTBackend):
         return np.fft.fftshift(np.fft.fftfreq(N, d=d)) * (2 * np.pi / b)
 
 
-class pyFFTW(FFTBackend):
+class FFTW(FFTBackend):
     def __init__(self, nthreads=None):
         if nthreads is None:
             from multiprocessing import cpu_count
@@ -89,6 +107,9 @@ class pyFFTW(FFTBackend):
         except ImportError:
             raise ImportError("pyFFTW could not be imported...")
 
+        self._fftshift = pyfftw.interfaces.numpy_fft.fftshift
+        self._ifftshift = pyfftw.interfaces.numpy_fft.ifftshift
+        self._fftfreq = pyfftw.interfaces.numpy_fft.fftfreq
         self.empty = pyfftw.empty_aligned
         self.have_fftw = True
 
@@ -98,45 +119,17 @@ class pyFFTW(FFTBackend):
     def fftn(self, *args, **kwargs):
         return pyfftw.interfaces.numpy_fft.fftn(*args, threads=self.nthreads, **kwargs)
 
-    def fftshift(self, x, *args, **kwargs):
-        """
-        The same as numpy, except that it preserves units (if Astropy quantities are used).
+    
 
-        All extra arguments are passed directly to numpy's ``fftshift``.
-        """
-        out = pyfftw.interfaces.numpy_fft.fftshift(x, *args, **kwargs)
 
-        return out * x.unit if hasattr(x, "unit") else out
-
-    def ifftshift(self, x, *args, **kwargs):
-        """
-        The same as numpy except it preserves units (if Astropy quantities are used).
-
-        All extra arguments are passed directly to numpy's ``ifftshift``.
-        """
-        out = pyfftw.interfaces.numpy_fft.ifftshift(x, *args, **kwargs)
-
-        return out * x.unit if hasattr(x, "unit") else out
-
-    def fftfreq(self, N, d=1.0, b=2 * np.pi):
-        """
-        Return fourier frequencies for a box with N cells, using general Fourier convention.
-
-        Parameters
-        ----------
-        N : int
-            The number of grid cells
-        d : float, optional
-            The interval between cells
-        b : float, optional
-            The fourier-convention of the frequency component (see :mod:`powerbox.dft` for
-            details).
-
-        Returns
-        -------
-        freq : array
-            The N symmetric frequency components of the Fourier transform. Always centred at 0.
-        """
-        return pyfftw.interfaces.numpy_fft.fftshift(
-            pyfftw.interfaces.numpy_fft.fftfreq(N, d=d)
-        ) * (2 * np.pi / b)
+@cache
+def get_fft_backend(nthreads):
+    if nthreads is None or nthreads > 0:
+        try:
+            fftbackend = FFTW(nthreads=nthreads)
+        except ImportError:
+            warnings.warn("Could not import pyfftw... Proceeding with numpy.")
+            fftbackend = NumpyFFT()
+    else:
+        fftbackend = NumpyFFT()
+    return fftbackend

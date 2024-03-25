@@ -32,22 +32,32 @@ __all__ = ["fft", "ifft", "fftfreq", "fftshift", "ifftshift"]
 # To avoid MKL-related bugs, numpy needs to be imported after pyfftw: see https://github.com/pyFFTW/pyFFTW/issues/40
 import numpy as np
 import warnings
-from functools import cache
 
-from .import_fft import NumpyFFT, pyFFTW
+from .dft_backend import get_fft_backend
 
+def fftshift(x, *args, **kwargs):
+    try:
+        nthreads = kwargs["nthreads"]
+    except:
+        nthreads = None
+    backend = get_fft_backend(nthreads)
+    return backend.fftshift(x, *args, **kwargs)
 
-@cache
-def get_fft_backend(nthreads):
-    if nthreads is None or nthreads > 0:
-        try:
-            fftbackend = pyFFTW(nthreads=nthreads)
-        except ImportError:
-            warnings.warn("Could not import pyfftw... Proceeding with numpy.")
-            fftbackend = NumpyFFT()
-    else:
-        fftbackend = NumpyFFT()
-    return fftbackend
+def ifftshift(x, *args, **kwargs):
+    try:
+        nthreads = kwargs["nthreads"]
+    except:
+        nthreads = None
+    backend = get_fft_backend(nthreads)
+    return backend.ifftshift(x, *args, **kwargs)
+
+def fftfreq(x, *args, **kwargs):
+    try:
+        nthreads = kwargs["nthreads"]
+    except:
+        nthreads = None
+    backend = get_fft_backend(nthreads)
+    return backend.fftfreq(x, *args, **kwargs)
 
 
 def fft(
