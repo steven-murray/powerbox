@@ -9,6 +9,7 @@ from typing import Generator
 
 import logging
 import toml
+from multiprocessing import cpu_count
 
 log = logging.getLogger(__name__)
 
@@ -35,7 +36,7 @@ class Config:
         if "USE_FFTW" not in self:
             self["USE_FFTW"] = True
         if "THREADS" not in self:
-            self['THREADS'] = None
+            self['THREADS'] = cpu_count()
 
 
     def __getitem__(self, key: str) -> Any:

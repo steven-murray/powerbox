@@ -37,11 +37,7 @@ THREADS = CONFIG["THREADS"]
 # Try importing the pyFFTW interface
 if USE_FFTW:
     try:
-        if THREADS is None:
-            from multiprocessing import cpu_count
-
-            THREADS = cpu_count()
-
+        warnings.warn("Using pyFFTW with " + str(THREADS) + " threads...")
         from pyfftw.interfaces.cache import enable, set_keepalive_time
         from pyfftw.interfaces.numpy_fft import fftfreq as _fftfreq
         from pyfftw.interfaces.numpy_fft import fftn as _fftn
@@ -67,6 +63,7 @@ if USE_FFTW:
         from numpy.fft import ifftshift as _ifftshift
 else:
     HAVE_FFTW = False
+    warnings.warn("Using numpy FFT...")
     from numpy.fft import fftfreq as _fftfreq
     from numpy.fft import fftn
     from numpy.fft import fftshift as _fftshift
