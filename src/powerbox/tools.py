@@ -9,6 +9,7 @@ import warnings
 
 from . import dft
 
+
 def _getbins(bins, coords, log):
     mx = coords.max()
     if not np.iterable(bins):
@@ -538,9 +539,15 @@ def get_power(
     V = np.prod(boxlength)
 
     # Calculate the n-D power spectrum and align it with the k from powerbox.
-    FT, freq, k = dft.fft(deltax, L=boxlength, a=a, b=b, ret_cubegrid=True, threads=threads)
+    FT, freq, k = dft.fft(
+        deltax, L=boxlength, a=a, b=b, ret_cubegrid=True, threads=threads
+    )
 
-    FT2 = dft.fft(deltax2, L=boxlength, a=a, b=b,threads=threads)[0] if deltax2 is not None else FT
+    FT2 = (
+        dft.fft(deltax2, L=boxlength, a=a, b=b, threads=threads)[0]
+        if deltax2 is not None
+        else FT
+    )
     P = np.real(FT * np.conj(FT2) / V**2)
 
     if vol_normalised_power:

@@ -11,8 +11,8 @@ import numpy as np
 import warnings
 
 from . import dft
-from .tools import _magnitude_grid
 from .import_fft import config
+from .tools import _magnitude_grid
 
 # TODO: add hankel-transform version of LogNormal
 
@@ -141,7 +141,15 @@ class PowerBox:
         self.fourier_b = b
         self.vol_normalised_power = vol_normalised_power
         self.V = self.boxlength**self.dim
-        _,_, self.fftfreq, self.fftshift, self.ifftshift, self.empty, self.HAVE_FFTW = config(threads)
+        (
+            _,
+            _,
+            self.fftfreq,
+            self.fftshift,
+            self.ifftshift,
+            self.empty,
+            self.HAVE_FFTW,
+        ) = config(threads)
         self.threads = threads
         if self.vol_normalised_power:
             self.pk = lambda k: pk(k) / self.V
@@ -232,7 +240,13 @@ class PowerBox:
         dk[...] = self.delta_k()
         dk[...] = (
             self.V
-            * dft.ifft(dk, L=self.boxlength, a=self.fourier_a, b=self.fourier_b, threads=self.threads)[0]
+            * dft.ifft(
+                dk,
+                L=self.boxlength,
+                a=self.fourier_a,
+                b=self.fourier_b,
+                threads=self.threads,
+            )[0]
         )
         dk = np.real(dk)
 
@@ -369,7 +383,13 @@ class LogNormalPowerBox(PowerBox):
         pa = self.empty((self.N,) * self.dim)
         pa[...] = self.power_array()
         return self.V * np.real(
-            dft.ifft(pa, L=self.boxlength, a=self.fourier_a, b=self.fourier_b, threads=self.threads)[0]
+            dft.ifft(
+                pa,
+                L=self.boxlength,
+                a=self.fourier_a,
+                b=self.fourier_b,
+                threads=self.threads,
+            )[0]
         )
 
     def gaussian_correlation_array(self):
@@ -381,7 +401,13 @@ class LogNormalPowerBox(PowerBox):
         gca = self.empty((self.N,) * self.dim)
         gca[...] = self.gaussian_correlation_array()
         gpa = np.abs(
-            dft.fft(gca, L=self.boxlength, a=self.fourier_a, b=self.fourier_b, threads=self.threads)[0]
+            dft.fft(
+                gca,
+                L=self.boxlength,
+                a=self.fourier_a,
+                b=self.fourier_b,
+                threads=self.threads,
+            )[0]
         )
         gpa[self.k() == 0] = 0
         return gpa
@@ -404,7 +430,13 @@ class LogNormalPowerBox(PowerBox):
         dk[...] = self.delta_k()
         dk[...] = (
             np.sqrt(self.V)
-            * dft.ifft(dk, L=self.boxlength, a=self.fourier_a, b=self.fourier_b, threads=self.threads)[0]
+            * dft.ifft(
+                dk,
+                L=self.boxlength,
+                a=self.fourier_a,
+                b=self.fourier_b,
+                threads=self.threads,
+            )[0]
         )
         dk = np.real(dk)
 
