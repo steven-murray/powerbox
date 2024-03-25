@@ -1,3 +1,5 @@
+"""FFT backends."""
+
 import numpy as np
 import warnings
 from functools import cache
@@ -9,10 +11,14 @@ except ImportError:
 
 
 class FFTBackend:
+    """Base class for FFT backends."""
+
     def ifftn(self):
+        """Abstract method for the ifftn."""
         pass
 
     def fftn(self):
+        """Abstract method for the fftn."""
         pass
 
     def fftshift(self, x, *args, **kwargs):
@@ -58,6 +64,8 @@ class FFTBackend:
 
 
 class NumpyFFT(FFTBackend):
+    """FFT backend using numpy.fft."""
+
     def __init__(self):
         self.fftn = np.fft.fftn
 
@@ -70,29 +78,10 @@ class NumpyFFT(FFTBackend):
         self.empty = np.empty
         self.have_fftw = False
 
-    def fftfreq(self, N, d=1.0, b=2 * np.pi):
-        """
-        Return fourier frequencies for a box with N cells, using general Fourier convention.
-
-        Parameters
-        ----------
-        N : int
-            The number of grid cells
-        d : float, optional
-            The interval between cells
-        b : float, optional
-            The fourier-convention of the frequency component (see :mod:`powerbox.dft` for
-            details).
-
-        Returns
-        -------
-        freq : array
-            The N symmetric frequency components of the Fourier transform. Always centred at 0.
-        """
-        return np.fft.fftshift(np.fft.fftfreq(N, d=d)) * (2 * np.pi / b)
-
 
 class FFTW(FFTBackend):
+    """FFT backend using pyfftw."""
+
     def __init__(self, nthreads=None):
         if nthreads is None:
             from multiprocessing import cpu_count
@@ -109,22 +98,31 @@ class FFTW(FFTBackend):
         self._ifftshift = pyfftw.interfaces.numpy_fft.ifftshift
         self._fftfreq = pyfftw.interfaces.numpy_fft.fftfreq
         self.empty = pyfftw.empty_aligned
-        self.have_fftw = True
 
     def ifftn(self, *args, **kwargs):
+        """Inverse fast fourier transform."""
         return pyfftw.interfaces.numpy_fft.ifftn(*args, threads=self.nthreads, **kwargs)
 
     def fftn(self, *args, **kwargs):
+        """Fast fourier transform."""
         return pyfftw.interfaces.numpy_fft.fftn(*args, threads=self.nthreads, **kwargs)
 
 
 @cache
-def get_fft_backend(nthreads):
+def get_fft_backend(nthreads=None):
+    """Choose a backend based on nthreads.
+
+    Will return the Numpy backend if nthreads is None, otherwise the FFTW backend with
+    the given number of threads.
+    """
     if nthreads is None or nthreads > 0:
         try:
             fftbackend = FFTW(nthreads=nthreads)
         except ImportError:
-            warnings.warn("Could not import pyfftw... Proceeding with numpy.")
+            if nthreads is not None:
+                warnings.warn(
+                    "Could not import pyfftw... Proceeding with numpy.", stacklevel=2
+                )
             fftbackend = NumpyFFT()
     else:
         fftbackend = NumpyFFT()

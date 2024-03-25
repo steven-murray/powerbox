@@ -34,31 +34,28 @@ import warnings
 from .dft_backend import get_fft_backend
 
 
-def fftshift(x, *args, **kwargs):
-    try:
-        nthreads = kwargs["nthreads"]
-    except KeyError:
-        nthreads = None
-    backend = get_fft_backend(nthreads)
+def fftshift(x, *args, **kwargs):  # noqa: D103
+    backend = get_fft_backend(kwargs.get("nthreads"))
     return backend.fftshift(x, *args, **kwargs)
 
 
-def ifftshift(x, *args, **kwargs):
-    try:
-        nthreads = kwargs["nthreads"]
-    except KeyError:
-        nthreads = None
-    backend = get_fft_backend(nthreads)
+fftshift.__doc__ = get_fft_backend().fftshift.__doc__
+
+
+def ifftshift(x, *args, **kwargs):  # noqa: D103
+    backend = get_fft_backend(kwargs.get("nthreads"))
     return backend.ifftshift(x, *args, **kwargs)
 
 
-def fftfreq(x, *args, **kwargs):
-    try:
-        nthreads = kwargs["nthreads"]
-    except KeyError:
-        nthreads = None
-    backend = get_fft_backend(nthreads)
+ifftshift.__doc__ = get_fft_backend().ifftshift.__doc__
+
+
+def fftfreq(x, *args, **kwargs):  # noqa: D103
+    backend = get_fft_backend(kwargs.get("nthreads"))
     return backend.fftfreq(x, *args, **kwargs)
+
+
+fftfreq.__doc__ = get_fft_backend().fftfreq.__doc__
 
 
 def fft(
@@ -117,6 +114,7 @@ def fft(
         If set to False, uses numpy's FFT routine. If set to None, uses pyFFTW with
         number of threads equal to the number of available CPUs. If int, uses pyFFTW
         with number of threads equal to the input value.
+
     Returns
     -------
     ft : array
@@ -129,7 +127,6 @@ def fft(
         ``axes`` specifying the magnitude of the frequencies at each point of the
         fourier transform.
     """
-
     fftbackend = get_fft_backend(nthreads)
     if axes is None:
         axes = list(range(len(X.shape)))
