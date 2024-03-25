@@ -6,6 +6,7 @@ try:
 except ImportError:
     pass
 
+
 class FFTBackend:
     def ifftn(self):
         pass
@@ -22,7 +23,7 @@ class FFTBackend:
     def fftfreq(self):
         pass
 
-    
+
 class NumpyFFT(FFTBackend):
     def __init__(self):
         self.fftn = np.fft.fftn
@@ -31,7 +32,7 @@ class NumpyFFT(FFTBackend):
 
         self.empty = np.empty
 
-        self.have_fftw=False
+        self.have_fftw = False
 
     def fftshift(self, x, *args, **kwargs):
         """
@@ -79,6 +80,7 @@ class pyFFTW(FFTBackend):
     def __init__(self, nthreads=None):
         if nthreads is None:
             from multiprocessing import cpu_count
+
             nthreads = cpu_count()
 
         self.nthreads = nthreads
@@ -86,13 +88,13 @@ class pyFFTW(FFTBackend):
             import pyfftw
         except ImportError:
             raise ImportError("pyFFTW could not be imported...")
-        
+
         self.empty = pyfftw.empty_aligned
-        self.have_fftw=True
-    
+        self.have_fftw = True
+
     def ifftn(self, *args, **kwargs):
         return pyfftw.interfaces.numpy_fft.ifftn(*args, threads=self.nthreads, **kwargs)
-    
+
     def fftn(self, *args, **kwargs):
         return pyfftw.interfaces.numpy_fft.fftn(*args, threads=self.nthreads, **kwargs)
 
@@ -135,4 +137,6 @@ class pyFFTW(FFTBackend):
         freq : array
             The N symmetric frequency components of the Fourier transform. Always centred at 0.
         """
-        return pyfftw.interfaces.numpy_fft.fftshift(pyfftw.interfaces.numpy_fft.fftfreq(N, d=d)) * (2 * np.pi / b)
+        return pyfftw.interfaces.numpy_fft.fftshift(
+            pyfftw.interfaces.numpy_fft.fftfreq(N, d=d)
+        ) * (2 * np.pi / b)
