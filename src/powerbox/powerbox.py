@@ -378,7 +378,7 @@ class LogNormalPowerBox(PowerBox):
         pa = self.fftbackend.empty((self.N,) * self.dim)
         pa[...] = self.power_array()
         return self.V * np.real(
-            self.fftbackend.ifft(
+            dft.ifft(
                 pa,
                 L=self.boxlength,
                 a=self.fourier_a,
@@ -396,7 +396,7 @@ class LogNormalPowerBox(PowerBox):
         gca = self.fftbackend.empty((self.N,) * self.dim)
         gca[...] = self.gaussian_correlation_array()
         gpa = np.abs(
-            self.fftbackend.fft(
+            dft.fft(
                 gca,
                 L=self.boxlength,
                 a=self.fourier_a,
