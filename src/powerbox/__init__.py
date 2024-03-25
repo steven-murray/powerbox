@@ -14,6 +14,6 @@ except ModuleNotFoundError:  # pragma: no cover
         # package is not installed
         __version__ = "unknown"
 
-from .import_fft import config
+from .import_fft import pyFFTW, NumpyFFT
 from .powerbox import LogNormalPowerBox, PowerBox
 from .tools import angular_average, angular_average_nd, get_power

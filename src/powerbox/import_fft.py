@@ -1,76 +1,59 @@
 import numpy as np
 import warnings
 
+try:
+    import pyfftw
+except ImportError:
+    pass
 
-def config(THREADS=None):
+class FFTBackend:
+    def ifftn(self):
+        pass
 
-    # Try importing the pyFFTW interface
-    if THREADS is None:
-        if THREADS is None:
-            from multiprocessing import cpu_count
+    def fftn(self):
+        pass
 
-            THREADS = cpu_count()
-    if THREADS > 0:
-        try:
-            # warnings.warn("Using pyFFTW with " + str(THREADS) + " threads...")
-            from pyfftw import empty_aligned as empty
-            from pyfftw.interfaces.cache import enable, set_keepalive_time
-            from pyfftw.interfaces.numpy_fft import fftfreq as _fftfreq
-            from pyfftw.interfaces.numpy_fft import fftn as _fftn
-            from pyfftw.interfaces.numpy_fft import fftshift as _fftshift
-            from pyfftw.interfaces.numpy_fft import ifftn as _ifftn
-            from pyfftw.interfaces.numpy_fft import ifftshift as _ifftshift
+    def fftshift(self):
+        pass
 
-            def fftn(*args, **kwargs):
-                return _fftn(*args, threads=THREADS, **kwargs)
+    def ifftshift(self):
+        pass
 
-            def ifftn(*args, **kwargs):
-                return _ifftn(*args, threads=THREADS, **kwargs)
+    def fftfreq(self):
+        pass
 
-            HAVE_FFTW = True
+    
+class NumpyFFT(FFTBackend):
+    def __init__(self):
+        self.fftn = np.fft.fftn
 
-        except ImportError:
-            HAVE_FFTW = False
-            # warnings.warn("USE_FFTW set to True but pyFFTW could not be loaded. Make sure pyFFTW is installed properly. Proceeding with numpy...", UserWarning)
-            from numpy.fft import fftfreq as _fftfreq
-            from numpy.fft import fftn
-            from numpy.fft import fftshift as _fftshift
-            from numpy.fft import ifftn
-            from numpy.fft import ifftshift as _ifftshift
+        self.ifftn = np.fft.ifftn
 
-            empty = np.empty
-    else:
-        HAVE_FFTW = False
-        # warnings.warn("Using numpy FFT...")
-        from numpy.fft import fftfreq as _fftfreq
-        from numpy.fft import fftn
-        from numpy.fft import fftshift as _fftshift
-        from numpy.fft import ifftn
-        from numpy.fft import ifftshift as _ifftshift
+        self.empty = np.empty
 
-        empty = np.empty
+        self.have_fftw=False
 
-    def fftshift(x, *args, **kwargs):
+    def fftshift(self, x, *args, **kwargs):
         """
         The same as numpy, except that it preserves units (if Astropy quantities are used).
 
         All extra arguments are passed directly to numpy's ``fftshift``.
         """
-        out = _fftshift(x, *args, **kwargs)
+        out = np.fft.fftshift(x, *args, **kwargs)
 
         return out * x.unit if hasattr(x, "unit") else out
 
-    def ifftshift(x, *args, **kwargs):
+    def ifftshift(self, x, *args, **kwargs):
         """
         The same as numpy except it preserves units (if Astropy quantities are used).
 
         All extra arguments are passed directly to numpy's ``ifftshift``.
         """
-        out = _ifftshift(x, *args, **kwargs)
+        out = np.fft.ifftshift(x, *args, **kwargs)
 
         return out * x.unit if hasattr(x, "unit") else out
 
-    def fftfreq(N, d=1.0, b=2 * np.pi):
+    def fftfreq(self, N, d=1.0, b=2 * np.pi):
         """
         Return fourier frequencies for a box with N cells, using general Fourier convention.
 
@@ -89,6 +72,67 @@ def config(THREADS=None):
         freq : array
             The N symmetric frequency components of the Fourier transform. Always centred at 0.
         """
-        return fftshift(_fftfreq(N, d=d)) * (2 * np.pi / b)
+        return np.fft.fftshift(np.fft.fftfreq(N, d=d)) * (2 * np.pi / b)
 
-    return fftn, ifftn, fftfreq, fftshift, ifftshift, empty, HAVE_FFTW
+
+class pyFFTW(FFTBackend):
+    def __init__(self, nthreads=None):
+        if nthreads is None:
+            from multiprocessing import cpu_count
+            nthreads = cpu_count()
+
+        self.nthreads = nthreads
+        try:
+            import pyfftw
+        except ImportError:
+            raise ImportError("pyFFTW could not be imported...")
+        
+        self.empty = pyfftw.empty_aligned
+        self.have_fftw=True
+    
+    def ifftn(self, *args, **kwargs):
+        return pyfftw.interfaces.numpy_fft.ifftn(*args, threads=self.nthreads, **kwargs)
+    
+    def fftn(self, *args, **kwargs):
+        return pyfftw.interfaces.numpy_fft.fftn(*args, threads=self.nthreads, **kwargs)
+
+    def fftshift(self, x, *args, **kwargs):
+        """
+        The same as numpy, except that it preserves units (if Astropy quantities are used).
+
+        All extra arguments are passed directly to numpy's ``fftshift``.
+        """
+        out = pyfftw.interfaces.numpy_fft.fftshift(x, *args, **kwargs)
+
+        return out * x.unit if hasattr(x, "unit") else out
+
+    def ifftshift(self, x, *args, **kwargs):
+        """
+        The same as numpy except it preserves units (if Astropy quantities are used).
+
+        All extra arguments are passed directly to numpy's ``ifftshift``.
+        """
+        out = pyfftw.interfaces.numpy_fft.ifftshift(x, *args, **kwargs)
+
+        return out * x.unit if hasattr(x, "unit") else out
+
+    def fftfreq(self, N, d=1.0, b=2 * np.pi):
+        """
+        Return fourier frequencies for a box with N cells, using general Fourier convention.
+
+        Parameters
+        ----------
+        N : int
+            The number of grid cells
+        d : float, optional
+            The interval between cells
+        b : float, optional
+            The fourier-convention of the frequency component (see :mod:`powerbox.dft` for
+            details).
+
+        Returns
+        -------
+        freq : array
+            The N symmetric frequency components of the Fourier transform. Always centred at 0.
+        """
+        return pyfftw.interfaces.numpy_fft.fftshift(pyfftw.interfaces.numpy_fft.fftfreq(N, d=d)) * (2 * np.pi / b)

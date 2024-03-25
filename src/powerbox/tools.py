@@ -384,7 +384,7 @@ def get_power(
     log_bins=False,
     ignore_zero_mode=False,
     k_weights=1,
-    threads=None,
+    nthreads=None,
 ):
     r"""
     Calculate isotropic power spectrum of a field, or cross-power of two similar fields.
@@ -446,6 +446,10 @@ def get_power(
     k_weights : nd-array, optional
         The weights of the n-dimensional k modes. This can be used to filter out some
         modes completely.
+    nthreads : bool or int, optional
+        If set to False, uses numpy's FFT routine. If set to None, uses pyFFTW with
+        number of threads equal to the number of available CPUs. If int, uses pyFFTW
+        with number of threads equal to the input value.
 
     Returns
     -------
@@ -540,11 +544,11 @@ def get_power(
 
     # Calculate the n-D power spectrum and align it with the k from powerbox.
     FT, freq, k = dft.fft(
-        deltax, L=boxlength, a=a, b=b, ret_cubegrid=True, threads=threads
+        deltax, L=boxlength, a=a, b=b, ret_cubegrid=True, nthreads=nthreads
     )
 
     FT2 = (
-        dft.fft(deltax2, L=boxlength, a=a, b=b, threads=threads)[0]
+        dft.fft(deltax2, L=boxlength, a=a, b=b, nthreads=nthreads)[0]
         if deltax2 is not None
         else FT
     )
