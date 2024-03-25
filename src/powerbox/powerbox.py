@@ -141,19 +141,7 @@ class PowerBox:
         self.fourier_b = b
         self.vol_normalised_power = vol_normalised_power
         self.V = self.boxlength**self.dim
-<<<<<<< HEAD
         self.fftfreq, self.fftshift, self.ifftshift, self.empty, self.HAVE_FFTW = config(threads)[2:]
-=======
-        (
-            _,
-            _,
-            self.fftfreq,
-            self.fftshift,
-            self.ifftshift,
-            self.empty,
-            self.HAVE_FFTW,
-        ) = config(threads)
->>>>>>> b67fd5c3ce06419a20680d89baa5a3f5bb81b865
         self.threads = threads
         if self.vol_normalised_power:
             self.pk = lambda k: pk(k) / self.V
