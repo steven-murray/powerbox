@@ -29,28 +29,43 @@ import warnings
 
 __all__ = ["fft", "ifft", "fftfreq", "fftshift", "ifftshift"]
 
+from .config import CONFIG
+
+USE_FFTW = CONFIG["USE_FFTW"]
+THREADS = CONFIG["THREADS"]
+
 # Try importing the pyFFTW interface
-try:
-    from multiprocessing import cpu_count
+if USE_FFTW:
+    try:
+        if THREADS is None:
+            from multiprocessing import cpu_count
 
-    THREADS = cpu_count()
+            THREADS = cpu_count()
 
-    from pyfftw.interfaces.cache import enable, set_keepalive_time
-    from pyfftw.interfaces.numpy_fft import fftfreq as _fftfreq
-    from pyfftw.interfaces.numpy_fft import fftn as _fftn
-    from pyfftw.interfaces.numpy_fft import fftshift as _fftshift
-    from pyfftw.interfaces.numpy_fft import ifftn as _ifftn
-    from pyfftw.interfaces.numpy_fft import ifftshift as _ifftshift
+        from pyfftw.interfaces.cache import enable, set_keepalive_time
+        from pyfftw.interfaces.numpy_fft import fftfreq as _fftfreq
+        from pyfftw.interfaces.numpy_fft import fftn as _fftn
+        from pyfftw.interfaces.numpy_fft import fftshift as _fftshift
+        from pyfftw.interfaces.numpy_fft import ifftn as _ifftn
+        from pyfftw.interfaces.numpy_fft import ifftshift as _ifftshift
 
-    def fftn(*args, **kwargs):
-        return _fftn(*args, threads=THREADS, **kwargs)
+        def fftn(*args, **kwargs):
+            return _fftn(*args, threads=THREADS, **kwargs)
 
-    def ifftn(*args, **kwargs):
-        return _ifftn(*args, threads=THREADS, **kwargs)
+        def ifftn(*args, **kwargs):
+            return _ifftn(*args, threads=THREADS, **kwargs)
 
-    HAVE_FFTW = True
+        HAVE_FFTW = True
 
-except ImportError:
+    except ImportError:
+        HAVE_FFTW = False
+        warnings.warn("USE_FFTW set to True but pyFFTW could not be loaded. Make sure pyFFTW is installed properly. Proceeding with numpy...", UserWarning)
+        from numpy.fft import fftfreq as _fftfreq
+        from numpy.fft import fftn
+        from numpy.fft import fftshift as _fftshift
+        from numpy.fft import ifftn
+        from numpy.fft import ifftshift as _ifftshift
+else:
     HAVE_FFTW = False
     from numpy.fft import fftfreq as _fftfreq
     from numpy.fft import fftn
