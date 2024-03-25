@@ -54,9 +54,7 @@ class FFTBackend:
         freq : array
             The N symmetric frequency components of the Fourier transform. Always centred at 0.
         """
-        return self.fftshift(
-            self._fftfreq(N, d=d)
-        ) * (2 * np.pi / b)
+        return self.fftshift(self._fftfreq(N, d=d)) * (2 * np.pi / b)
 
 
 class NumpyFFT(FFTBackend):
@@ -118,8 +116,6 @@ class FFTW(FFTBackend):
 
     def fftn(self, *args, **kwargs):
         return pyfftw.interfaces.numpy_fft.fftn(*args, threads=self.nthreads, **kwargs)
-
-    
 
 
 @cache
