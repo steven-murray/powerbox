@@ -36,6 +36,7 @@ def config(THREADS=None):
             from numpy.fft import fftshift as _fftshift
             from numpy.fft import ifftn
             from numpy.fft import ifftshift as _ifftshift
+            empty = np.empty
     else:
         HAVE_FFTW = False
         #warnings.warn("Using numpy FFT...")
