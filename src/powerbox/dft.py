@@ -25,8 +25,6 @@ We note that currently, only positive values for b are implemented (in fact, usi
 one must be careful that the frequencies returned are descending, rather than ascending).
 """
 
-import warnings
-
 __all__ = ["fft", "ifft", "fftfreq", "fftshift", "ifftshift"]
 
 # To avoid MKL-related bugs, numpy needs to be imported after pyfftw: see https://github.com/pyFFTW/pyFFTW/issues/40
@@ -39,7 +37,7 @@ from .dft_backend import get_fft_backend
 def fftshift(x, *args, **kwargs):
     try:
         nthreads = kwargs["nthreads"]
-    except:
+    except KeyError:
         nthreads = None
     backend = get_fft_backend(nthreads)
     return backend.fftshift(x, *args, **kwargs)
@@ -48,7 +46,7 @@ def fftshift(x, *args, **kwargs):
 def ifftshift(x, *args, **kwargs):
     try:
         nthreads = kwargs["nthreads"]
-    except:
+    except KeyError:
         nthreads = None
     backend = get_fft_backend(nthreads)
     return backend.ifftshift(x, *args, **kwargs)
@@ -57,7 +55,7 @@ def ifftshift(x, *args, **kwargs):
 def fftfreq(x, *args, **kwargs):
     try:
         nthreads = kwargs["nthreads"]
-    except:
+    except KeyError:
         nthreads = None
     backend = get_fft_backend(nthreads)
     return backend.fftfreq(x, *args, **kwargs)
