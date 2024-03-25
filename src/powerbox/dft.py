@@ -29,53 +29,13 @@ import warnings
 
 __all__ = ["fft", "ifft", "fftfreq", "fftshift", "ifftshift"]
 
-from .config import CONFIG
-
-USE_FFTW = CONFIG["USE_FFTW"]
-THREADS = CONFIG["THREADS"]
-
-# Try importing the pyFFTW interface
-if USE_FFTW:
-    try:
-        warnings.warn("Using pyFFTW with " + str(THREADS) + " threads...")
-        from pyfftw.interfaces.cache import enable, set_keepalive_time
-        from pyfftw.interfaces.numpy_fft import fftfreq as _fftfreq
-        from pyfftw.interfaces.numpy_fft import fftn as _fftn
-        from pyfftw.interfaces.numpy_fft import fftshift as _fftshift
-        from pyfftw.interfaces.numpy_fft import ifftn as _ifftn
-        from pyfftw.interfaces.numpy_fft import ifftshift as _ifftshift
-
-        def fftn(*args, **kwargs):
-            return _fftn(*args, threads=THREADS, **kwargs)
-
-        def ifftn(*args, **kwargs):
-            return _ifftn(*args, threads=THREADS, **kwargs)
-
-        HAVE_FFTW = True
-
-    except ImportError:
-        HAVE_FFTW = False
-        warnings.warn("USE_FFTW set to True but pyFFTW could not be loaded. Make sure pyFFTW is installed properly. Proceeding with numpy...", UserWarning)
-        from numpy.fft import fftfreq as _fftfreq
-        from numpy.fft import fftn
-        from numpy.fft import fftshift as _fftshift
-        from numpy.fft import ifftn
-        from numpy.fft import ifftshift as _ifftshift
-else:
-    HAVE_FFTW = False
-    warnings.warn("Using numpy FFT...")
-    from numpy.fft import fftfreq as _fftfreq
-    from numpy.fft import fftn
-    from numpy.fft import fftshift as _fftshift
-    from numpy.fft import ifftn
-    from numpy.fft import ifftshift as _ifftshift
-
+from .import_fft import config
 # To avoid MKL-related bugs, numpy needs to be imported after pyfftw: see https://github.com/pyFFTW/pyFFTW/issues/40
 import numpy as np
 
 
 def fft(
-    X, L=None, Lk=None, a=0, b=2 * np.pi, left_edge=None, axes=None, ret_cubegrid=False
+    X, L=None, Lk=None, a=0, b=2 * np.pi, left_edge=None, axes=None, ret_cubegrid=False, threads=None
 ):
     r"""
     Arbitrary-dimension nice Fourier Transform.
@@ -118,7 +78,10 @@ def fft(
         transform.
     ret_cubegrid : bool, optional
         Whether to return the entire grid of frequency magnitudes.
-
+    threads : bool or int, optional
+        If set to False, uses numpy's FFT routine. If set to None, uses pyFFTW with
+        number of threads equal to the number of available CPUs. If int, uses pyFFTW
+        with number of threads equal to the input value.
     Returns
     -------
     ft : array
@@ -131,6 +94,7 @@ def fft(
         ``axes`` specifying the magnitude of the frequencies at each point of the
         fourier transform.
     """
+    fftn, ifftn, fftfreq, fftshift, ifftshift, empty, HAVE_FFTW = config(threads)
     if axes is None:
         axes = list(range(len(X.shape)))
 
@@ -168,7 +132,7 @@ def fft(
 
 
 def ifft(
-    X, Lk=None, L=None, a=0, b=2 * np.pi, axes=None, left_edge=None, ret_cubegrid=False
+    X, Lk=None, L=None, a=0, b=2 * np.pi, axes=None, left_edge=None, ret_cubegrid=False, threads=None,
 ):
     r"""
     Arbitrary-dimension nice inverse Fourier Transform.
@@ -211,6 +175,10 @@ def ifft(
         numpy ifft. This affects only the phases of the result.
     ret_cubegrid : bool, optional
         Whether to return the entire grid of real-space co-ordinate magnitudes.
+    threads : bool or int, optional
+        If set to False, uses numpy's FFT routine. If set to None, uses pyFFTW with
+        number of threads equal to the number of available CPUs. If int, uses pyFFTW
+        with number of threads equal to the input value.
 
     Returns
     -------
@@ -224,6 +192,7 @@ def ifft(
         ``axes`` specifying the magnitude of the real-space co-ordinates at each point
         of the inverse fourier transform.
     """
+    fftn, ifftn, fftfreq, fftshift, ifftshift, empty, HAVE_FFTW = config(threads)
     if axes is None:
         axes = list(range(len(X.shape)))
 
@@ -292,47 +261,3 @@ def _retfunc(ft, freq, axes, ret_cubegrid):
         grid = np.add.outer(grid, freq[i] ** 2)
 
     return ft, freq, np.sqrt(grid)
-
-
-def fftshift(x, *args, **kwargs):
-    """
-    The same as numpy, except that it preserves units (if Astropy quantities are used).
-
-    All extra arguments are passed directly to numpy's ``fftshift``.
-    """
-    out = _fftshift(x, *args, **kwargs)
-
-    return out * x.unit if hasattr(x, "unit") else out
-
-
-def ifftshift(x, *args, **kwargs):
-    """
-    The same as numpy except it preserves units (if Astropy quantities are used).
-
-    All extra arguments are passed directly to numpy's ``ifftshift``.
-    """
-    out = _ifftshift(x, *args, **kwargs)
-
-    return out * x.unit if hasattr(x, "unit") else out
-
-
-def fftfreq(N, d=1.0, b=2 * np.pi):
-    """
-    Return fourier frequencies for a box with N cells, using general Fourier convention.
-
-    Parameters
-    ----------
-    N : int
-        The number of grid cells
-    d : float, optional
-        The interval between cells
-    b : float, optional
-        The fourier-convention of the frequency component (see :mod:`powerbox.dft` for
-        details).
-
-    Returns
-    -------
-    freq : array
-        The N symmetric frequency components of the Fourier transform. Always centred at 0.
-    """
-    return fftshift(_fftfreq(N, d=d)) * (2 * np.pi / b)

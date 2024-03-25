@@ -12,19 +12,7 @@ import warnings
 
 from . import dft
 from .tools import _magnitude_grid
-
-try:
-    from multiprocessing import cpu_count
-
-    THREADS = cpu_count()
-
-    from pyfftw import empty_aligned as empty
-
-    HAVE_FFTW = True
-except ImportError:
-    empty = np.empty
-    HAVE_FFTW = False
-
+from .import_fft import config
 
 # TODO: add hankel-transform version of LogNormal
 
@@ -143,6 +131,7 @@ class PowerBox:
         b=1.0,
         vol_normalised_power=True,
         seed=None,
+        threads=None,
     ):
         self.N = N
         self.dim = dim
@@ -152,7 +141,8 @@ class PowerBox:
         self.fourier_b = b
         self.vol_normalised_power = vol_normalised_power
         self.V = self.boxlength**self.dim
-
+        _,_, self.fftfreq, self.fftshift, self.ifftshift, self.empty, self.HAVE_FFTW = config(threads)
+        self.threads = threads
         if self.vol_normalised_power:
             self.pk = lambda k: pk(k) / self.V
         else:
@@ -180,7 +170,7 @@ class PowerBox:
     @property
     def kvec(self):
         """The vector of wavenumbers along a side."""
-        return dft.fftfreq(self.N, d=self.dx, b=self.fourier_b)
+        return self.fftfreq(self.N, d=self.dx, b=self.fourier_b)
 
     @property
     def r(self):
@@ -222,6 +212,7 @@ class PowerBox:
         i.e. the gaussianised square root of the power spectrum
         (i.e. the Fourier co-efficients)
         """
+
         p = self.power_array()
 
         if np.any(p < 0):
@@ -237,11 +228,11 @@ class PowerBox:
         """The realised field in real-space from the input power spectrum."""
         # Here we multiply by V because the (inverse) fourier-transform of the (dimensionless) power has
         # units of 1/V and we require a unitless quantity for delta_x.
-        dk = empty((self.N,) * self.dim, dtype="complex128")
+        dk = self.empty((self.N,) * self.dim, dtype="complex128")
         dk[...] = self.delta_k()
         dk[...] = (
             self.V
-            * dft.ifft(dk, L=self.boxlength, a=self.fourier_a, b=self.fourier_b)[0]
+            * dft.ifft(dk, L=self.boxlength, a=self.fourier_a, b=self.fourier_b, threads=self.threads)[0]
         )
         dk = np.real(dk)
 
@@ -375,10 +366,10 @@ class LogNormalPowerBox(PowerBox):
 
     def correlation_array(self):
         """The correlation function from the input power, on the grid."""
-        pa = empty((self.N,) * self.dim)
+        pa = self.empty((self.N,) * self.dim)
         pa[...] = self.power_array()
         return self.V * np.real(
-            dft.ifft(pa, L=self.boxlength, a=self.fourier_a, b=self.fourier_b)[0]
+            dft.ifft(pa, L=self.boxlength, a=self.fourier_a, b=self.fourier_b, threads=self.threads)[0]
         )
 
     def gaussian_correlation_array(self):
@@ -387,10 +378,10 @@ class LogNormalPowerBox(PowerBox):
 
     def gaussian_power_array(self):
         """The power spectrum required for a Gaussian field to produce the input power on a lognormal field."""
-        gca = empty((self.N,) * self.dim)
+        gca = self.empty((self.N,) * self.dim)
         gca[...] = self.gaussian_correlation_array()
         gpa = np.abs(
-            dft.fft(gca, L=self.boxlength, a=self.fourier_a, b=self.fourier_b)[0]
+            dft.fft(gca, L=self.boxlength, a=self.fourier_a, b=self.fourier_b, threads=self.threads)[0]
         )
         gpa[self.k() == 0] = 0
         return gpa
@@ -409,11 +400,11 @@ class LogNormalPowerBox(PowerBox):
 
     def delta_x(self):
         """The real-space over-density field, from the input power spectrum."""
-        dk = empty((self.N,) * self.dim, dtype="complex128")
+        dk = self.empty((self.N,) * self.dim, dtype="complex128")
         dk[...] = self.delta_k()
         dk[...] = (
             np.sqrt(self.V)
-            * dft.ifft(dk, L=self.boxlength, a=self.fourier_a, b=self.fourier_b)[0]
+            * dft.ifft(dk, L=self.boxlength, a=self.fourier_a, b=self.fourier_b, threads=self.threads)[0]
         )
         dk = np.real(dk)
 
