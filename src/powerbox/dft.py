@@ -31,11 +31,11 @@ __all__ = ["fft", "ifft", "fftfreq", "fftshift", "ifftshift"]
 
 # To avoid MKL-related bugs, numpy needs to be imported after pyfftw: see https://github.com/pyFFTW/pyFFTW/issues/40
 import numpy as np
-
+import warnings
 from functools import cache
 
 from .import_fft import NumpyFFT, pyFFTW
-import warnings
+
 
 @cache
 def get_fft_backend(nthreads):
