@@ -11,3 +11,4 @@ Other examples can be found in the :doc:`API documentation <api>` for each objec
    demos/algorithm
    demos/cosmological_fields
    demos/dft
+   demos/mpi
