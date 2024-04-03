@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import numpy as np
 import warnings
+from abc import ABC, abstractmethod
 from functools import cache
 
 try:
@@ -12,16 +13,8 @@ except ImportError:
     pass
 
 
-class FFTBackend:
-    """Base class for FFT backends."""
-
-    def ifftn(self):
-        """Abstract method for the ifftn."""
-        pass
-
-    def fftn(self):
-        """Abstract method for the fftn."""
-        pass
+class FFTBackend(ABC):  # noqa: B024
+    """Abstract base class for FFT backends."""
 
     def fftshift(self, x, *args, **kwargs):
         """
