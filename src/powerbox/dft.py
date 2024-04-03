@@ -36,7 +36,7 @@ from .dft_backend import FFTBackend, get_fft_backend
 
 
 def fftshift(x, *args, **kwargs):  # noqa: D103
-    backend = get_fft_backend(kwargs.get("nthreads"))
+    backend = get_fft_backend(kwargs.pop("nthreads"))
     return backend.fftshift(x, *args, **kwargs)
 
 
@@ -44,7 +44,7 @@ fftshift.__doc__ = get_fft_backend().fftshift.__doc__
 
 
 def ifftshift(x, *args, **kwargs):  # noqa: D103
-    backend = get_fft_backend(kwargs.get("nthreads"))
+    backend = get_fft_backend(kwargs.pop("nthreads"))
     return backend.ifftshift(x, *args, **kwargs)
 
 
@@ -52,7 +52,7 @@ ifftshift.__doc__ = get_fft_backend().ifftshift.__doc__
 
 
 def fftfreq(x, *args, **kwargs):  # noqa: D103
-    backend = get_fft_backend(kwargs.get("nthreads"))
+    backend = get_fft_backend(kwargs.pop("nthreads"))
     return backend.fftfreq(x, *args, **kwargs)
 
 

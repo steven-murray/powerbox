@@ -2,7 +2,7 @@ import pytest
 
 import numpy as np
 
-from powerbox.dft import fft, ifft
+from powerbox.dft import fft, fftfreq, fftshift, ifft, ifftshift
 from powerbox.dft_backend import FFTW, NumpyFFT
 
 ABCOMBOS = [
@@ -125,3 +125,18 @@ def test_mixed_2d_bf(g2d, a, b, ainv, binv, nthreads):
         Fk, L=L, a=a, b=b, left_edge=-L / 2, ret_cubegrid=True, nthreads=nthreads
     )
     assert np.max(np.abs(fx.real - analytic_mix(xgrid, a, binv, ainv, b))) < 1e-10
+
+
+@pytest.mark.parametrize("nthreads", (None, 1, 2, False))
+def test_fftshift(nthreads):
+    x = np.linspace(0, 1, 11)
+
+    y = fftshift(ifftshift(x, nthreads=nthreads), nthreads=nthreads)
+    assert np.all(x == y)
+
+
+@pytest.mark.parametrize("nthreads", (None, 1, 2, False))
+@pytest.mark.parametrize("n", (10, 11))
+def test_fftfreq(nthreads, n):
+    freqs = fftfreq(n, nthreads=nthreads)
+    assert np.all(np.diff(freqs)) > 0
