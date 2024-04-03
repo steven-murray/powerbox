@@ -31,7 +31,7 @@ __all__ = ["fft", "ifft", "fftfreq", "fftshift", "ifftshift"]
 import numpy as np
 import warnings
 
-from .dft_backend import get_fft_backend
+from .dft_backend import FFTBackend, get_fft_backend
 
 
 def fftshift(x, *args, **kwargs):  # noqa: D103
@@ -68,6 +68,7 @@ def fft(
     axes=None,
     ret_cubegrid=False,
     nthreads=None,
+    backend: FFTBackend = None,
 ):
     r"""
     Arbitrary-dimension nice Fourier Transform.
@@ -114,6 +115,9 @@ def fft(
         If set to False, uses numpy's FFT routine. If set to None, uses pyFFTW with
         number of threads equal to the number of available CPUs. If int, uses pyFFTW
         with number of threads equal to the input value.
+    backend : FFTBackend, optional
+        The backend to use for the FFT. If not provided, the backend is chosen based on
+        the value of nthreads.
 
     Returns
     -------
@@ -127,7 +131,9 @@ def fft(
         ``axes`` specifying the magnitude of the frequencies at each point of the
         fourier transform.
     """
-    fftbackend = get_fft_backend(nthreads)
+    if backend is None:
+        backend = get_fft_backend(nthreads)
+
     if axes is None:
         axes = list(range(len(X.shape)))
 
@@ -151,13 +157,13 @@ def fft(
 
     ft = (
         Vx
-        * fftbackend.fftshift(fftbackend.fftn(X, axes=axes), axes=axes)
+        * backend.fftshift(backend.fftn(X, axes=axes), axes=axes)
         * np.sqrt(np.abs(b) / (2 * np.pi) ** (1 - a)) ** len(axes)
     )
 
     dx = np.array([float(length) / float(n) for length, n in zip(L, N)])
 
-    freq = [fftbackend.fftfreq(n, d=d, b=b) for n, d in zip(N, dx)]
+    freq = [backend.fftfreq(n, d=d, b=b) for n, d in zip(N, dx)]
 
     # Adjust phases of the result to align with the left edge properly.
     ft = _adjust_phase(ft, left_edge, freq, axes, b)
@@ -173,7 +179,8 @@ def ifft(
     axes=None,
     left_edge=None,
     ret_cubegrid=False,
-    nthreads=None,
+    nthreads: int | None = None,
+    backend: FFTBackend | None = None,
 ):
     r"""
     Arbitrary-dimension nice inverse Fourier Transform.
@@ -220,6 +227,9 @@ def ifft(
         If set to False, uses numpy's FFT routine. If set to None, uses pyFFTW with
         number of threads equal to the number of available CPUs. If int, uses pyFFTW
         with number of threads equal to the input value.
+    backend : FFTBackend, optional
+        The backend to use for the FFT. If not provided, the backend is chosen based on
+        the value of nthreads.
 
     Returns
     -------
@@ -233,7 +243,9 @@ def ifft(
         ``axes`` specifying the magnitude of the real-space co-ordinates at each point
         of the inverse fourier transform.
     """
-    fftbackend = get_fft_backend(nthreads)
+    if backend is None:
+        backend = get_fft_backend(nthreads)
+
     if axes is None:
         axes = list(range(len(X.shape)))
 
@@ -260,12 +272,12 @@ def ifft(
 
     ft = (
         V
-        * fftbackend.ifftn(X, axes=axes)
+        * backend.ifftn(X, axes=axes)
         * np.sqrt(np.abs(b) / (2 * np.pi) ** (1 + a)) ** len(axes)
     )
-    ft = fftbackend.ifftshift(ft, axes=axes)
+    ft = backend.ifftshift(ft, axes=axes)
 
-    freq = [fftbackend.fftfreq(n, d=d, b=b) for n, d in zip(N, dk)]
+    freq = [backend.fftfreq(n, d=d, b=b) for n, d in zip(N, dk)]
 
     ft = _adjust_phase(ft, left_edge, freq, axes, -b)
     return _retfunc(ft, freq, axes, ret_cubegrid)

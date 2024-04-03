@@ -77,6 +77,7 @@ class NumpyFFT(FFTBackend):
 
         self.empty = np.empty
         self.have_fftw = False
+        self.nthreads = 1
 
 
 class FFTW(FFTBackend):
