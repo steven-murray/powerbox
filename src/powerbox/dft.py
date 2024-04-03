@@ -25,11 +25,12 @@ We note that currently, only positive values for b are implemented (in fact, usi
 one must be careful that the frequencies returned are descending, rather than ascending).
 """
 
+from __future__ import annotations
+
 __all__ = ["fft", "ifft", "fftfreq", "fftshift", "ifftshift"]
 
 # To avoid MKL-related bugs, numpy needs to be imported after pyfftw: see https://github.com/pyFFTW/pyFFTW/issues/40
 import numpy as np
-import warnings
 
 from .dft_backend import FFTBackend, get_fft_backend
 

@@ -7,6 +7,8 @@ subclassing :class:`PowerBox` and over-writing the same methods as are over-writ
 :class:`LogNormalPowerBox`.
 """
 
+from __future__ import annotations
+
 import numpy as np
 import warnings
 
