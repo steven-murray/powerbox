@@ -38,6 +38,7 @@ tests = [
     "pytest",
     "pytest-cov",
     "scipy",
+    "fftw"
 ]
 docs = [
     "sphinx",
@@ -59,5 +60,5 @@ fftw = [
     'pyfftw'
 ]
 all = [
-    "powerbox[fftw,dev]"
+    "powerbox[dev]"
 ]
