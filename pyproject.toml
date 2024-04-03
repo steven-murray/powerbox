@@ -38,7 +38,7 @@ tests = [
     "pytest",
     "pytest-cov",
     "scipy",
-    "fftw"
+    "pyfftw"
 ]
 docs = [
     "sphinx",
