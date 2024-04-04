@@ -14,7 +14,7 @@ authors=[
 ]
 description="Create arbitrary boxes with isotropic power spectra"
 license= {text= "MIT"}
-requires-python = ">=3.8"
+requires-python = ">=3.9"
 keywords=["power-spectrum", "signal processing"]
 dependencies = [
     "numpy>1.6.2"
@@ -38,6 +38,7 @@ tests = [
     "pytest",
     "pytest-cov",
     "scipy",
+    "pyfftw"
 ]
 docs = [
     "sphinx",
@@ -59,5 +60,5 @@ fftw = [
     'pyfftw'
 ]
 all = [
-    "powerbox[fftw]"
+    "powerbox[dev]"
 ]

@@ -7,24 +7,13 @@ subclassing :class:`PowerBox` and over-writing the same methods as are over-writ
 :class:`LogNormalPowerBox`.
 """
 
+from __future__ import annotations
+
 import numpy as np
 import warnings
 
 from . import dft
 from .tools import _magnitude_grid
-
-try:
-    from multiprocessing import cpu_count
-
-    THREADS = cpu_count()
-
-    from pyfftw import empty_aligned as empty
-
-    HAVE_FFTW = True
-except ImportError:
-    empty = np.empty
-    HAVE_FFTW = False
-
 
 # TODO: add hankel-transform version of LogNormal
 
@@ -56,69 +45,76 @@ def _make_hermitian(mag, pha):
 
 class PowerBox:
     r"""
-    Calculate real- and fourier-space Gaussian fields generated with a given power spectrum.
+    Generate real- and fourier-space Gaussian fields with a given power spectrum.
 
     Parameters
     ----------
     N : int
-        Number of grid-points on a side for the resulting box (equivalently, number of wavenumbers to use).
-
+        Number of grid-points on a side for the resulting box (equivalently, number of
+        wavenumbers to use).
     pk : callable
-        A callable of a single (vector) variable `k`, which is the isotropic power spectrum. The relationship of the
-        `k` of which this is a function to the real-space co-ordinates, `x`, is determined by the parameters ``a,b``.
-
+        A callable of a single (vector) variable `k`, which is the isotropic power
+        spectrum. The relationship of the `k` of which this is a function to the
+        real-space co-ordinates, `x`, is determined by the parameters ``a,b``.
     dim : int, default 2
         Number of dimensions of resulting box.
-
     boxlength : float, default 1.0
-        Length of the final signal on a side. This may have arbitrary units, so long as `pk` is a function of a
-        variable which has the inverse units.
-
+        Length of the final signal on a side. This may have arbitrary units, so long
+        as `pk` is a function of a variable which has the inverse units.
     ensure_physical : bool, optional
-        Interpreting the power spectrum as a spectrum of density fluctuations, the minimum physical value of the
-        real-space field, :meth:`delta_x`, is -1. With ``ensure_physical`` set to ``True``, :meth:`delta_x` is
-        clipped to return values >-1. If this is happening a lot, consider using :class:`LogNormalPowerBox`.
-
+        Interpreting the power spectrum as a spectrum of density fluctuations, the
+        minimum physical value of the real-space field, :meth:`delta_x`, is -1. With
+        ``ensure_physical`` set to ``True``, :meth:`delta_x` is clipped to return values
+        >-1. If this is happening a lot, consider using :class:`LogNormalPowerBox`.
     a,b : float, optional
-        These define the Fourier convention used. See :mod:`powerbox.dft` for details. The defaults define the standard
-        usage in *cosmology* (for example, as defined in Cosmological Physics, Peacock, 1999, pg. 496.). Standard
-        numerical usage (eg. numpy) is (a,b) = (0,2pi).
-
+        These define the Fourier convention used. See :mod:`powerbox.dft` for details.
+        The defaults define the standard usage in *cosmology* (for example, as defined
+        in Cosmological Physics, Peacock, 1999, pg. 496.). Standard numerical usage
+        (eg. numpy) is (a,b) = (0,2pi).
     vol_normalised_power : bool, optional
-        Whether the input power spectrum, ``pk``, is volume-weighted. Default True because of standard cosmological
-        usage.
-
+        Whether the input power spectrum, ``pk``, is volume-weighted. Default True
+        because of standard cosmological usage.
     seed: int, optional
-        A random seed to define the initial conditions. If not set, it will remain random, and each call to eg.
-        :meth:`delta_x()` will produce a *different* realisation.
+        A random seed to define the initial conditions. If not set, it will remain
+        random, and each call to eg. :meth:`delta_x()` will produce a *different*
+        realisation.
+    nthreads : bool or int, optional
+        If set to False, uses numpy's FFT routine. If set to None, uses pyFFTW with
+        number of threads equal to the number of available CPUs. If int, uses pyFFTW
+        with number of threads equal to the input value.
 
     Notes
     -----
     A number of conventions need to be listed.
 
-    The conventions of using `x` for "real-space" and `k` for "fourier space" arise from cosmology, but this does
-    not affect anything -- `x` could just as well stand for "time domain" and `k` for "frequency domain".
+    The conventions of using `x` for "real-space" and `k` for "fourier space" arise from
+    cosmology, but this does not affect anything -- `x` could just as well stand for
+    "time domain" and `k` for "frequency domain".
 
-    The important convention is the relationship between `x` and `k`, or in other words, whether `k` is interpreted
-    as an angular frequency or ordinary frequency. By default, because of cosmological conventions, `k` is an
-    angular frequency, so that the fourier transform integrand is delta_k*exp(-ikx). The conventions can be changed
+    The important convention is the relationship between `x` and `k`, or in other words,
+    whether `k` is interpreted as an angular frequency or ordinary frequency. By
+    default, because of cosmological conventions, `k` is an angular frequency, so that
+    the fourier transform integrand is delta_k*exp(-ikx). The conventions can be changed
     arbitrarily by setting the ``a,b`` parameters (see :mod:`powerbox.dft` for details).
 
-    The primary quantity of interest is :meth:`delta_x`, which is a zero-mean Gaussian field with a power spectrum
-    equivalent to that which was input. Being zero-mean enables its direct interpretation as an overdensity
-    field, and this interpretation is enforced in the :meth:`make_discrete_sample` method.
+    The primary quantity of interest is :meth:`delta_x`, which is a zero-mean Gaussian
+    field with a power spectrum equivalent to that which was input. Being zero-mean
+    enables its direct interpretation as an overdensity field, and this interpretation
+    is enforced in the :meth:`make_discrete_sample` method.
 
-    .. note:: None of the n-dimensional arrays that are created within the class are stored, due to the inefficiency
-              in memory consumption that this would imply. Thus, each large array is created and *returned* by their
+    .. note:: None of the n-dimensional arrays that are created within the class are
+              stored, due to the inefficiency in memory consumption that this would
+              imply. Thus, each large array is created and *returned* by their
               respective method, to be stored/discarded by the user.
 
-    .. warning:: Due to the above note, repeated calls to eg. :meth:`delta_x()` will produce *different* realisations
-                 of the real-space field, unless the `seed` parameter is set in the constructor.
+    .. warning:: Due to the above note, repeated calls to eg. :meth:`delta_x()` will
+                 produce *different* realisations of the real-space field, unless the
+                 `seed` parameter is set in the constructor.
 
     Examples
     --------
-    To create a 3-dimensional box of gaussian over-densities, gridded into 100 bins, with cosmological conventions,
-    and a power-law power spectrum, simply use
+    To create a 3-dimensional box of gaussian over-densities, gridded into 100 bins,
+    with cosmological conventions, and a power-law power spectrum, simply use
 
     >>> pb = PowerBox(100,lambda k : 0.1*k**-3., dim=3, boxlength=100.0)
     >>> overdensities = pb.delta_x()
@@ -143,6 +139,7 @@ class PowerBox:
         b=1.0,
         vol_normalised_power=True,
         seed=None,
+        nthreads=None,
     ):
         self.N = N
         self.dim = dim
@@ -152,6 +149,7 @@ class PowerBox:
         self.fourier_b = b
         self.vol_normalised_power = vol_normalised_power
         self.V = self.boxlength**self.dim
+        self.fftbackend = dft.get_fft_backend(nthreads)
 
         if self.vol_normalised_power:
             self.pk = lambda k: pk(k) / self.V
@@ -180,7 +178,7 @@ class PowerBox:
     @property
     def kvec(self):
         """The vector of wavenumbers along a side."""
-        return dft.fftfreq(self.N, d=self.dx, b=self.fourier_b)
+        return self.fftbackend.fftfreq(self.N, d=self.dx, b=self.fourier_b)
 
     @property
     def r(self):
@@ -219,8 +217,8 @@ class PowerBox:
     def delta_k(self):
         """A realisation of the delta_k.
 
-        i.e. the gaussianised square root of the power spectrum
-        (i.e. the Fourier co-efficients)
+        The gaussianised square root of the power spectrum (i.e. the Fourier
+        co-efficients).
         """
         p = self.power_array()
 
@@ -237,11 +235,17 @@ class PowerBox:
         """The realised field in real-space from the input power spectrum."""
         # Here we multiply by V because the (inverse) fourier-transform of the (dimensionless) power has
         # units of 1/V and we require a unitless quantity for delta_x.
-        dk = empty((self.N,) * self.dim, dtype="complex128")
+        dk = self.fftbackend.empty((self.N,) * self.dim, dtype="complex128")
         dk[...] = self.delta_k()
         dk[...] = (
             self.V
-            * dft.ifft(dk, L=self.boxlength, a=self.fourier_a, b=self.fourier_b)[0]
+            * dft.ifft(
+                dk,
+                L=self.boxlength,
+                a=self.fourier_a,
+                b=self.fourier_b,
+                backend=self.fftbackend,
+            )[0]
         )
         dk = np.real(dk)
 
@@ -375,10 +379,16 @@ class LogNormalPowerBox(PowerBox):
 
     def correlation_array(self):
         """The correlation function from the input power, on the grid."""
-        pa = empty((self.N,) * self.dim)
+        pa = self.fftbackend.empty((self.N,) * self.dim)
         pa[...] = self.power_array()
         return self.V * np.real(
-            dft.ifft(pa, L=self.boxlength, a=self.fourier_a, b=self.fourier_b)[0]
+            dft.ifft(
+                pa,
+                L=self.boxlength,
+                a=self.fourier_a,
+                b=self.fourier_b,
+                backend=self.fftbackend,
+            )[0]
         )
 
     def gaussian_correlation_array(self):
@@ -387,10 +397,16 @@ class LogNormalPowerBox(PowerBox):
 
     def gaussian_power_array(self):
         """The power spectrum required for a Gaussian field to produce the input power on a lognormal field."""
-        gca = empty((self.N,) * self.dim)
+        gca = self.fftbackend.empty((self.N,) * self.dim)
         gca[...] = self.gaussian_correlation_array()
         gpa = np.abs(
-            dft.fft(gca, L=self.boxlength, a=self.fourier_a, b=self.fourier_b)[0]
+            dft.fft(
+                gca,
+                L=self.boxlength,
+                a=self.fourier_a,
+                b=self.fourier_b,
+                backend=self.fftbackend,
+            )[0]
         )
         gpa[self.k() == 0] = 0
         return gpa
@@ -409,11 +425,17 @@ class LogNormalPowerBox(PowerBox):
 
     def delta_x(self):
         """The real-space over-density field, from the input power spectrum."""
-        dk = empty((self.N,) * self.dim, dtype="complex128")
+        dk = self.fftbackend.empty((self.N,) * self.dim, dtype="complex128")
         dk[...] = self.delta_k()
         dk[...] = (
             np.sqrt(self.V)
-            * dft.ifft(dk, L=self.boxlength, a=self.fourier_a, b=self.fourier_b)[0]
+            * dft.ifft(
+                dk,
+                L=self.boxlength,
+                a=self.fourier_a,
+                b=self.fourier_b,
+                backend=self.fftbackend,
+            )[0]
         )
         dk = np.real(dk)
 

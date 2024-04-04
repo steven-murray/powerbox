@@ -4,6 +4,8 @@ Tools include those for averaging a field angularly, and generating the isotropi
 power spectrum.
 """
 
+from __future__ import annotations
+
 import numpy as np
 import warnings
 
@@ -31,6 +33,7 @@ def angular_average(
     bin_ave=True,
     get_variance=False,
     log_bins=False,
+    threads=None,
 ):
     r"""
     Average a given field within radial bins.
@@ -383,6 +386,7 @@ def get_power(
     log_bins=False,
     ignore_zero_mode=False,
     k_weights=1,
+    nthreads=None,
 ):
     r"""
     Calculate isotropic power spectrum of a field, or cross-power of two similar fields.
@@ -444,6 +448,10 @@ def get_power(
     k_weights : nd-array, optional
         The weights of the n-dimensional k modes. This can be used to filter out some
         modes completely.
+    nthreads : bool or int, optional
+        If set to False, uses numpy's FFT routine. If set to None, uses pyFFTW with
+        number of threads equal to the number of available CPUs. If int, uses pyFFTW
+        with number of threads equal to the input value.
 
     Returns
     -------
@@ -537,9 +545,15 @@ def get_power(
     V = np.prod(boxlength)
 
     # Calculate the n-D power spectrum and align it with the k from powerbox.
-    FT, freq, k = dft.fft(deltax, L=boxlength, a=a, b=b, ret_cubegrid=True)
+    FT, freq, k = dft.fft(
+        deltax, L=boxlength, a=a, b=b, ret_cubegrid=True, nthreads=nthreads
+    )
 
-    FT2 = dft.fft(deltax2, L=boxlength, a=a, b=b)[0] if deltax2 is not None else FT
+    FT2 = (
+        dft.fft(deltax2, L=boxlength, a=a, b=b, nthreads=nthreads)[0]
+        if deltax2 is not None
+        else FT
+    )
     P = np.real(FT * np.conj(FT2) / V**2)
 
     if vol_normalised_power:
