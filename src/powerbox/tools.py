@@ -387,6 +387,7 @@ def get_power(
     ignore_zero_mode=False,
     k_weights=1,
     nthreads=None,
+    k_factor_fnc=None,
 ):
     r"""
     Calculate isotropic power spectrum of a field, or cross-power of two similar fields.
@@ -452,6 +453,11 @@ def get_power(
         If set to False, uses numpy's FFT routine. If set to None, uses pyFFTW with
         number of threads equal to the number of available CPUs. If int, uses pyFFTW
         with number of threads equal to the input value.
+    k_factor_fnc : callable, optional
+        A function that takes in an array of wavemodes [kx, ky, kz] and returns an array
+        of the same size. This function is applied on the FT before the angular averaging.
+        It can be used, for example, to change units from power to another
+        quantity.
 
     Returns
     -------
@@ -554,7 +560,11 @@ def get_power(
         if deltax2 is not None
         else FT
     )
+
     P = np.real(FT * np.conj(FT2) / V**2)
+
+    if k_factor_fnc is not None:
+        P *= k_factor_fnc(freq)
 
     if vol_normalised_power:
         P *= V
