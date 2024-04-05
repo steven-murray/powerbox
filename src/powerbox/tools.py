@@ -482,8 +482,8 @@ def get_power(
     prefactor_fnc : callable, optional
         A function that takes in a list containing three arrays of wavemodes [kx, ky, kz]
         and returns an array of the same size. This function is applied on the FT before
-        the angular averaging. It can be used, for example, to change units from power
-        to another quantity.
+        the angular averaging. It can be used, for example, to convert linearly-binned
+        power into power-per-logarithmic k ($\Delta^2$).
 
     Returns
     -------
