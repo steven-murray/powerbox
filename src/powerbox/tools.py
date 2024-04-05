@@ -603,7 +603,7 @@ def get_power(
 
     if vol_normalised_power:
         P *= V
-    
+
     if prefactor_fnc is not None:
         P *= prefactor_fnc(freq)
 
