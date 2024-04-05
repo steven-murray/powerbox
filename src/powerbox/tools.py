@@ -367,29 +367,29 @@ def angular_average_nd(
         return res.reshape((len(sumweights),) + field.shape[n:]), bins, var
 
 
-def power2delta(freq : list):
+def power2delta(freq: list):
     r"""
-    Calculate the multiplicative factor |k|$^3 / (2\pi^2)$ needed to convert 
-    the power P(k) [mK$^2$ k$^{-3}$] into the "dimensionless" power spectrum 
+    Calculate the multiplicative factor |k|$^3 / (2\pi^2)$ needed to convert
+    the power P(k) [mK$^2$ k$^{-3}$] into the "dimensionless" power spectrum
     $\Delta^2_{21}$ [mK$^2$].
 
     Parameters
     ----------
     freq : list
-        A list containing three arrays of wavemodes kx, ky, kz. 
-        
+        A list containing three arrays of wavemodes kx, ky, kz.
+
     Returns
     -------
     prefactor : np.narray
-        An array of shape (len(kx), len(ky), len(kz)) containing the values of the prefactor 
+        An array of shape (len(kx), len(ky), len(kz)) containing the values of the prefactor
         |k|$^3 / (2\pi^2)$.
 
     """
     kx = freq[0]
     ky = freq[1]
     kz = freq[2]
-    absk = np.sqrt(np.add.outer(np.add.outer(kx**2,ky**2), kz**2))
-    prefactor = absk ** 3 / (2 * np.pi ** 2)
+    absk = np.sqrt(np.add.outer(np.add.outer(kx**2, ky**2), kz**2))
+    prefactor = absk**3 / (2 * np.pi**2)
     return prefactor
 
 
@@ -480,9 +480,9 @@ def get_power(
         number of threads equal to the number of available CPUs. If int, uses pyFFTW
         with number of threads equal to the input value.
     prefactor_fnc : callable, optional
-        A function that takes in a list containing three arrays of wavemodes [kx, ky, kz] 
-        and returns an array of the same size. This function is applied on the FT before 
-        the angular averaging. It can be used, for example, to change units from power 
+        A function that takes in a list containing three arrays of wavemodes [kx, ky, kz]
+        and returns an array of the same size. This function is applied on the FT before
+        the angular averaging. It can be used, for example, to change units from power
         to another quantity.
 
     Returns
