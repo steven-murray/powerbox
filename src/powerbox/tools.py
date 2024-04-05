@@ -601,11 +601,11 @@ def get_power(
 
     P = np.real(FT * np.conj(FT2) / V**2)
 
-    if prefactor_fnc is not None:
-        P *= prefactor_fnc(freq)
-
     if vol_normalised_power:
         P *= V
+    
+    if prefactor_fnc is not None:
+        P *= prefactor_fnc(freq)
 
     if res_ndim is None:
         res_ndim = dim
