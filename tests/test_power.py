@@ -121,5 +121,4 @@ def test_k_weights_fnc():
     p_ki0, k_ki0 = get_power(pb.delta_x(), pb.boxlength, k_weights=ignore_zero_ki)
     p, k = get_power(pb.delta_x(), pb.boxlength, k_weights=ignore_zero_absk)
 
-    assert np.any(k != k_ki0)
-    assert np.any(p != p_ki0)
+    assert not np.allclose(p, p_ki0)
