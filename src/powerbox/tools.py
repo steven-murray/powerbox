@@ -7,6 +7,7 @@ power spectrum.
 from __future__ import annotations
 
 import numpy as np
+from scipy.special import gamma
 import warnings
 
 from . import dft
@@ -369,31 +370,40 @@ def angular_average_nd(
 
 def power2delta(freq: list):
     r"""
-    Calculate the multiplicative factor |k|$^3 / (2\pi^2)$ needed to convert
-    the power P(k) [mK$^2$ k$^{-3}$] into the "dimensionless" power spectrum
-    $\Delta^2_{21}$ [mK$^2$].
+    Calculate the multiplicative factor $\Omega_d |k|^d / (2 \pi)^d$, 
+    where $\Omega_d = \frac{2 \pi^{d/2}}{\Gamma(d/2)}$ needed to convert
+    the power P(k) (in 3D [mK$^2$ k$^{-3}$]) into the "dimensionless" power spectrum
+    $\Delta^2_{21}$ (in 3D [mK$^2$]).
 
     Parameters
     ----------
     freq : list
-        A list containing three arrays of wavemodes kx, ky, kz.
+        A list containing 1D arrays of wavemodes k1, k2, k3, ...
 
     Returns
     -------
     prefactor : np.ndarray
-        An array of shape (len(kx), len(ky), len(kz)) containing the values of the prefactor
-        |k|$^3 / (2\pi^2)$.
+        An array of shape (len(k1), len(k2), len(k3), ...) containing the values of the prefactor
+        $\Omega_d |k|^d / (2 \pi)^d$, where $\Omega_d = \frac{2 \pi^{d/2}}{\Gamma(d/2)}$
+        is the solid angle and $\Gamma$ is the gamma function. For a 3-D sphere, the prefactor
+        is |k|$^3 / (2\pi^2)$.
 
     """
-    kx = freq[0]
-    ky = freq[1]
-    kz = freq[2]
-    absk = np.sqrt(np.add.outer(np.add.outer(kx**2, ky**2), kz**2))
-    prefactor = absk**3 / (2 * np.pi**2)
+    shape = [len(f) for f in freq]
+    dim = len(shape)
+    absk = np.zeros(shape)
+    for i in range(len(freq) - 1):
+        if i == 0:
+            absk = np.add.outer(freq[i] ** 2, freq[i + 1] ** 2)
+        else:
+            absk = np.add.outer(absk, freq[i + 1] ** 2)
+    absk = np.sqrt(absk)
+    solid_angle = 2 * np.pi ** (dim / 2) / gamma(dim / 2)
+    prefactor = solid_angle * (absk / (2 * np.pi)) ** dim
     return prefactor
 
 
-def ignore_zero_absk(freq: list, res_ndim: int = None):
+def ignore_zero_absk(freq: list, kmag: np.ndarray = None):
     r"""
     Returns a mask with zero weights where |k| == 0.
 
@@ -413,14 +423,11 @@ def ignore_zero_absk(freq: list, res_ndim: int = None):
         (len(kx), len(ky), len(kz)).
 
     """
-    if res_ndim is None:
-        res_ndim = len(freq)
-    absk = _magnitude_grid([c for i, c in enumerate(freq) if i < res_ndim])
-    k_weights = absk == 0
+    k_weights = kmag == 0
     return ~k_weights
 
 
-def ignore_zero_ki(freq: list, res_ndim: int = None):
+def ignore_zero_ki(freq: list, kmag: np.ndarray = None):
     r"""
     Returns a mask with zero weights where k_i == 0, where i = x, y, z.
 
@@ -439,14 +446,20 @@ def ignore_zero_ki(freq: list, res_ndim: int = None):
         For example, if the field is not averaged (i.e. 3D power), then the shape is
         (len(kx), len(ky), len(kz)).
     """
-    if res_ndim is None:
-        res_ndim = len(freq)
+    res_ndim = len(freq)
 
     kx = freq[0]
     ky = freq[1]
     kz = freq[2]
 
-    out_shape = [len(kx), len(ky), len(kz)]
+    out_shape = [len(f) for i,f in enumerate(freq) if i < res_ndim]
+
+    coord_meshes = []
+    for i in range(len(out_shape)):
+        dims = list(np.arange(res_ndim))
+        dims.pop(i)
+        mesh = np.repeat(freq[i], np.prod([len(freq[j]) for j in dims])).reshape(out_shape)
+        coord_meshes.append(mesh)
 
     kx_mesh = np.repeat(kx, len(kz) * len(ky)).reshape(out_shape)
 
@@ -544,14 +557,14 @@ def get_power(
     k_weights : nd-array or callable optional
         The weights of the n-dimensional k modes. This can be used to filter out some
         modes completely. If callable, a function that takes in a a list containing
-        three arrays of wavemodes [kx, ky, kz] as well as res_ndim, and returns an array
-        of weights of shape (len(kx), len(ky), len(kz)) for a res_ndim = 1.
+        arrays of wavemodes [k1, k2, k3, ...] as well as kmag (optional), and returns an array
+        of weights of shape (len(k1), len(k2), len(k3), ... ) for a res_ndim = 1.
     nthreads : bool or int, optional
         If set to False, uses numpy's FFT routine. If set to None, uses pyFFTW with
         number of threads equal to the number of available CPUs. If int, uses pyFFTW
         with number of threads equal to the input value.
     prefactor_fnc : callable, optional
-        A function that takes in a list containing three arrays of wavemodes [kx, ky, kz]
+        A function that takes in a list containing arrays of wavemodes [k1, k2, k3, ...]
         and returns an array of the same size. This function is applied on the FT before
         the angular averaging. It can be used, for example, to convert linearly-binned
         power into power-per-logarithmic k ($\Delta^2$).
@@ -677,7 +690,7 @@ def get_power(
 
     if prefactor_fnc is not None:
         P *= prefactor_fnc(freq)
-
+    
     if res_ndim is None:
         res_ndim = dim
 
@@ -685,16 +698,17 @@ def get_power(
     if bins is None:
         bins = int(np.prod(N[:res_ndim]) ** (1.0 / res_ndim) / 2.2)
 
+    kmag = _magnitude_grid([c for i, c in enumerate(freq) if i < res_ndim])
+
     if np.isscalar(k_weights):
-        out_shape = [len(ki) for i, ki in enumerate(freq) if i < res_ndim]
-        k_weights = np.ones(out_shape)
+        k_weights = np.ones_like(kmag)
 
     if callable(k_weights):
-        k_weights = k_weights(freq, res_ndim)
-        
+        k_weights = k_weights(freq, kmag)
+
     # Set k_weights so that k=0 mode is ignore if desired.
     if ignore_zero_mode:
-        k_weights = np.logical_and(k_weights, ignore_zero_absk(freq, res_ndim))
+        k_weights = np.logical_and(k_weights, ignore_zero_absk(freq, kmag))
 
     # res is (P, k, <var>)
     res = angular_average_nd(
