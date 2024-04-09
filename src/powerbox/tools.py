@@ -446,14 +446,16 @@ def ignore_zero_ki(freq: list, kmag: np.ndarray = None):
         For example, if the field is not averaged (i.e. 3D power), then the shape is
         (len(kx), len(ky), len(kz)).
     """
-    res_ndim = len(kmag)
+    if len(kmag.shape) == 1:
+        kmag = kmag[np.newaxis, ...]
+    res_ndim = len(kmag.shape)
 
     out_shape = [len(f) for i, f in enumerate(freq) if i < res_ndim]
-
     coord_meshes = []
     for i in range(len(out_shape)):
         dims = list(np.arange(res_ndim))
         dims.pop(i)
+        print(dims)
         mesh = np.repeat(freq[i], np.prod([len(freq[j]) for j in dims])).reshape(
             out_shape
         )
