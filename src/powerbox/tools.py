@@ -511,6 +511,11 @@ def discretize_N(
         Length of first dimension of deltax and deltax2, respectively.
     dim : int
         Length of second dimension of deltax.
+    N : array-like
+        The number of grid cells per side in the box. Only required if deltax is a
+        discrete sample. If given, the function will assume a discrete sample.
+    boxlength : float or list of floats
+        The length of the box side(s) in real-space.
 
     """
     if deltax.shape[1] > deltax.shape[0]:
@@ -560,7 +565,7 @@ def discretize_N(
         deltax -= np.mean(deltax)
         if deltax2 is not None:
             deltax2 -= np.mean(deltax2)
-    return deltax, deltax2, Npart1, Npart2, dim
+    return deltax, deltax2, Npart1, Npart2, dim, N, boxlength
 
 
 def get_power(
@@ -696,7 +701,7 @@ def get_power(
     """
     # Check if the input data is in sampled particle format
     if N is not None:
-        deltax, deltax2, Npart1, Npart2, dim = discretize_N(
+        deltax, deltax2, Npart1, Npart2, dim, N, boxlength = discretize_N(
             deltax,
             boxlength,
             deltax2=deltax2,
