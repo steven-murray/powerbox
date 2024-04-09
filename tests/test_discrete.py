@@ -1,3 +1,5 @@
+import pytest
+
 import numpy as np
 
 from powerbox import LogNormalPowerBox, PowerBox, get_power
@@ -53,6 +55,15 @@ def test_discrete_power_lognormal():
     res = np.mean(np.abs(power[50:-50] / (0.1 * bins[50:-50] ** -1.5) - 1))
 
     assert res < 1e-1
+
+    with pytest.raises(ValueError):
+        power, bins = get_power(sample.T, pb.boxlength, N=pb.N)
+
+    with pytest.raises(ValueError):
+        power, bins = get_power(sample.T, pb.boxlength, N=pb.N, deltax2=sample.T)
+
+    with pytest.raises(ValueError):
+        power, bins = get_power(sample, pb.boxlength, N=pb.N, deltax2=sample.T)
 
 
 if __name__ == "__main__":
