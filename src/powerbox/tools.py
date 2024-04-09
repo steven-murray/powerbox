@@ -691,7 +691,7 @@ def get_power(
 
     if callable(k_weights):
         k_weights = k_weights(freq, res_ndim)
-        
+
     # Set k_weights so that k=0 mode is ignore if desired.
     if ignore_zero_mode:
         k_weights = np.logical_and(k_weights, ignore_zero_absk(freq, res_ndim))
