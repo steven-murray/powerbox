@@ -1,6 +1,6 @@
 import numpy as np
 
-from powerbox import PowerBox, get_power, power2delta, ignore_zero_ki, ignore_zero_absk
+from powerbox import PowerBox, get_power, ignore_zero_absk, ignore_zero_ki, power2delta
 
 
 def test_power1d():
