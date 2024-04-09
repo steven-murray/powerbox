@@ -452,7 +452,7 @@ def ignore_zero_ki(freq: list, kmag: np.ndarray = None):
     ky = freq[1]
     kz = freq[2]
 
-    out_shape = [len(f) for i,f in enumerate(freq) if i < res_ndim]
+    out_shape = [len(f) for i, f in enumerate(freq) if i < res_ndim]
 
     coord_meshes = []
     for i in range(len(out_shape)):
