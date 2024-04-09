@@ -685,12 +685,15 @@ def get_power(
     if bins is None:
         bins = int(np.prod(N[:res_ndim]) ** (1.0 / res_ndim) / 2.2)
 
+    if np.isscalar(k_weights):
+        out_shape = [len(ki) for i, ki in enumerate(freq) if i < res_ndim]
+        k_weights = np.ones(out_shape)
+
+    if callable(k_weights):
+        k_weights = k_weights(freq, res_ndim)
+        
     # Set k_weights so that k=0 mode is ignore if desired.
     if ignore_zero_mode:
-        if np.isscalar(k_weights):
-            out_shape = [len(ki) for i, ki in enumerate(freq) if i < res_ndim]
-            k_weights = np.ones(out_shape)
-
         k_weights = np.logical_and(k_weights, ignore_zero_absk(freq, res_ndim))
 
     # res is (P, k, <var>)
