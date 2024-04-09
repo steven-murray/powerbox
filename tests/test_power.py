@@ -1,6 +1,6 @@
 import numpy as np
 
-from powerbox import PowerBox, get_power, power2delta
+from powerbox import PowerBox, get_power, power2delta, ignore_zero_ki, ignore_zero_absk
 
 
 def test_power1d():
@@ -114,3 +114,12 @@ def test_prefactor_fnc():
 
     assert np.all(k == kdelta)
     assert np.any(p != pdelta)
+
+
+def test_k_weights_fnc():
+    pb = PowerBox(50, dim=3, pk=lambda k: 1.0 * k**-2.0, boxlength=1.0, b=1)
+    p_ki0, k_ki0 = get_power(pb.delta_x(), pb.boxlength, k_weights=ignore_zero_ki)
+    p, k = get_power(pb.delta_x(), pb.boxlength, k_weights=ignore_zero_absk)
+
+    assert np.any(k != k_ki0)
+    assert np.any(p != p_ki0)
