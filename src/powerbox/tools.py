@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import numpy as np
 import warnings
+from scipy.special import gamma
 
 from . import dft
 
@@ -367,6 +368,204 @@ def angular_average_nd(
         return res.reshape((len(sumweights),) + field.shape[n:]), bins, var
 
 
+def power2delta(freq: list):
+    r"""
+    Convert power P(k) to dimensionless power.
+
+    Calculate the multiplicative factor :math:`\Omega_d |k|^d / (2 \pi)^d`,
+    where :math:`\Omega_d = \frac{2 \pi^{d/2}}{\Gamma(d/2)}` needed to convert
+    the power P(k) (in 3D :math:`\rm{[mK}^2 \rm{k}^{-3}]`) into the "dimensionless" power spectrum
+    :math:`\Delta^2_{21}` (in 3D :math:`\rm{[mK}^2]`).
+
+    Parameters
+    ----------
+    freq : list
+        A list containing 1D arrays of wavemodes k1, k2, k3, ...
+
+    Returns
+    -------
+    prefactor : np.ndarray
+        An array of shape (len(k1), len(k2), len(k3), ...) containing the values of the prefactor
+        :math:`\Omega_d |k|^d / (2 \pi)^d`, where :math:`\Omega_d = \frac{2 \pi^{d/2}}{\Gamma(d/2)}`
+        is the solid angle and :math:`\Gamma` is the gamma function. For a 3-D sphere, the prefactor
+        is :math:`|k|^3 / (2\pi^2)`.
+
+    """
+    shape = [len(f) for f in freq]
+    dim = len(shape)
+    coords = np.meshgrid(*freq, sparse=True)
+    squares = [c**2 for c in coords]
+    absk = np.sqrt(sum(squares))
+    solid_angle = 2 * np.pi ** (dim / 2) / gamma(dim / 2)
+    prefactor = solid_angle * (absk / (2 * np.pi)) ** dim
+    return prefactor
+
+
+def ignore_zero_absk(freq: list, kmag: np.ndarray | None):
+    r"""
+    Returns a mask with zero weights where :math:`|k| = 0`.
+
+    Parameters
+    ----------
+    freq : list
+        A list containing three arrays of wavemodes k1, k2, k3, ...
+    res_ndim : int, optional
+        Only perform angular averaging over first `res_ndim` dimensions. By default,
+        uses all dimensions.
+
+    Returns
+    -------
+    k_weights : np.ndarray
+        An array of same shape as the averaged field containing the weights of the k-modes.
+        For example, if the field is not averaged (e.g. 3D power), then the shape is
+        (len(k1), len(k2), len(k3)).
+
+    """
+    k_weights = kmag != 0
+    return k_weights
+
+
+def ignore_zero_ki(freq: list, kmag: np.ndarray = None):
+    r"""
+    Returns a mask with zero weights where k_i == 0, where i = x, y, z for a 3D field.
+
+    Parameters
+    ----------
+    freq : list
+        A list containing 1D arrays of wavemodes k1, k2, k3, ...
+    res_ndim : int, optional
+        Only perform angular averaging over first `res_ndim` dimensions. By default,
+        uses all dimensions.
+
+    Returns
+    -------
+    k_weights : np.ndarray
+        An array of same shape as the averaged field containing the weights of the k-modes.
+        For example, if the field is not averaged (e.g. 3D power), then the shape is
+        (len(k1), len(k2), len(k3)).
+    """
+    res_ndim = len(kmag.shape)
+
+    coords = np.array(np.meshgrid(*freq[:res_ndim], sparse=False))
+    k_weights = np.any(coords != 0, axis=0)
+
+    return k_weights
+
+
+def discretize_N(
+    deltax,
+    boxlength,
+    deltax2=None,
+    N=None,
+    weights=None,
+    weights2=None,
+    dimensionless=True,
+):
+    r"""
+    Perform binning of a field to obtain a discrete sampling of deltax.
+
+    Parameters
+    ----------
+    deltax : array-like
+        The field on which to calculate the power spectrum . Can either be arbitrarily
+        n-dimensional, or 2-dimensional with the first being the number of spatial
+        dimensions, and the second the positions of discrete particles in the field. The
+        former should represent a density field, while the latter is a discrete sampling
+        of a field. This function chooses which to use by checking the value of ``N``
+        (see below). Note that if a discrete sampling is used, the power spectrum
+        calculated is the "overdensity" power spectrum, i.e. the field re-centered about
+        zero and rescaled by the mean.
+    boxlength : float or list of floats
+        The length of the box side(s) in real-space.
+    deltax2 : array-like
+        If given, a box of the same shape as deltax, against which deltax will be cross
+        correlated.
+    N : int, optional
+        The number of grid cells per side in the box. Only required if deltax is a
+        discrete sample. If given, the function will assume a discrete sample.
+    res_ndim : int, optional
+        Only perform angular averaging over first `res_ndim` dimensions. By default,
+        uses all dimensions.
+    weights, weights2 : array-like, optional
+        If deltax is a discrete sample, these are weights for each point.
+    dimensionless: bool, optional
+        Whether to normalise the cube by its mean prior to taking the power.
+
+    Returns
+    -------
+    deltax : array-like
+        The field on which to calculate the power spectrum . Can either be arbitrarily
+        n-dimensional, or 2-dimensional with the first being the number of spatial
+        dimensions, and the second the positions of discrete particles in the field. The
+        former should represent a density field, while the latter is a discrete sampling
+        of a field. This function chooses which to use by checking the value of ``N``
+        (see below). Note that if a discrete sampling is used, the power spectrum
+        calculated is the "overdensity" power spectrum, i.e. the field re-centered about
+        zero and rescaled by the mean.
+    deltax2 : array-like
+        If given, a box of the same shape as deltax, against which deltax will be cross
+        correlated.
+    Npart1, Npart2 : array-like
+        Length of first dimension of deltax and deltax2, respectively.
+    dim : int
+        Length of second dimension of deltax.
+    N : array-like
+        The number of grid cells per side in the box. Only required if deltax is a
+        discrete sample. If given, the function will assume a discrete sample.
+    boxlength : float or list of floats
+        The length of the box side(s) in real-space.
+
+    """
+    if deltax.shape[1] > deltax.shape[0]:
+        raise ValueError(
+            "It seems that there are more dimensions than particles! "
+            "Try transposing deltax."
+        )
+
+    if deltax2 is not None and deltax2.shape[1] > deltax2.shape[0]:
+        raise ValueError(
+            "It seems that there are more dimensions than particles! "
+            "Try transposing deltax2."
+        )
+
+    dim = deltax.shape[1]
+    if deltax2 is not None and dim != deltax2.shape[1]:
+        raise ValueError("deltax and deltax2 must have the same number of dimensions!")
+
+    if not np.iterable(N):
+        N = [N] * dim
+
+    if not np.iterable(boxlength):
+        boxlength = [boxlength] * dim
+
+    Npart1 = deltax.shape[0]
+
+    Npart2 = deltax2.shape[0] if deltax2 is not None else Npart1
+
+    # Generate a histogram of the data, with appropriate number of bins.
+    edges = [np.linspace(0, L, n + 1) for L, n in zip(boxlength, N)]
+
+    deltax = np.histogramdd(deltax % boxlength, bins=edges, weights=weights)[0].astype(
+        "float"
+    )
+
+    if deltax2 is not None:
+        deltax2 = np.histogramdd(deltax2 % boxlength, bins=edges, weights=weights2)[
+            0
+        ].astype("float")
+
+    # Convert sampled data to mean-zero data
+    if dimensionless:
+        deltax = deltax / np.mean(deltax) - 1
+        if deltax2 is not None:
+            deltax2 = deltax2 / np.mean(deltax2) - 1
+    else:
+        deltax -= np.mean(deltax)
+        if deltax2 is not None:
+            deltax2 -= np.mean(deltax2)
+    return deltax, deltax2, Npart1, Npart2, dim, N, boxlength
+
+
 def get_power(
     deltax,
     boxlength,
@@ -387,6 +586,7 @@ def get_power(
     ignore_zero_mode=False,
     k_weights=1,
     nthreads=None,
+    prefactor_fnc=None,
 ):
     r"""
     Calculate isotropic power spectrum of a field, or cross-power of two similar fields.
@@ -445,13 +645,20 @@ def get_power(
         Whether to create bins in log-space.
     ignore_zero_mode : bool, optional
         Whether to ignore the k=0 mode (or DC term).
-    k_weights : nd-array, optional
+    k_weights : nd-array or callable optional
         The weights of the n-dimensional k modes. This can be used to filter out some
-        modes completely.
+        modes completely. If callable, a function that takes in a a list containing
+        arrays of wavemodes [k1, k2, k3, ...] as well as kmag (optional), and returns an array
+        of weights of shape (len(k1), len(k2), len(k3), ... ) for a res_ndim = 1.
     nthreads : bool or int, optional
         If set to False, uses numpy's FFT routine. If set to None, uses pyFFTW with
         number of threads equal to the number of available CPUs. If int, uses pyFFTW
         with number of threads equal to the input value.
+    prefactor_fnc : callable, optional
+        A function that takes in a list containing arrays of wavemodes [k1, k2, k3, ...]
+        and returns an array of the same size. This function is applied on the FT before
+        the angular averaging. It can be used, for example, to convert linearly-binned
+        power into power-per-logarithmic k ($\Delta^2$).
 
     Returns
     -------
@@ -477,58 +684,31 @@ def get_power(
     >>> plt.plot(k,k**-2.)
     >>> plt.xscale('log')
     >>> plt.yscale('log')
+
+    An example of a prefactor_fnc applied to the box in the above example:
+
+    >>> from powerbox import get_power
+    >>> import numpy as np
+    >>> def power2delta(freq):
+    >>>     kx = freq[0]
+    >>>     ky = freq[1]
+    >>>     kz = freq[2]
+    >>>     absk = np.sqrt(np.add.outer(np.add.outer(kx**2,ky**2), kz**2))
+    >>>     return absk ** 3 / (2 * np.pi ** 2)
+    >>> p, k = get_power(pb.delta_x, pb.boxlength, prefactor_fnc=power2delta)
     """
     # Check if the input data is in sampled particle format
     if N is not None:
-        if deltax.shape[1] > deltax.shape[0]:
-            raise ValueError(
-                "It seems that there are more dimensions than particles! "
-                "Try transposing deltax."
-            )
+        deltax, deltax2, Npart1, Npart2, dim, N, boxlength = discretize_N(
+            deltax,
+            boxlength,
+            deltax2=deltax2,
+            N=N,
+            weights=weights,
+            weights2=weights2,
+            dimensionless=dimensionless,
+        )
 
-        if deltax2 is not None and deltax2.shape[1] > deltax2.shape[0]:
-            raise ValueError(
-                "It seems that there are more dimensions than particles! "
-                "Try transposing deltax2."
-            )
-
-        dim = deltax.shape[1]
-        if deltax2 is not None and dim != deltax2.shape[1]:
-            raise ValueError(
-                "deltax and deltax2 must have the same number of dimensions!"
-            )
-
-        if not np.iterable(N):
-            N = [N] * dim
-
-        if not np.iterable(boxlength):
-            boxlength = [boxlength] * dim
-
-        Npart1 = deltax.shape[0]
-
-        Npart2 = deltax2.shape[0] if deltax2 is not None else Npart1
-
-        # Generate a histogram of the data, with appropriate number of bins.
-        edges = [np.linspace(0, L, n + 1) for L, n in zip(boxlength, N)]
-
-        deltax = np.histogramdd(deltax % boxlength, bins=edges, weights=weights)[
-            0
-        ].astype("float")
-
-        if deltax2 is not None:
-            deltax2 = np.histogramdd(deltax2 % boxlength, bins=edges, weights=weights2)[
-                0
-            ].astype("float")
-
-        # Convert sampled data to mean-zero data
-        if dimensionless:
-            deltax = deltax / np.mean(deltax) - 1
-            if deltax2 is not None:
-                deltax2 = deltax2 / np.mean(deltax2) - 1
-        else:
-            deltax -= np.mean(deltax)
-            if deltax2 is not None:
-                deltax2 -= np.mean(deltax2)
     else:
         # If input data is already a density field, just get the dimensions.
         dim = len(deltax.shape)
@@ -554,10 +734,14 @@ def get_power(
         if deltax2 is not None
         else FT
     )
+
     P = np.real(FT * np.conj(FT2) / V**2)
 
     if vol_normalised_power:
         P *= V
+
+    if prefactor_fnc is not None:
+        P *= prefactor_fnc(freq)
 
     if res_ndim is None:
         res_ndim = dim
@@ -566,13 +750,17 @@ def get_power(
     if bins is None:
         bins = int(np.prod(N[:res_ndim]) ** (1.0 / res_ndim) / 2.2)
 
+    kmag = _magnitude_grid([c for i, c in enumerate(freq) if i < res_ndim])
+
+    if np.isscalar(k_weights):
+        k_weights = np.ones_like(kmag)
+
+    if callable(k_weights):
+        k_weights = k_weights(freq, kmag)
+
     # Set k_weights so that k=0 mode is ignore if desired.
     if ignore_zero_mode:
-        kmag = _magnitude_grid([c for i, c in enumerate(freq) if i < res_ndim])
-        if np.isscalar(k_weights):
-            k_weights = np.ones_like(kmag)
-
-        k_weights[kmag == 0] = 0
+        k_weights = np.logical_and(k_weights, ignore_zero_absk(freq, kmag))
 
     # res is (P, k, <var>)
     res = angular_average_nd(
