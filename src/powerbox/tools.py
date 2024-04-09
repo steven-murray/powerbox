@@ -409,7 +409,7 @@ def ignore_zero_absk(freq: list, res_ndim: int = None):
     -------
     k_weights : np.ndarray
         An array of same shape as the averaged field containing the weights of the k-modes.
-        For example, if the field is not averaged (i.e. 3D power), then the shape is 
+        For example, if the field is not averaged (i.e. 3D power), then the shape is
         (len(kx), len(ky), len(kz)).
 
     """
@@ -436,7 +436,7 @@ def ignore_zero_ki(freq: list, res_ndim: int = None):
     -------
     k_weights : np.ndarray
         An array of same shape as the averaged field containing the weights of the k-modes.
-        For example, if the field is not averaged (i.e. 3D power), then the shape is 
+        For example, if the field is not averaged (i.e. 3D power), then the shape is
         (len(kx), len(ky), len(kz)).
     """
     if res_ndim is None:
@@ -449,9 +449,9 @@ def ignore_zero_ki(freq: list, res_ndim: int = None):
     out_shape = [len(kx), len(ky), len(kz)]
 
     kx_mesh = np.repeat(kx, len(kz) * len(ky)).reshape(out_shape)
-        
+
     ky_mesh = np.repeat(ky, len(kz) * len(kx)).reshape(out_shape)
-        
+
     kz_mesh = np.repeat(kz, len(kx) * len(ky)).reshape(out_shape).T
 
     k_weights = np.logical_or(np.logical_or(kx_mesh == 0, ky_mesh == 0), kz_mesh == 0)
