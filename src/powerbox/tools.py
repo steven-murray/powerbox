@@ -446,11 +446,7 @@ def ignore_zero_ki(freq: list, kmag: np.ndarray = None):
         For example, if the field is not averaged (i.e. 3D power), then the shape is
         (len(kx), len(ky), len(kz)).
     """
-    res_ndim = len(freq)
-
-    kx = freq[0]
-    ky = freq[1]
-    kz = freq[2]
+    res_ndim = len(kmag)
 
     out_shape = [len(f) for i, f in enumerate(freq) if i < res_ndim]
 
@@ -461,19 +457,14 @@ def ignore_zero_ki(freq: list, kmag: np.ndarray = None):
         mesh = np.repeat(freq[i], np.prod([len(freq[j]) for j in dims])).reshape(
             out_shape
         )
+        if i == len(out_shape) - 1:
+            mesh = mesh.T
         coord_meshes.append(mesh)
 
-    kx_mesh = np.repeat(kx, len(kz) * len(ky)).reshape(out_shape)
+    k_weights = np.zeros_like(mesh)
+    for i in range(len(out_shape)):
+        k_weights = np.logical_or(k_weights, coord_meshes[i] == 0)
 
-    ky_mesh = np.repeat(ky, len(kz) * len(kx)).reshape(out_shape)
-
-    kz_mesh = np.repeat(kz, len(kx) * len(ky)).reshape(out_shape).T
-
-    k_weights = np.logical_or(np.logical_or(kx_mesh == 0, ky_mesh == 0), kz_mesh == 0)
-    if res_ndim == len(freq):
-        k_weights = np.all(np.all(k_weights, axis=0), axis=0)
-    if res_ndim == len(freq) - 1:
-        k_weights = np.all(k_weights, axis=0)
     return ~k_weights
 
 
