@@ -370,10 +370,12 @@ def angular_average_nd(
 
 def power2delta(freq: list):
     r"""
-    Calculate the multiplicative factor $\Omega_d |k|^d / (2 \pi)^d$,
-    where $\Omega_d = \frac{2 \pi^{d/2}}{\Gamma(d/2)}$ needed to convert
-    the power P(k) (in 3D [mK$^2$ k$^{-3}$]) into the "dimensionless" power spectrum
-    $\Delta^2_{21}$ (in 3D [mK$^2$]).
+    Convert power P(k) to dimensionless power.
+
+    Calculate the multiplicative factor :math:`\Omega_d |k|^d / (2 \pi)^d`,
+    where :math:`\Omega_d = \frac{2 \pi^{d/2}}{\Gamma(d/2)}` needed to convert
+    the power P(k) (in 3D :math:`\rm{[mK}^2 \rm{k}^{-3}]`) into the "dimensionless" power spectrum
+    :math:`\Delta^2_{21}` (in 3D :math:`\rm{[mK}^2]`).
 
     Parameters
     ----------
@@ -384,9 +386,9 @@ def power2delta(freq: list):
     -------
     prefactor : np.ndarray
         An array of shape (len(k1), len(k2), len(k3), ...) containing the values of the prefactor
-        $\Omega_d |k|^d / (2 \pi)^d$, where $\Omega_d = \frac{2 \pi^{d/2}}{\Gamma(d/2)}$
-        is the solid angle and $\Gamma$ is the gamma function. For a 3-D sphere, the prefactor
-        is |k|$^3 / (2\pi^2)$.
+        :math:`\Omega_d |k|^d / (2 \pi)^d`, where :math:`\Omega_d = \frac{2 \pi^{d/2}}{\Gamma(d/2)}`
+        is the solid angle and :math:`\Gamma` is the gamma function. For a 3-D sphere, the prefactor
+        is :math:`|k|^3 / (2\pi^2)`.
 
     """
     shape = [len(f) for f in freq]
@@ -401,7 +403,7 @@ def power2delta(freq: list):
 
 def ignore_zero_absk(freq: list, kmag: np.ndarray | None):
     r"""
-    Returns a mask with zero weights where |k| == 0.
+    Returns a mask with zero weights where :math:`|k| = 0`.
 
     Parameters
     ----------
@@ -450,6 +452,115 @@ def ignore_zero_ki(freq: list, kmag: np.ndarray = None):
     k_weights = np.any(coords != 0, axis=0)
 
     return k_weights
+
+
+def discretize_N(
+    deltax,
+    boxlength,
+    deltax2=None,
+    N=None,
+    weights=None,
+    weights2=None,
+    dimensionless=True,
+):
+    r"""
+    Perform binning of a field to obtain a discrete sampling of deltax.
+
+    Parameters
+    ----------
+    deltax : array-like
+        The field on which to calculate the power spectrum . Can either be arbitrarily
+        n-dimensional, or 2-dimensional with the first being the number of spatial
+        dimensions, and the second the positions of discrete particles in the field. The
+        former should represent a density field, while the latter is a discrete sampling
+        of a field. This function chooses which to use by checking the value of ``N``
+        (see below). Note that if a discrete sampling is used, the power spectrum
+        calculated is the "overdensity" power spectrum, i.e. the field re-centered about
+        zero and rescaled by the mean.
+    boxlength : float or list of floats
+        The length of the box side(s) in real-space.
+    deltax2 : array-like
+        If given, a box of the same shape as deltax, against which deltax will be cross
+        correlated.
+    N : int, optional
+        The number of grid cells per side in the box. Only required if deltax is a
+        discrete sample. If given, the function will assume a discrete sample.
+    res_ndim : int, optional
+        Only perform angular averaging over first `res_ndim` dimensions. By default,
+        uses all dimensions.
+    weights, weights2 : array-like, optional
+        If deltax is a discrete sample, these are weights for each point.
+    dimensionless: bool, optional
+        Whether to normalise the cube by its mean prior to taking the power.
+
+    Returns
+    -------
+    deltax : array-like
+        The field on which to calculate the power spectrum . Can either be arbitrarily
+        n-dimensional, or 2-dimensional with the first being the number of spatial
+        dimensions, and the second the positions of discrete particles in the field. The
+        former should represent a density field, while the latter is a discrete sampling
+        of a field. This function chooses which to use by checking the value of ``N``
+        (see below). Note that if a discrete sampling is used, the power spectrum
+        calculated is the "overdensity" power spectrum, i.e. the field re-centered about
+        zero and rescaled by the mean.
+    deltax2 : array-like
+        If given, a box of the same shape as deltax, against which deltax will be cross
+        correlated.
+    Npart1, Npart2 : array-like
+        Length of first dimension of deltax and deltax2, respectively.
+    dim : int
+        Length of second dimension of deltax.
+
+    """
+    if deltax.shape[1] > deltax.shape[0]:
+        raise ValueError(
+            "It seems that there are more dimensions than particles! "
+            "Try transposing deltax."
+        )
+
+    if deltax2 is not None and deltax2.shape[1] > deltax2.shape[0]:
+        raise ValueError(
+            "It seems that there are more dimensions than particles! "
+            "Try transposing deltax2."
+        )
+
+    dim = deltax.shape[1]
+    if deltax2 is not None and dim != deltax2.shape[1]:
+        raise ValueError("deltax and deltax2 must have the same number of dimensions!")
+
+    if not np.iterable(N):
+        N = [N] * dim
+
+    if not np.iterable(boxlength):
+        boxlength = [boxlength] * dim
+
+    Npart1 = deltax.shape[0]
+
+    Npart2 = deltax2.shape[0] if deltax2 is not None else Npart1
+
+    # Generate a histogram of the data, with appropriate number of bins.
+    edges = [np.linspace(0, L, n + 1) for L, n in zip(boxlength, N)]
+
+    deltax = np.histogramdd(deltax % boxlength, bins=edges, weights=weights)[0].astype(
+        "float"
+    )
+
+    if deltax2 is not None:
+        deltax2 = np.histogramdd(deltax2 % boxlength, bins=edges, weights=weights2)[
+            0
+        ].astype("float")
+
+    # Convert sampled data to mean-zero data
+    if dimensionless:
+        deltax = deltax / np.mean(deltax) - 1
+        if deltax2 is not None:
+            deltax2 = deltax2 / np.mean(deltax2) - 1
+    else:
+        deltax -= np.mean(deltax)
+        if deltax2 is not None:
+            deltax2 -= np.mean(deltax2)
+    return deltax, deltax2, Npart1, Npart2, dim
 
 
 def get_power(
@@ -585,55 +696,16 @@ def get_power(
     """
     # Check if the input data is in sampled particle format
     if N is not None:
-        if deltax.shape[1] > deltax.shape[0]:
-            raise ValueError(
-                "It seems that there are more dimensions than particles! "
-                "Try transposing deltax."
-            )
+        deltax, deltax2, Npart1, Npart2, dim = discretize_N(
+            deltax,
+            boxlength,
+            deltax2=deltax2,
+            N=N,
+            weights=weights,
+            weights2=weights2,
+            dimensionless=dimensionless,
+        )
 
-        if deltax2 is not None and deltax2.shape[1] > deltax2.shape[0]:
-            raise ValueError(
-                "It seems that there are more dimensions than particles! "
-                "Try transposing deltax2."
-            )
-
-        dim = deltax.shape[1]
-        if deltax2 is not None and dim != deltax2.shape[1]:
-            raise ValueError(
-                "deltax and deltax2 must have the same number of dimensions!"
-            )
-
-        if not np.iterable(N):
-            N = [N] * dim
-
-        if not np.iterable(boxlength):
-            boxlength = [boxlength] * dim
-
-        Npart1 = deltax.shape[0]
-
-        Npart2 = deltax2.shape[0] if deltax2 is not None else Npart1
-
-        # Generate a histogram of the data, with appropriate number of bins.
-        edges = [np.linspace(0, L, n + 1) for L, n in zip(boxlength, N)]
-
-        deltax = np.histogramdd(deltax % boxlength, bins=edges, weights=weights)[
-            0
-        ].astype("float")
-
-        if deltax2 is not None:
-            deltax2 = np.histogramdd(deltax2 % boxlength, bins=edges, weights=weights2)[
-                0
-            ].astype("float")
-
-        # Convert sampled data to mean-zero data
-        if dimensionless:
-            deltax = deltax / np.mean(deltax) - 1
-            if deltax2 is not None:
-                deltax2 = deltax2 / np.mean(deltax2) - 1
-        else:
-            deltax -= np.mean(deltax)
-            if deltax2 is not None:
-                deltax2 -= np.mean(deltax2)
     else:
         # If input data is already a density field, just get the dimensions.
         dim = len(deltax.shape)
