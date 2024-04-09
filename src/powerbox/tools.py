@@ -380,7 +380,7 @@ def power2delta(freq: list):
 
     Returns
     -------
-    prefactor : np.narray
+    prefactor : np.ndarray
         An array of shape (len(kx), len(ky), len(kz)) containing the values of the prefactor
         |k|$^3 / (2\pi^2)$.
 
