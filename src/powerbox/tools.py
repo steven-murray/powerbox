@@ -444,8 +444,6 @@ def ignore_zero_ki(freq: list, kmag: np.ndarray = None):
         For example, if the field is not averaged (e.g. 3D power), then the shape is
         (len(k1), len(k2), len(k3)).
     """
-    if len(kmag.shape) == 1:
-        kmag = kmag[np.newaxis, ...]
     res_ndim = len(kmag.shape)
 
     coords = np.array(np.meshgrid(*freq[:res_ndim], sparse=False))
