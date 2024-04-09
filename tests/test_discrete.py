@@ -50,7 +50,7 @@ def test_discrete_power_lognormal():
     )
 
     sample = pb.create_discrete_sample(nbar=1000.0)
-    power, bins = get_power(sample, pb.boxlength, N=pb.N, dimensionless=False)
+    power, bins = get_power(sample, pb.boxlength, N=pb.N)
 
     res = np.mean(np.abs(power[50:-50] / (0.1 * bins[50:-50] ** -1.5) - 1))
 
@@ -65,7 +65,7 @@ def test_discrete_power_lognormal():
     with pytest.raises(ValueError):
         power, bins = get_power(sample, pb.boxlength, N=pb.N, deltax2=sample.T)
 
-    get_power(sample, pb.boxlength, N=pb.N, deltax2=sample, dimensionless=True)
+    get_power(sample, pb.boxlength, N=pb.N, deltax2=sample, dimensionless=False)
 
 
 if __name__ == "__main__":
