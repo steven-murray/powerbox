@@ -391,26 +391,22 @@ def power2delta(freq: list):
     """
     shape = [len(f) for f in freq]
     dim = len(shape)
-    absk = np.zeros(shape)
-    for i in range(len(freq) - 1):
-        if i == 0:
-            absk = np.add.outer(freq[i] ** 2, freq[i + 1] ** 2)
-        else:
-            absk = np.add.outer(absk, freq[i + 1] ** 2)
-    absk = np.sqrt(absk)
+    coords = np.meshgrid(*freq, sparse=True)
+    squares = [c**2 for c in coords]
+    absk = np.sqrt(sum(squares))
     solid_angle = 2 * np.pi ** (dim / 2) / gamma(dim / 2)
     prefactor = solid_angle * (absk / (2 * np.pi)) ** dim
     return prefactor
 
 
-def ignore_zero_absk(freq: list, kmag: np.ndarray = None):
+def ignore_zero_absk(freq: list, kmag: np.ndarray | None):
     r"""
     Returns a mask with zero weights where |k| == 0.
 
     Parameters
     ----------
     freq : list
-        A list containing three arrays of wavemodes kx, ky, kz.
+        A list containing three arrays of wavemodes k1, k2, k3, ...
     res_ndim : int, optional
         Only perform angular averaging over first `res_ndim` dimensions. By default,
         uses all dimensions.
@@ -419,22 +415,22 @@ def ignore_zero_absk(freq: list, kmag: np.ndarray = None):
     -------
     k_weights : np.ndarray
         An array of same shape as the averaged field containing the weights of the k-modes.
-        For example, if the field is not averaged (i.e. 3D power), then the shape is
-        (len(kx), len(ky), len(kz)).
+        For example, if the field is not averaged (e.g. 3D power), then the shape is
+        (len(k1), len(k2), len(k3)).
 
     """
-    k_weights = kmag == 0
-    return ~k_weights
+    k_weights = kmag != 0
+    return k_weights
 
 
 def ignore_zero_ki(freq: list, kmag: np.ndarray = None):
     r"""
-    Returns a mask with zero weights where k_i == 0, where i = x, y, z.
+    Returns a mask with zero weights where k_i == 0, where i = x, y, z for a 3D field.
 
     Parameters
     ----------
     freq : list
-        A list containing three arrays of wavemodes kx, ky, kz.
+        A list containing 1D arrays of wavemodes k1, k2, k3, ...
     res_ndim : int, optional
         Only perform angular averaging over first `res_ndim` dimensions. By default,
         uses all dimensions.
@@ -443,31 +439,17 @@ def ignore_zero_ki(freq: list, kmag: np.ndarray = None):
     -------
     k_weights : np.ndarray
         An array of same shape as the averaged field containing the weights of the k-modes.
-        For example, if the field is not averaged (i.e. 3D power), then the shape is
-        (len(kx), len(ky), len(kz)).
+        For example, if the field is not averaged (e.g. 3D power), then the shape is
+        (len(k1), len(k2), len(k3)).
     """
     if len(kmag.shape) == 1:
         kmag = kmag[np.newaxis, ...]
     res_ndim = len(kmag.shape)
 
-    out_shape = [len(f) for i, f in enumerate(freq) if i < res_ndim]
-    coord_meshes = []
-    for i in range(len(out_shape)):
-        dims = list(np.arange(res_ndim))
-        dims.pop(i)
-        print(dims)
-        mesh = np.repeat(freq[i], np.prod([len(freq[j]) for j in dims])).reshape(
-            out_shape
-        )
-        if i == len(out_shape) - 1:
-            mesh = mesh.T
-        coord_meshes.append(mesh)
+    coords = np.array(np.meshgrid(*freq[:res_ndim], sparse=False))
+    k_weights = np.any(coords != 0, axis=0)
 
-    k_weights = np.zeros_like(mesh)
-    for i in range(len(out_shape)):
-        k_weights = np.logical_or(k_weights, coord_meshes[i] == 0)
-
-    return ~k_weights
+    return k_weights
 
 
 def get_power(
