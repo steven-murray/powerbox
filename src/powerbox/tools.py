@@ -7,8 +7,8 @@ power spectrum.
 from __future__ import annotations
 
 import numpy as np
-from scipy.special import gamma
 import warnings
+from scipy.special import gamma
 
 from . import dft
 
@@ -370,7 +370,7 @@ def angular_average_nd(
 
 def power2delta(freq: list):
     r"""
-    Calculate the multiplicative factor $\Omega_d |k|^d / (2 \pi)^d$, 
+    Calculate the multiplicative factor $\Omega_d |k|^d / (2 \pi)^d$,
     where $\Omega_d = \frac{2 \pi^{d/2}}{\Gamma(d/2)}$ needed to convert
     the power P(k) (in 3D [mK$^2$ k$^{-3}$]) into the "dimensionless" power spectrum
     $\Delta^2_{21}$ (in 3D [mK$^2$]).
@@ -458,7 +458,9 @@ def ignore_zero_ki(freq: list, kmag: np.ndarray = None):
     for i in range(len(out_shape)):
         dims = list(np.arange(res_ndim))
         dims.pop(i)
-        mesh = np.repeat(freq[i], np.prod([len(freq[j]) for j in dims])).reshape(out_shape)
+        mesh = np.repeat(freq[i], np.prod([len(freq[j]) for j in dims])).reshape(
+            out_shape
+        )
         coord_meshes.append(mesh)
 
     kx_mesh = np.repeat(kx, len(kz) * len(ky)).reshape(out_shape)
@@ -690,7 +692,7 @@ def get_power(
 
     if prefactor_fnc is not None:
         P *= prefactor_fnc(freq)
-    
+
     if res_ndim is None:
         res_ndim = dim
 
