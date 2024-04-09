@@ -393,6 +393,75 @@ def power2delta(freq: list):
     return prefactor
 
 
+def ignore_zero_absk(freq: list, res_ndim: int = None):
+    r"""
+    Returns a mask with zero weights where |k| == 0.
+
+    Parameters
+    ----------
+    freq : list
+        A list containing three arrays of wavemodes kx, ky, kz.
+    res_ndim : int, optional
+        Only perform angular averaging over first `res_ndim` dimensions. By default,
+        uses all dimensions.
+
+    Returns
+    -------
+    k_weights : np.ndarray
+        An array of same shape as the averaged field containing the weights of the k-modes.
+        For example, if the field is not averaged (i.e. 3D power), then the shape is 
+        (len(kx), len(ky), len(kz)).
+
+    """
+    if res_ndim is None:
+        res_ndim = len(freq)
+    absk = _magnitude_grid([c for i, c in enumerate(freq) if i < res_ndim])
+    k_weights = absk == 0
+    return ~k_weights
+
+
+def ignore_zero_ki(freq: list, res_ndim: int = None):
+    r"""
+    Returns a mask with zero weights where k_i == 0, where i = x, y, z.
+
+    Parameters
+    ----------
+    freq : list
+        A list containing three arrays of wavemodes kx, ky, kz.
+    res_ndim : int, optional
+        Only perform angular averaging over first `res_ndim` dimensions. By default,
+        uses all dimensions.
+
+    Returns
+    -------
+    k_weights : np.ndarray
+        An array of same shape as the averaged field containing the weights of the k-modes.
+        For example, if the field is not averaged (i.e. 3D power), then the shape is 
+        (len(kx), len(ky), len(kz)).
+    """
+    if res_ndim is None:
+        res_ndim = len(freq)
+
+    kx = freq[0]
+    ky = freq[1]
+    kz = freq[2]
+
+    out_shape = [len(kx), len(ky), len(kz)]
+
+    kx_mesh = np.repeat(kx, len(kz) * len(ky)).reshape(out_shape)
+        
+    ky_mesh = np.repeat(ky, len(kz) * len(kx)).reshape(out_shape)
+        
+    kz_mesh = np.repeat(kz, len(kx) * len(ky)).reshape(out_shape).T
+
+    k_weights = np.logical_or(np.logical_or(kx_mesh == 0, ky_mesh == 0), kz_mesh == 0)
+    if res_ndim == len(freq):
+        k_weights = np.all(np.all(k_weights, axis=0), axis=0)
+    if res_ndim == len(freq) - 1:
+        k_weights = np.all(k_weights, axis=0)
+    return ~k_weights
+
+
 def get_power(
     deltax,
     boxlength,
@@ -472,9 +541,11 @@ def get_power(
         Whether to create bins in log-space.
     ignore_zero_mode : bool, optional
         Whether to ignore the k=0 mode (or DC term).
-    k_weights : nd-array, optional
+    k_weights : nd-array or callable optional
         The weights of the n-dimensional k modes. This can be used to filter out some
-        modes completely.
+        modes completely. If callable, a function that takes in a a list containing
+        three arrays of wavemodes [kx, ky, kz] as well as res_ndim, and returns an array
+        of weights of shape (len(kx), len(ky), len(kz)) for a res_ndim = 1.
     nthreads : bool or int, optional
         If set to False, uses numpy's FFT routine. If set to None, uses pyFFTW with
         number of threads equal to the number of available CPUs. If int, uses pyFFTW
@@ -616,11 +687,11 @@ def get_power(
 
     # Set k_weights so that k=0 mode is ignore if desired.
     if ignore_zero_mode:
-        kmag = _magnitude_grid([c for i, c in enumerate(freq) if i < res_ndim])
         if np.isscalar(k_weights):
-            k_weights = np.ones_like(kmag)
+            out_shape = [len(ki) for i, ki in enumerate(freq) if i < res_ndim]
+            k_weights = np.ones(out_shape)
 
-        k_weights[kmag == 0] = 0
+        k_weights = np.logical_and(k_weights, ignore_zero_absk(freq, res_ndim))
 
     # res is (P, k, <var>)
     res = angular_average_nd(
