@@ -88,7 +88,7 @@ class FFTW(FFTBackend):
         try:
             pyfftw.builders._utils._default_threads(4)
         except ValueError:
-            if nthreads > 1:
+            if nthreads and nthreads > 1:
                 warnings.warn(
                     "pyFFTW was not installed with multithreading. Using 1 thread.",
                     stacklevel=2,
