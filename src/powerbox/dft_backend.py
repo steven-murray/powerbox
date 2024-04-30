@@ -6,6 +6,7 @@ import numpy as np
 import warnings
 from abc import ABC, abstractmethod
 from functools import cache
+from multiprocessing import cpu_count
 
 try:
     import pyfftw
@@ -79,16 +80,25 @@ class FFTW(FFTBackend):
     """FFT backend using pyfftw."""
 
     def __init__(self, nthreads=None):
-        if nthreads is None:
-            from multiprocessing import cpu_count
-
-            nthreads = cpu_count()
-
-        self.nthreads = nthreads
         try:
             import pyfftw
         except ImportError:
             raise ImportError("pyFFTW could not be imported...")
+
+        try:
+            pyfftw.builders._utils._default_threads(4)
+        except ValueError:
+            if nthreads > 1:
+                warnings.warn(
+                    "pyFFTW was not installed with multithreading. Using 1 thread.",
+                    stacklevel=2,
+                )
+            nthreads = 1
+
+        if nthreads is None:
+            nthreads = cpu_count()
+
+        self.nthreads = nthreads
 
         self._fftshift = pyfftw.interfaces.numpy_fft.fftshift
         self._ifftshift = pyfftw.interfaces.numpy_fft.ifftshift
