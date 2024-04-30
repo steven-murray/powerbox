@@ -16,24 +16,15 @@ jobs:
         with:
           fetch-depth: 1
 
-      - uses: conda-incubator/setup-miniconda@v3
+      - uses: actions/setup-python@v4
         with:
           python-version: ${{ matrix.python }}
-          mamba-version: "*"
-          channels: conda-forge,defaults
-          channel-priority: true
-          activate-environment: withfftw
-          environment-file: .github/fftw-env.yaml
 
       - name: Install Test Deps
-        shell: bash -el {0}
         run: |
-          which pip
-          python --version
-          pip install .[tests,fftw]
+          pip install .[tests]
 
       - name: Run Tests
-        shell: bash -el {0}
         run: |
           python -m pytest -W error
 
