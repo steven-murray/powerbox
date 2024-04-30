@@ -23,10 +23,11 @@ jobs:
           mamba-version: "*"
           channels: conda-forge,defaults
           channel-priority: true
+          activate-environment: withfftw
+          environment-file: .github/fftw-env.yaml
 
       - name: Install Test Deps
         run: |
-          mamba install -y -c conda-forge pyfftw
           pip install .[tests,fftw]
 
       - name: Run Tests
