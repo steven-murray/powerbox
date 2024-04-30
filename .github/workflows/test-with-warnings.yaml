@@ -33,6 +33,7 @@ jobs:
           pip install .[tests,fftw]
 
       - name: Run Tests
+        shell: bash -el {0}
         run: |
           python -m pytest -W error
 
