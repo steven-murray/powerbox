@@ -17,13 +17,16 @@ jobs:
         with:
           fetch-depth: 1
 
-      - name: Set up Python
-        uses: actions/setup-python@v4
+      - uses: conda-incubator/setup-miniconda@v3
         with:
           python-version: ${{ matrix.python }}
+          mamba-version: "*"
+          channels: conda-forge,defaults
+          channel-priority: true
 
       - name: Install Test Deps
         run: |
+          mamba install -y -c conda-forge pyfftw
           pip install .[tests,fftw]
 
       - name: Run Tests
