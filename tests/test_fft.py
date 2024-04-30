@@ -14,15 +14,19 @@ ABCOMBOS = [
     (1, 1, 0, 1),
 ]
 
-BACKENDS = [NumpyFFT(), FFTW(nthreads=1)]
+BACKENDS = [
+    NumpyFFT(),
+]
 
 try:
     import pyfftw
 
+    BACKENDS.append(FFTW(nthreads=1))
+
     pyfftw.builders._utils._default_threads(4)
 
     BACKENDS.append(FFTW(nthreads=2))
-except ValueError:
+except (ValueError, ImportError):
     # If FFTW was not installed with multithreading, the above will error.
     pass
 
