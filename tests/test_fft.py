@@ -14,7 +14,17 @@ ABCOMBOS = [
     (1, 1, 0, 1),
 ]
 
-BACKENDS = [NumpyFFT(), FFTW(nthreads=1), FFTW(nthreads=2)]
+BACKENDS = [NumpyFFT(), FFTW(nthreads=1)]
+
+try:
+    import pyfftw
+
+    pyfftw.builders._utils._default_threads(4)
+
+    BACKENDS.append(FFTW(nthreads=2))
+except ValueError:
+    # If FFTW was not installed with multithreading, the above will error.
+    pass
 
 
 def gauss_ft(k, a, b, n=2):
