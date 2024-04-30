@@ -28,6 +28,8 @@ jobs:
 
       - name: Install Test Deps
         run: |
+          which pip
+          python --version
           pip install .[tests,fftw]
 
       - name: Run Tests
