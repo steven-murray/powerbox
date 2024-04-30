@@ -27,12 +27,14 @@ jobs:
           environment-file: .github/fftw-env.yaml
 
       - name: Install Test Deps
+        shell: bash -el {0}
         run: |
           which pip
           python --version
           pip install .[tests,fftw]
 
       - name: Run Tests
+        shell: bash -el {0}
         run: |
           python -m pytest --cov=powerbox --cov-config=.coveragerc --cov-report xml:./coverage.xml --junitxml=test-reports/xunit.xml
 
