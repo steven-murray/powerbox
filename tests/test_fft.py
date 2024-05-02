@@ -133,14 +133,15 @@ def test_mixed_2d_fb(g2d, a, b, ainv, binv, backend):
     assert np.max(np.abs(fx.real - analytic_mix(xgrid, a, b, ainv, binv))) < 1e-10
 
 
-@pytest.mark.parametrize("a,b, ainv, binv", ABCOMBOS)
-@pytest.mark.parametrize("nthreads", (None, 1, 2, False))
-def test_mixed_2d_bf(g2d, a, b, ainv, binv, nthreads):
-    pytest.mark.skipif(
-        not HAVE_FFTW_MULTITHREAD and nthreads == 2,
-        reason="FFTW not installed with multithread",
-    )
+NTHREADS_TO_CHECK = (None, 1, False)
 
+if HAVE_FFTW_MULTITHREAD:
+    NTHREADS_TO_CHECK += (2,)
+
+
+@pytest.mark.parametrize("a,b, ainv, binv", ABCOMBOS)
+@pytest.mark.parametrize("nthreads", NTHREADS_TO_CHECK)
+def test_mixed_2d_bf(g2d, a, b, ainv, binv, nthreads):
     Fk, freq = ifft(g2d["fx"], Lk=g2d["L"], a=ainv, b=binv, nthreads=nthreads)
     L = -2 * np.min(freq)
     fx, x, xgrid = fft(
@@ -149,26 +150,16 @@ def test_mixed_2d_bf(g2d, a, b, ainv, binv, nthreads):
     assert np.max(np.abs(fx.real - analytic_mix(xgrid, a, binv, ainv, b))) < 1e-10
 
 
-@pytest.mark.parametrize("nthreads", (None, 1, 2, False))
+@pytest.mark.parametrize("nthreads", NTHREADS_TO_CHECK)
 def test_fftshift(nthreads):
-    pytest.mark.skipif(
-        not HAVE_FFTW_MULTITHREAD and nthreads == 2,
-        reason="FFTW not installed with multithread",
-    )
-
     x = np.linspace(0, 1, 11)
 
     y = fftshift(ifftshift(x, nthreads=nthreads), nthreads=nthreads)
     assert np.all(x == y)
 
 
-@pytest.mark.parametrize("nthreads", (None, 1, 2, False))
+@pytest.mark.parametrize("nthreads", NTHREADS_TO_CHECK)
 @pytest.mark.parametrize("n", (10, 11))
 def test_fftfreq(nthreads, n):
-    pytest.mark.skipif(
-        not HAVE_FFTW_MULTITHREAD and nthreads == 2,
-        reason="FFTW not installed with multithread",
-    )
-
     freqs = fftfreq(n, nthreads=nthreads)
     assert np.all(np.diff(freqs)) > 0
