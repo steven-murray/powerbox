@@ -136,7 +136,7 @@ def test_mixed_2d_fb(g2d, a, b, ainv, binv, backend):
 @pytest.mark.parametrize("a,b, ainv, binv", ABCOMBOS)
 @pytest.mark.parametrize("nthreads", (None, 1, 2, False))
 def test_mixed_2d_bf(g2d, a, b, ainv, binv, nthreads):
-    pytest.skipif(
+    pytest.mark.skipif(
         not HAVE_FFTW_MULTITHREAD and nthreads == 2,
         reason="FFTW not installed with multithread",
     )
@@ -151,7 +151,7 @@ def test_mixed_2d_bf(g2d, a, b, ainv, binv, nthreads):
 
 @pytest.mark.parametrize("nthreads", (None, 1, 2, False))
 def test_fftshift(nthreads):
-    pytest.skipif(
+    pytest.mark.skipif(
         not HAVE_FFTW_MULTITHREAD and nthreads == 2,
         reason="FFTW not installed with multithread",
     )
@@ -165,7 +165,7 @@ def test_fftshift(nthreads):
 @pytest.mark.parametrize("nthreads", (None, 1, 2, False))
 @pytest.mark.parametrize("n", (10, 11))
 def test_fftfreq(nthreads, n):
-    pytest.skipif(
+    pytest.mark.skipif(
         not HAVE_FFTW_MULTITHREAD and nthreads == 2,
         reason="FFTW not installed with multithread",
     )
