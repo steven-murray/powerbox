@@ -1,0 +1,8 @@
+name: withfftw
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - pyfftw
+  - pip:
+    - methodtools

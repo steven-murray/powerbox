@@ -1,5 +1,6 @@
 import pytest
 
+import contextlib
 import numpy as np
 
 from powerbox.dft import fft, fftfreq, fftshift, ifft, ifftshift
@@ -14,7 +15,23 @@ ABCOMBOS = [
     (1, 1, 0, 1),
 ]
 
-BACKENDS = [NumpyFFT(), FFTW(nthreads=1), FFTW(nthreads=2)]
+BACKENDS = [
+    NumpyFFT(),
+]
+
+HAVE_FFTW = False
+HAVE_FFTW_MULTITHREAD = False
+
+with contextlib.suppress(ValueError, ImportError):
+    import pyfftw
+
+    BACKENDS.append(FFTW(nthreads=1))
+    HAVE_FFTW = True
+
+    pyfftw.builders._utils._default_threads(4)
+
+    BACKENDS.append(FFTW(nthreads=2))
+    HAVE_FFTW_MULTITHREAD = True
 
 
 def gauss_ft(k, a, b, n=2):
@@ -116,8 +133,14 @@ def test_mixed_2d_fb(g2d, a, b, ainv, binv, backend):
     assert np.max(np.abs(fx.real - analytic_mix(xgrid, a, b, ainv, binv))) < 1e-10
 
 
+NTHREADS_TO_CHECK = (None, 1, False)
+
+if HAVE_FFTW_MULTITHREAD:
+    NTHREADS_TO_CHECK += (2,)
+
+
 @pytest.mark.parametrize("a,b, ainv, binv", ABCOMBOS)
-@pytest.mark.parametrize("nthreads", (None, 1, 2, False))
+@pytest.mark.parametrize("nthreads", NTHREADS_TO_CHECK)
 def test_mixed_2d_bf(g2d, a, b, ainv, binv, nthreads):
     Fk, freq = ifft(g2d["fx"], Lk=g2d["L"], a=ainv, b=binv, nthreads=nthreads)
     L = -2 * np.min(freq)
@@ -127,7 +150,7 @@ def test_mixed_2d_bf(g2d, a, b, ainv, binv, nthreads):
     assert np.max(np.abs(fx.real - analytic_mix(xgrid, a, binv, ainv, b))) < 1e-10
 
 
-@pytest.mark.parametrize("nthreads", (None, 1, 2, False))
+@pytest.mark.parametrize("nthreads", NTHREADS_TO_CHECK)
 def test_fftshift(nthreads):
     x = np.linspace(0, 1, 11)
 
@@ -135,7 +158,7 @@ def test_fftshift(nthreads):
     assert np.all(x == y)
 
 
-@pytest.mark.parametrize("nthreads", (None, 1, 2, False))
+@pytest.mark.parametrize("nthreads", NTHREADS_TO_CHECK)
 @pytest.mark.parametrize("n", (10, 11))
 def test_fftfreq(nthreads, n):
     freqs = fftfreq(n, nthreads=nthreads)
