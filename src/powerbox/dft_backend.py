@@ -121,7 +121,7 @@ def get_fft_backend(nthreads=None):
     Will return the Numpy backend if nthreads is None, otherwise the FFTW backend with
     the given number of threads.
     """
-    if nthreads is None or nthreads > 0:
+    if nthreads is None or nthreads > 1:
         try:
             fftbackend = FFTW(nthreads=nthreads)
         except ImportError:
