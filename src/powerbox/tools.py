@@ -200,27 +200,30 @@ def _field_average_interpolate(coords, field, bins, weights, angular_resolution=
     # Number of angular bins for each radius absk on which to calculate the interpolated power when doing the averaging
     # Larger wavemodes / radii will have more samples in theta
     # "bins" is always 1D
+    # Max is to set a minimum number of bins for the smaller wavemode bins
     num_angular_bins = np.array(
-        np.round(2 * np.pi * bins / angular_resolution), dtype=int
+        np.max(
+            [
+                np.round(2 * np.pi * bins / angular_resolution),
+                np.ones_like(bins) / angular_resolution,
+            ]
+        ),
+        dtype=int,
     )
     phi_1 = [np.linspace(0, 2 * np.pi, n) for n in num_angular_bins]
+    dims2avg = coords.shape[0] - 1  # because bins is always 1D
     # Angular resolution is same for all dims
     phi_n = np.concatenate(
         [
-            np.array(
-                np.meshgrid(*([phi_1[i]] * (coords.shape[0] - 1)), sparse=False)
-            ).reshape(
-                (coords.shape[0] - 1, num_angular_bins[i] ** (coords.shape[0] - 1))
+            np.array(np.meshgrid(*([phi_1[i]] * dims2avg), sparse=False)).reshape(
+                (dims2avg, num_angular_bins[i] ** dims2avg)
             )
             for i in range(len(bins))
         ],
         axis=-1,
     )
     r_n = np.concatenate(
-        [
-            [r] * (num_angular_bins[i] ** (coords.shape[0] - 1))
-            for i, r in enumerate(bins)
-        ]
+        [[r] * (num_angular_bins[i] ** dims2avg) for i, r in enumerate(bins)]
     )
     sample_coords = _spherical2cartesian(r_n, phi_n)
     # To exclude parts of spherical shells outside of the cube corners (too far away for interpolation)
