@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import numpy as np
 import warnings
+from scipy.interpolate import RegularGridInterpolator
 from scipy.special import gamma
 
 from . import dft
@@ -175,9 +176,72 @@ def _get_binweights(coords, weights, bins, average=True, bin_ave=True, log_bins=
     return indx, bins, sumweights
 
 
+def _spherical2cartesian(r, phi_n):
+    """Convert spherical coordinates to Cartesian coordinates."""
+    phi_n = np.concatenate(
+        [np.array([2 * np.pi] * phi_n.shape[1])[np.newaxis, ...], phi_n], axis=0
+    )
+    sines = np.sin(phi_n)
+    sines[0, :] = 1
+    cum_sines = np.cumprod(sines, axis=0)
+    cosines = np.roll(np.cos(phi_n), -1, axis=0)
+    return cum_sines * cosines * r
+
+
+def _field_average_interpolate(coords, field, bins, weights, angular_resolution=0.1):
+    # Grid is regular + can be ordered only in Cartesian coords.
+    fnc = RegularGridInterpolator(
+        coords,
+        field * weights,  # Complex data is accepted.
+        bounds_error=False,
+        fill_value=None,
+    )  # To extrapolate at the edges if needed.
+    # Evaluate it on points in angular coords that we then convert to Cartesian.
+    # Number of angular bins for each radius absk on which to calculate the interpolated power when doing the averaging
+    # Larger wavemodes / radii will have more samples in theta
+    # "bins" is always 1D
+    num_angular_bins = np.array(
+        np.round(2 * np.pi * bins / angular_resolution), dtype=int
+    )
+    phi_1 = [np.linspace(0, 2 * np.pi, n) for n in num_angular_bins]
+    # Angular resolution is same for all dims
+    phi_n = np.concatenate(
+        [
+            np.array(
+                np.meshgrid(*([phi_1[i]] * (coords.shape[0] - 1)), sparse=False)
+            ).reshape(
+                (coords.shape[0] - 1, num_angular_bins[i] ** (coords.shape[0] - 1))
+            )
+            for i in range(len(bins))
+        ],
+        axis=-1,
+    )
+    r_n = np.concatenate(
+        [
+            [r] * (num_angular_bins[i] ** (coords.shape[0] - 1))
+            for i, r in enumerate(bins)
+        ]
+    )
+    sample_coords = _spherical2cartesian(r_n, phi_n)
+    # To exclude parts of spherical shells outside of the cube corners (too far away for interpolation)
+    coords_outside_box = np.any(
+        sample_coords >= coords.max(), axis=0
+    )  # since coords is a symmetric cube centered at 0.
+    interped_field = fnc(sample_coords[:, ~coords_outside_box].T)
+    r_n = r_n[~coords_outside_box]
+    # Average over the spherical shells for each radius / bin value
+    avged_field = np.array([np.mean(interped_field[r_n == b]) for b in bins])
+    sumweights = np.array([sum(r_n == b) for b in bins])
+    return avged_field, sumweights
+
+
 def _field_average(indx, field, weights, sumweights):
     if not np.isscalar(weights) and field.shape != weights.shape:
-        raise ValueError("the field and weights must have the same shape!")
+        raise ValueError(
+            "the field and weights must have the same shape!",
+            field.shape,
+            weights.shape,
+        )
 
     field = field * weights  # Leave like this because field is mutable
 
@@ -239,6 +303,7 @@ def angular_average_nd(
     bin_ave=True,
     get_variance=False,
     log_bins=False,
+    interpolation_method=None,
 ):
     """
     Average the first n dimensions of a given field within radial bins.
@@ -350,17 +415,21 @@ def angular_average_nd(
     res = np.zeros((len(sumweights), n2), dtype=field.dtype)
     if get_variance:
         var = np.zeros_like(res)
-
     for i, fld in enumerate(field.reshape((n1, n2)).T):
         try:
             w = weights.flatten()
         except AttributeError:
             w = weights
+        if interpolation_method is None:
+            res[:, i] = _field_average(indx, fld, w, sumweights)
 
-        res[:, i] = _field_average(indx, fld, w, sumweights)
-
-        if get_variance:
-            var[:, i] = _field_variance(indx, fld, res[:, i], w, sumweights)
+            if get_variance:
+                var[:, i] = _field_variance(indx, fld, res[:, i], w, sumweights)
+        elif interpolation_method == "linear":
+            res[:, i], sumweights = _field_average_interpolate(coords, fld, bins, w)
+            if get_variance:
+                # TODO: Implement variance calculation for interpolation
+                var[:, i] = np.zeros_like(res[:, i])
 
     if not get_variance:
         return res.reshape((len(sumweights),) + field.shape[n:]), bins
@@ -587,6 +656,7 @@ def get_power(
     k_weights=1,
     nthreads=None,
     prefactor_fnc=None,
+    interpolation_method=None,
 ):
     r"""
     Calculate isotropic power spectrum of a field, or cross-power of two similar fields.
@@ -772,6 +842,7 @@ def get_power(
         get_variance=get_variance,
         log_bins=log_bins,
         weights=k_weights,
+        interpolation_method=interpolation_method,
     )
     res = list(res)
     # Remove shot-noise
