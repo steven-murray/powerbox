@@ -194,7 +194,7 @@ def _field_average_interpolate(coords, field, bins, weights, angular_resolution=
         coords,
         field * weights,  # Complex data is accepted.
         bounds_error=False,
-        fill_value=None,
+        fill_value=np.nan,
     )  # To extrapolate at the edges if needed.
     # Evaluate it on points in angular coords that we then convert to Cartesian.
     # Number of angular bins for each radius absk on which to calculate the interpolated power when doing the averaging
@@ -227,14 +227,12 @@ def _field_average_interpolate(coords, field, bins, weights, angular_resolution=
         [[r] * (num_angular_bins[i] ** dims2avg) for i, r in enumerate(bins)]
     )
     sample_coords = _spherical2cartesian(r_n, phi_n)
-    # To exclude parts of spherical shells outside of the cube corners (too far away for interpolation)
-    coords_outside_box = np.any(
-        sample_coords >= coords.max(), axis=0
-    )  # since coords is a symmetric cube centered at 0.
+    # To exclude parts of spherical shells outside of the cube corners
+    coords_outside_box = np.any(sample_coords >= coords.max(), axis=0)
     interped_field = fnc(sample_coords[:, ~coords_outside_box].T)
     r_n = r_n[~coords_outside_box]
     # Average over the spherical shells for each radius / bin value
-    avged_field = np.array([np.mean(interped_field[r_n == b]) for b in bins])
+    avged_field = np.array([np.nanmean(interped_field[r_n == b]) for b in bins])
     sumweights = np.array([sum(r_n == b) for b in bins])
     return avged_field, sumweights
 
