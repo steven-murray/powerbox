@@ -233,7 +233,7 @@ def _field_average_interpolate(coords, field, bins, weights, angular_resolution=
     r_n = r_n[~coords_outside_box]
     # Average over the spherical shells for each radius / bin value
     avged_field = np.array([np.nanmean(interped_field[r_n == b]) for b in bins])
-    sumweights = np.array([sum(r_n == b) for b in bins])
+    sumweights = np.unique(r_n, return_counts=True)[1]
     return avged_field, sumweights
 
 
