@@ -17,16 +17,24 @@ jobs:
         with:
           fetch-depth: 1
 
-      - name: Set up Python
-        uses: actions/setup-python@v4
+      - uses: conda-incubator/setup-miniconda@v3
         with:
           python-version: ${{ matrix.python }}
+          mamba-version: "*"
+          channels: conda-forge,defaults
+          channel-priority: true
+          activate-environment: withfftw
+          environment-file: .github/fftw-env.yaml
 
       - name: Install Test Deps
+        shell: bash -el {0}
         run: |
+          which pip
+          python --version
           pip install .[tests,fftw]
 
       - name: Run Tests
+        shell: bash -el {0}
         run: |
           python -m pytest --cov=powerbox --cov-config=.coveragerc --cov-report xml:./coverage.xml --junitxml=test-reports/xunit.xml
 

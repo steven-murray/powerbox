@@ -38,7 +38,6 @@ tests = [
     "pytest",
     "pytest-cov",
     "scipy",
-    "pyfftw"
 ]
 docs = [
     "sphinx",
@@ -53,7 +52,7 @@ docs = [
     "packaging",  # required for camb
 ]
 dev = [
-    "powerbox[tests,docs]",
+    "powerbox[tests,docs,fftw]",
     "pre-commit"
 ]
 fftw = [
