@@ -181,14 +181,33 @@ def _get_binweights(coords, weights, bins, average=True, bin_ave=True, log_bins=
 
 def _spherical2cartesian(r, phi_n):
     """Convert spherical coordinates to Cartesian coordinates."""
-    phi_n = np.concatenate(
-        [2 * np.pi * np.ones(phi_n.shape[1])[np.newaxis, ...], phi_n], axis=0
-    )
-    sines = np.sin(phi_n)
-    sines[0, :] = 1
-    cum_sines = np.cumprod(sines, axis=0)
-    cosines = np.roll(np.cos(phi_n), -1, axis=0)
-    return cum_sines * cosines * r
+    if phi_n.shape[0] == 1:
+        return r * np.array([np.cos(phi_n[0]), np.sin(phi_n[0])])
+    elif phi_n.shape[0] == 2:
+        return r * np.array(
+            [
+                np.cos(phi_n[0]) * np.sin(phi_n[1]),
+                np.sin(phi_n[0]) * np.sin(phi_n[1]),
+                np.cos(phi_n[1]),
+            ]
+        )
+    elif phi_n.shape[0] == 3:
+        return r * np.array(
+            [
+                np.cos(phi_n[0]) * np.sin(phi_n[1]) * np.cos(phi_n[2]),
+                np.sin(phi_n[0]) * np.sin(phi_n[1]) * np.cos(phi_n[2]),
+                np.cos(phi_n[1]) * np.cos(phi_n[2]),
+            ]
+        )
+    else:
+        phi_n = np.concatenate(
+            [2 * np.pi * np.ones(phi_n.shape[1])[np.newaxis, ...], phi_n], axis=0
+        )
+        sines = np.sin(phi_n)
+        sines[0, :] = 1
+        cum_sines = np.cumprod(sines, axis=0)
+        cosines = np.roll(np.cos(phi_n), -1, axis=0)
+        return cum_sines * cosines * r
 
 
 def _field_average_interpolate(coords, field, bins, weights, angular_resolution=0.1):
@@ -306,7 +325,8 @@ def angular_average_nd(
     get_variance=False,
     log_bins=False,
     interpolation_method=None,
-    angular_resolution=0.1,
+    angular_resolution=0.4,
+    return_sumweights=False,
 ):
     """
     Average the first n dimensions of a given field within radial bins.
@@ -441,9 +461,20 @@ def angular_average_nd(
                 var[:, i] = np.zeros_like(res[:, i])
 
     if not get_variance:
-        return res.reshape((len(sumweights),) + field.shape[n:]), bins
+        if return_sumweights:
+            return res.reshape((len(sumweights),) + field.shape[n:]), bins, sumweights
+        else:
+            return res.reshape((len(sumweights),) + field.shape[n:]), bins
     else:
-        return res.reshape((len(sumweights),) + field.shape[n:]), bins, var
+        if return_sumweights:
+            return (
+                res.reshape((len(sumweights),) + field.shape[n:]),
+                bins,
+                var,
+                sumweights,
+            )
+        else:
+            return res.reshape((len(sumweights),) + field.shape[n:]), bins, var
 
 
 def power2delta(freq: list):
