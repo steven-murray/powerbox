@@ -15,7 +15,10 @@ from . import dft
 
 
 def _getbins(bins, coords, log):
-    mx = coords.max()
+    dims = len(coords.shape)
+    mid = coords.shape[0] // 2
+    idx = np.array(np.append(np.zeros(dims - 1), mid), dtype=int)
+    mx = coords[tuple(idx)]
     if not np.iterable(bins):
         if not log:
             bins = np.linspace(coords.min(), mx, bins + 1)
@@ -179,7 +182,7 @@ def _get_binweights(coords, weights, bins, average=True, bin_ave=True, log_bins=
 def _spherical2cartesian(r, phi_n):
     """Convert spherical coordinates to Cartesian coordinates."""
     phi_n = np.concatenate(
-        [np.array([2 * np.pi] * phi_n.shape[1])[np.newaxis, ...], phi_n], axis=0
+        [2 * np.pi * np.ones(phi_n.shape[1])[np.newaxis, ...], phi_n], axis=0
     )
     sines = np.sin(phi_n)
     sines[0, :] = 1
@@ -227,10 +230,7 @@ def _field_average_interpolate(coords, field, bins, weights, angular_resolution=
         [[r] * (num_angular_bins[i] ** dims2avg) for i, r in enumerate(bins)]
     )
     sample_coords = _spherical2cartesian(r_n, phi_n)
-    # To exclude parts of spherical shells outside of the cube corners
-    coords_outside_box = np.any(sample_coords >= coords.max(), axis=0)
-    interped_field = fnc(sample_coords[:, ~coords_outside_box].T)
-    r_n = r_n[~coords_outside_box]
+    interped_field = fnc(sample_coords.T)
     # Average over the spherical shells for each radius / bin value
     avged_field = np.array([np.nanmean(interped_field[r_n == b]) for b in bins])
     sumweights = np.unique(r_n, return_counts=True)[1]
