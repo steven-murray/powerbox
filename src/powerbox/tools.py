@@ -9,6 +9,7 @@ from __future__ import annotations
 import numpy as np
 import warnings
 from scipy.interpolate import RegularGridInterpolator
+from scipy.ndimage import map_coordinates
 from scipy.special import gamma
 
 from . import dft
@@ -38,7 +39,8 @@ def angular_average(
     bin_ave=True,
     get_variance=False,
     log_bins=False,
-    threads=None,
+    interpolation_method=None,
+    angular_resolution=0.4,
 ):
     r"""
     Average a given field within radial bins.
@@ -126,9 +128,12 @@ def angular_average(
 
     if np.any(sumweight == 0):
         warnings.warn("One or more radial bins had no cells within it.", stacklevel=2)
-
-    res = _field_average(indx, field, weights, sumweight)
-
+    if interpolation_method is None:
+        res = _field_average(indx, field, weights, sumweight)
+    else:
+        res, sumweight = _field_average_interpolate(
+            coords, field, bins, weights, angular_resolution=angular_resolution
+        )
     if get_variance:
         var = _field_variance(indx, field, res, weights, sumweight)
         return res, bins, var
@@ -212,12 +217,12 @@ def _spherical2cartesian(r, phi_n):
 
 def _field_average_interpolate(coords, field, bins, weights, angular_resolution=0.1):
     # Grid is regular + can be ordered only in Cartesian coords.
-    fnc = RegularGridInterpolator(
-        coords,
-        field * weights,  # Complex data is accepted.
-        bounds_error=False,
-        fill_value=np.nan,
-    )  # To extrapolate at the edges if needed.
+    # fnc = RegularGridInterpolator(
+    #    coords,
+    #    field * weights,  # Complex data is accepted.
+    #    bounds_error=False,
+    #    fill_value=np.nan,
+    # )  # To extrapolate at the edges if needed.
     # Evaluate it on points in angular coords that we then convert to Cartesian.
     # Number of angular bins for each radius absk on which to calculate the interpolated power when doing the averaging
     # Larger wavemodes / radii will have more samples in theta
@@ -249,7 +254,19 @@ def _field_average_interpolate(coords, field, bins, weights, angular_resolution=
         [[r] * (num_angular_bins[i] ** dims2avg) for i, r in enumerate(bins)]
     )
     sample_coords = _spherical2cartesian(r_n, phi_n)
-    interped_field = fnc(sample_coords.T)
+    m, M = (
+        np.array([np.min(coords[d]) for d in range(dims2avg)])[..., np.newaxis],
+        np.array([np.max(coords[d]) for d in range(dims2avg)])[..., np.newaxis],
+    )
+    shape = (
+        np.array(field.shape)[..., np.newaxis] - 1
+    )  # -1 Because indexing starts from 0.
+    interped_field = map_coordinates(
+        field * weights,
+        (np.array(sample_coords) - m) / (M - m) * shape,
+        order=3,
+        cval=np.nan,
+    )  # fnc(sample_coords.T)
     # Average over the spherical shells for each radius / bin value
     avged_field = np.array([np.nanmean(interped_field[r_n == b]) for b in bins])
     sumweights = np.unique(r_n, return_counts=True)[1]
@@ -424,6 +441,8 @@ def angular_average_nd(
             bin_ave,
             get_variance,
             log_bins=log_bins,
+            interpolation_method=interpolation_method,
+            angular_resolution=angular_resolution,
         )
 
     coords_grid = _magnitude_grid([c for i, c in enumerate(coords) if i < n])
