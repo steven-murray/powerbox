@@ -14,9 +14,51 @@ def test_angular_avg_nd_3():
     P = np.repeat(P, 100).reshape(400, 400, 100)
     freq = [x, x, np.linspace(-2, 2, 100)]
     p_k, k_av_bins = angular_average_nd(P, freq, bins=50, n=2)
+    p_k_lin, k_av_bins_lin = angular_average_nd(
+        P, freq, bins=50, n=2, interpolation_method="linear"
+    )
     print(p_k[6:, 0], k_av_bins[6:] ** -2.0)
     assert (
         np.max(np.abs((p_k[6:, 0] - k_av_bins[6:] ** -2.0) / k_av_bins[6:] ** -2.0))
+        < 0.05
+    )
+    assert (
+        np.max(
+            np.abs(
+                (p_k_lin[6:, 0] - k_av_bins_lin[6:] ** -2.0) / k_av_bins_lin[6:] ** -2.0
+            )
+        )
+        < 0.05
+    )
+
+
+def test_angular_avg_nd_complex_interp():
+    x = np.linspace(-3, 3, 400)
+    X, Y = np.meshgrid(x, x)
+    r2 = X**2 + Y**2
+    P = r2**-1.0 + 1j * r2**-1.0
+    P = np.repeat(P, 100).reshape(400, 400, 100)
+    freq = [x, x, np.linspace(-2, 2, 100)]
+    p_k_lin, k_av_bins_lin = angular_average_nd(
+        P, freq, bins=50, n=2, interpolation_method="linear"
+    )
+    real = np.real(p_k_lin)
+    imag = np.imag(p_k_lin)
+    assert (
+        np.max(
+            np.abs(
+                (real[6:, 0] - k_av_bins_lin[6:] ** -2.0) / k_av_bins_lin[6:] ** -2.0
+            )
+        )
+        < 0.05
+    )
+
+    assert (
+        np.max(
+            np.abs(
+                (imag[6:, 0] - k_av_bins_lin[6:] ** -2.0) / k_av_bins_lin[6:] ** -2.0
+            )
+        )
         < 0.05
     )
 
@@ -31,12 +73,38 @@ def test_angular_avg_nd_4_2():
 
     freq = [x, x, np.linspace(-2, 2, 10), np.linspace(-2, 2, 10)]
     p_k, k_av_bins = angular_average_nd(P, freq, bins=50, n=2)
+    p_k_lin, k_av_bins_lin = angular_average_nd(
+        P, freq, bins=50, n=2, interpolation_method="linear"
+    )
 
     print(np.abs((p_k[7:, 0, 0] - k_av_bins[7:] ** -2.0) / k_av_bins[7:] ** -2.0))
     assert (
         np.max(np.abs((p_k[6:, 0, 0] - k_av_bins[6:] ** -2.0) / k_av_bins[6:] ** -2.0))
         < 0.06
     )
+    assert (
+        np.max(
+            np.abs(
+                (p_k_lin[6:, 0, 0] - k_av_bins_lin[6:] ** -2.0)
+                / k_av_bins_lin[6:] ** -2.0
+            )
+        )
+        < 0.06
+    )
+
+
+def test_var_not_impl():
+    x = np.linspace(-3, 3, 200)
+    P = np.ones((200, 10))
+    coords = [x, np.linspace(-2, 2, 10)]
+    with pytest.raises(NotImplementedError):
+        ave, coord, var = angular_average(
+            P, coords, bins=20, get_variance=True, interpolation_method="linear"
+        )
+    with pytest.raises(NotImplementedError):
+        ave, coord, var = angular_average_nd(
+            P, coords, bins=20, get_variance=True, interpolation_method="linear"
+        )
 
 
 def test_angular_avg_nd_2_1_varnull():
@@ -101,7 +169,7 @@ def test_sum():
     r2 = X**2 + Y**2
     P = r2**-1.0
     ave, coord = angular_average(P, np.sqrt(r2), bins=20, bin_ave=False, average=False)
-    assert np.sum(P[r2 < 18.0]) == np.sum(ave)
+    assert np.sum(P[r2 < 9.0]) == np.sum(ave)
 
 
 def test_var_trivial_weights():
