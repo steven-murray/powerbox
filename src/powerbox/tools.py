@@ -16,10 +16,16 @@ from . import dft
 
 
 def _getbins(bins, coords, log):
-    dims = len(coords.shape)
-    mid = coords.shape[0] // 2
-    idx = np.array(np.append(np.zeros(dims - 1), mid), dtype=int)
-    mx = coords[tuple(idx)]
+    center = np.array(coords.shape) // 2
+    max_Rs = []
+    if len(coords.shape) > 1:
+        for i in range(len(coords.shape)):
+            edge = np.copy(center)
+            edge[i] = -1
+            max_Rs.append(coords[tuple(edge)])
+    else:
+        max_Rs = [np.max(coords)]
+    mx = np.min(max_Rs)
     if not np.iterable(bins):
         if not log:
             bins = np.linspace(coords.min(), mx, bins + 1)
@@ -81,6 +87,19 @@ def angular_average(
     log_bins : bool, optional
         Whether to create bins in log-space.
 
+    interpolation_method : str, optional
+        If None, does not interpolate. Currently only 'linear' is supported.
+
+    angular_resolution : float, optional
+        The angular resolution in radians for the interpolation.
+        If None, defaults to 1.0 radians for 3D->1D averaging, and 0.5 for 3D->2D averaging.
+
+    return_sumweights : bool, optional
+        Whether to return the number of modes in each bin.
+        Note that for the linear interpolation case,
+        this corresponds to the number of samples averaged over
+        (which can be adjusted with the angular_resolution parameter).
+
     Returns
     -------
     field_1d : 1D-array
@@ -122,6 +141,8 @@ def angular_average(
     if len(coords) == len(field.shape):
         # coords are a segmented list of dimensional co-ordinates
         coords_grid = _magnitude_grid(coords)
+    else:
+        coords_grid = coords
 
     indx, bins, sumweights = _get_binweights(
         coords_grid, weights, bins, average, bin_ave=bin_ave, log_bins=log_bins
@@ -136,7 +157,12 @@ def angular_average(
             coords, field, bins, weights, angular_resolution=angular_resolution
         )
     if get_variance:
-        var = _field_variance(indx, field, res, weights, sumweights)
+        if interpolation_method is None:
+            var = _field_variance(indx, field, res, weights, sumweights)
+        else:
+            raise NotImplementedError(
+                "Variance calculation not implemented for interpolation"
+            )
         if return_sumweights:
             return res, bins, var, sumweights
         else:
@@ -246,7 +272,7 @@ def _field_average_interpolate(coords, field, bins, weights, angular_resolution=
         dtype=int,
     )
     phi_1 = [np.linspace(0, 2 * np.pi, n) for n in num_angular_bins]
-    dims2avg = coords.shape[0] - 1  # because bins is always 1D
+    dims2avg = len(coords) - 1  # because bins is always 1D
     # Angular resolution is same for all dims
     phi_n = np.concatenate(
         [
@@ -383,6 +409,19 @@ def angular_average_nd(
     log_bins : bool, optional
         Whether to create bins in log-space.
 
+    interpolation_method : str, optional
+        If None, does not interpolate. Currently only 'linear' is supported.
+
+    angular_resolution : float, optional
+        The angular resolution in radians for the interpolation.
+        If None, defaults to 1.0 radians for 3D->1D averaging, and 0.5 for 3D->2D averaging.
+
+    return_sumweights : bool, optional
+        Whether to return the number of modes in each bin.
+        Note that for the linear interpolation case,
+        this corresponds to the number of samples averaged over
+        (which can be adjusted with the angular_resolution parameter).
+
     Returns
     -------
     field : (m-n+1)-array
@@ -430,7 +469,7 @@ def angular_average_nd(
     if n == len(coords):
         return angular_average(
             field,
-            np.array(coords),
+            coords,
             bins,
             weights,
             average,
@@ -466,7 +505,7 @@ def angular_average_nd(
                 var[:, i] = _field_variance(indx, fld, res[:, i], w, sumweights)
         elif interpolation_method == "linear":
             res[:, i], sumweights = _field_average_interpolate(
-                np.array(coords)[:n, ...],
+                coords[:n],
                 fld.reshape(field.shape[:n]),
                 bins,
                 w,
@@ -474,7 +513,9 @@ def angular_average_nd(
             )
             if get_variance:
                 # TODO: Implement variance calculation for interpolation
-                var[:, i] = np.zeros_like(res[:, i])
+                raise NotImplementedError(
+                    "Variance calculation not implemented for interpolation"
+                )
 
     if not get_variance:
         if return_sumweights:
@@ -713,6 +754,8 @@ def get_power(
     nthreads=None,
     prefactor_fnc=None,
     interpolation_method=None,
+    angular_resolution=None,
+    return_sumweights=False,
 ):
     r"""
     Calculate isotropic power spectrum of a field, or cross-power of two similar fields.
@@ -785,6 +828,18 @@ def get_power(
         and returns an array of the same size. This function is applied on the FT before
         the angular averaging. It can be used, for example, to convert linearly-binned
         power into power-per-logarithmic k ($\Delta^2$).
+    interpolation_method : str, optional
+        If None, does not interpolate. Currently only 'linear' is supported.
+
+    angular_resolution : float, optional
+        The angular resolution in radians for the interpolation.
+        If None, defaults to 1.0 radians for 3D->1D averaging, and 0.5 for 3D->2D averaging.
+
+    return_sumweights : bool, optional
+        Whether to return the number of modes in each bin.
+        Note that for the linear interpolation case,
+        this corresponds to the number of samples averaged over
+        (which can be adjusted with the angular_resolution parameter).
 
     Returns
     -------
@@ -888,7 +943,7 @@ def get_power(
     if ignore_zero_mode:
         k_weights = np.logical_and(k_weights, ignore_zero_absk(freq, kmag))
 
-    # res is (P, k, <var>)
+    # res is (P, k, <var>, <sumweights>)
     res = angular_average_nd(
         P,
         freq,
@@ -899,6 +954,8 @@ def get_power(
         log_bins=log_bins,
         weights=k_weights,
         interpolation_method=interpolation_method,
+        angular_resolution=angular_resolution,
+        return_sumweights=return_sumweights,
     )
     res = list(res)
     # Remove shot-noise
