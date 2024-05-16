@@ -250,6 +250,8 @@ def _spherical2cartesian(r, phi_n):
 
 def _field_average_interpolate(coords, field, bins, weights, angular_resolution=0.1):
     # Grid is regular + can be ordered only in Cartesian coords.
+    if isinstance(weights, np.ndarray):
+        weights = weights.reshape(field.shape)
     fnc = RegularGridInterpolator(
         coords,
         field * weights,  # Complex data is accepted.
@@ -489,8 +491,10 @@ def angular_average_nd(
 
     n1 = np.prod(field.shape[:n])
     n2 = np.prod(field.shape[n:])
-
-    res = np.zeros((len(sumweights), n2), dtype=field.dtype)
+    if interpolation_method is None:
+        res = np.zeros((len(sumweights), n2), dtype=field.dtype)
+    else:
+        res = np.zeros((len(bins), n2), dtype=field.dtype)
     if get_variance:
         var = np.zeros_like(res)
     for i, fld in enumerate(field.reshape((n1, n2)).T):

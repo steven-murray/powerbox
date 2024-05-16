@@ -32,6 +32,52 @@ def test_angular_avg_nd_3():
     )
 
 
+def test_angular_avg_nd():
+    x = np.linspace(-3, 3, 40)
+    X, Y, Z = np.meshgrid(x, x, x)
+    r2 = X**2 + Y**2 + Z**2
+    P = r2**-1.0
+    P = np.repeat(P, 10).reshape(40, 40, 40, 10)
+    freq = [x, x, x, np.linspace(-2, 2, 10)]
+    p_k_lin, k_av_bins_lin = angular_average_nd(
+        P, freq, bins=10, n=3, interpolation_method="linear"
+    )
+    assert (
+        np.max(
+            np.abs(
+                (p_k_lin[6:, 0] - k_av_bins_lin[6:] ** -2.0) / k_av_bins_lin[6:] ** -2.0
+            )
+        )
+        < 0.05
+    )
+
+    p_k_lin, k_av_bins_lin = angular_average_nd(
+        P, freq, bins=10, n=2, interpolation_method="linear"
+    )
+    assert (
+        np.max(
+            np.abs(
+                (p_k_lin[6:, len(x) // 2, 0] - k_av_bins_lin[6:] ** -2.0)
+                / k_av_bins_lin[6:] ** -2.0
+            )
+        )
+        < 0.05
+    )
+
+    p_k_lin, k_av_bins_lin = angular_average_nd(
+        P, freq, bins=10, n=1, interpolation_method="linear"
+    )
+    assert (
+        np.max(
+            np.abs(
+                (p_k_lin[6:, len(x) // 2, len(x) // 2, 0] - k_av_bins_lin[6:] ** -2.0)
+                / k_av_bins_lin[6:] ** -2.0
+            )
+        )
+        < 0.05
+    )
+
+
 def test_angular_avg_nd_complex_interp():
     x = np.linspace(-3, 3, 400)
     X, Y = np.meshgrid(x, x)
