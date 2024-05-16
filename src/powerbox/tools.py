@@ -9,7 +9,6 @@ from __future__ import annotations
 import numpy as np
 import warnings
 from scipy.interpolate import RegularGridInterpolator
-from scipy.ndimage import map_coordinates
 from scipy.special import gamma
 
 from . import dft
