@@ -324,7 +324,7 @@ def _sample_coords_interpolate(coords, bins, weights, angular_resolution=0.1):
     indxs = np.array(
         [np.digitize(sample_coords[i], coords[i]) for i in range(len(coords))]
     )
-    masked_bins = np.array(np.where(weights < 1e-10)).reshape(3, -1)
+    masked_bins = np.array(np.where(weights < 1e-10)).reshape(len(coords), -1)
     void_samples = _asvoid(indxs.T)
     void_masked = _asvoid(masked_bins.T)
     to_remove = np.in1d(void_samples, void_masked)
