@@ -185,9 +185,9 @@ def angular_average(
 
 def _magnitude_grid(x, dim=None):
     if dim is not None:
-        return np.sqrt(np.sum(np.meshgrid(*([x**2] * dim)), axis=0))
+        return np.sqrt(np.sum(np.meshgrid(*([x**2] * dim), indexing="ij"), axis=0))
     else:
-        return np.sqrt(np.sum(np.meshgrid(*([X**2 for X in x])), axis=0))
+        return np.sqrt(np.sum(np.meshgrid(*([X**2 for X in x]), indexing="ij"), axis=0))
 
 
 def _get_binweights(coords, weights, bins, average=True, bin_ave=True, log_bins=False):
@@ -199,7 +199,11 @@ def _get_binweights(coords, weights, bins, average=True, bin_ave=True, log_bins=
     if average or bin_ave:
         if not np.isscalar(weights):
             if coords.shape != weights.shape:
-                raise ValueError("coords and weights must have the same shape!")
+                raise ValueError(
+                    "coords and weights must have the same shape!",
+                    coords.shape,
+                    weights.shape,
+                )
             sumweights = np.bincount(
                 indx, weights=weights.flatten(), minlength=len(bins) + 1
             )[1:-1]
