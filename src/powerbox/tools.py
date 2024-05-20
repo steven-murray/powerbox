@@ -31,7 +31,6 @@ def _getbins(bins, coords, log):
         else:
             mn = coords[coords > 0].min()
             bins = np.logspace(np.log10(mn), np.log10(mx), bins + 1)
-
     return bins
 
 
@@ -45,7 +44,7 @@ def angular_average(
     get_variance=False,
     log_bins=False,
     interpolation_method=None,
-    angular_resolution=0.4,
+    angular_resolution=0.1,
     return_sumweights=False,
 ):
     r"""
@@ -137,23 +136,34 @@ def angular_average(
     angular_average_nd : Perform an angular average in a subset of the total dimensions.
 
     """
+    if interpolation_method is not None and interpolation_method != "linear":
+        raise ValueError("Only linear interpolation is supported.")
     if len(coords) == len(field.shape):
         # coords are a segmented list of dimensional co-ordinates
         coords_grid = _magnitude_grid(coords)
     else:
         coords_grid = coords
-
-    indx, bins, sumweights = _get_binweights(
-        coords_grid, weights, bins, average, bin_ave=bin_ave, log_bins=log_bins
-    )
-
-    if np.any(sumweights == 0):
-        warnings.warn("One or more radial bins had no cells within it.", stacklevel=2)
     if interpolation_method is None:
+        indx, bins, sumweights = _get_binweights(
+            coords_grid, weights, bins, average, bin_ave=bin_ave, log_bins=log_bins
+        )
+
+        if np.any(sumweights == 0):
+            warnings.warn(
+                "One or more radial bins had no cells within it.", stacklevel=2
+            )
         res = _field_average(indx, field, weights, sumweights)
     else:
+        bins = _getbins(bins, coords_grid, log_bins)
+        if log_bins:
+            bins = np.exp((np.log(bins[1:]) + np.log(bins[:-1])) / 2)
+        else:
+            bins = (bins[1:] + bins[:-1]) / 2
+        sample_coords, r_n = _sample_coords_interpolate(
+            coords, bins, weights, angular_resolution=angular_resolution
+        )
         res, sumweights = _field_average_interpolate(
-            coords, field, bins, weights, angular_resolution=angular_resolution
+            coords, field, bins, weights, sample_coords, r_n
         )
     if get_variance:
         if interpolation_method is None:
@@ -223,17 +233,18 @@ def _spherical2cartesian(r, phi_n):
     elif phi_n.shape[0] == 2:
         return r * np.array(
             [
-                np.cos(phi_n[0]) * np.sin(phi_n[1]),
+                np.cos(phi_n[0]),
+                np.sin(phi_n[0]) * np.cos(phi_n[1]),
                 np.sin(phi_n[0]) * np.sin(phi_n[1]),
-                np.cos(phi_n[1]),
             ]
         )
     elif phi_n.shape[0] == 3:
         return r * np.array(
             [
-                np.cos(phi_n[0]) * np.sin(phi_n[1]) * np.cos(phi_n[2]),
+                np.cos(phi_n[0]),
+                np.sin(phi_n[0]) * np.cos(phi_n[1]),
                 np.sin(phi_n[0]) * np.sin(phi_n[1]) * np.cos(phi_n[2]),
-                np.cos(phi_n[1]) * np.cos(phi_n[2]),
+                np.sin(phi_n[0]) * np.sin(phi_n[1]) * np.sin(phi_n[2]),
             ]
         )
     else:
@@ -247,16 +258,31 @@ def _spherical2cartesian(r, phi_n):
         return cum_sines * cosines * r
 
 
-def _field_average_interpolate(coords, field, bins, weights, angular_resolution=0.1):
+def _asvoid(arr):
+    """
+    Based on http://stackoverflow.com/a/16973510/190597 (Jaime, 2013-06).
+
+    View the array as dtype np.void (bytes). The items along the last axis are
+    viewed as one value. This allows comparisons to be performed on the entire row.
+    """
+    arr = np.ascontiguousarray(arr)
+    if np.issubdtype(arr.dtype, np.floating):
+        """Care needs to be taken here since
+        np.array([-0.]).view(np.void) != np.array([0.]).view(np.void)
+        Adding 0. converts -0. to 0.
+        """
+        arr += 0.0
+    return arr.view(np.dtype((np.void, arr.dtype.itemsize * arr.shape[-1])))
+
+
+def _sample_coords_interpolate(coords, bins, weights, angular_resolution=0.1):
     # Grid is regular + can be ordered only in Cartesian coords.
+    field_shape = [len(c) for c in coords]
     if isinstance(weights, np.ndarray):
-        weights = weights.reshape(field.shape)
-    fnc = RegularGridInterpolator(
-        coords,
-        field * weights,  # Complex data is accepted.
-        bounds_error=False,
-        fill_value=np.nan,
-    )  # To extrapolate at the edges if needed.
+        weights = weights.reshape(field_shape)
+    else:
+        weights = np.ones(field_shape) * weights
+    # To extrapolate at the edges if needed.
     # Evaluate it on points in angular coords that we then convert to Cartesian.
     # Number of angular bins for each radius absk on which to calculate the interpolated power when doing the averaging
     # Larger wavemodes / radii will have more samples in theta
@@ -266,32 +292,91 @@ def _field_average_interpolate(coords, field, bins, weights, angular_resolution=
         np.max(
             [
                 np.round(2 * np.pi * bins / angular_resolution),
-                np.ones_like(bins) / angular_resolution,
+                np.ones_like(bins) * 100,
             ],
             axis=0,
         ),
         dtype=int,
     )
-    phi_1 = [np.linspace(0, 2 * np.pi, n) for n in num_angular_bins]
-    dims2avg = len(coords) - 1  # because bins is always 1D
-    # Angular resolution is same for all dims
-    phi_n = np.concatenate(
-        [
-            np.array(np.meshgrid(*([phi_1[i]] * dims2avg), sparse=False)).reshape(
-                (dims2avg, num_angular_bins[i] ** dims2avg)
-            )
-            for i in range(len(bins))
-        ],
-        axis=-1,
+    if len(coords) > 1:
+        phi_n = [np.linspace(0.0, np.pi, n) for n in num_angular_bins]
+        phi_N = [np.linspace(0.0, 2 * np.pi, n) for n in num_angular_bins]
+
+        dims2avg = len(coords) - 1
+        # Angular resolution is same for all dims
+        phi_n = np.concatenate(
+            [
+                np.array(
+                    np.meshgrid(
+                        *([phi_N[i]] + [phi_n[i]] * (dims2avg - 1)), sparse=False
+                    )
+                ).reshape((dims2avg, num_angular_bins[i] ** dims2avg))
+                for i in range(len(bins))
+            ],
+            axis=-1,
+        )
+        r_n = np.concatenate(
+            [[r] * (num_angular_bins[i] ** dims2avg) for i, r in enumerate(bins)]
+        )
+        sample_coords = _spherical2cartesian(r_n, phi_n)
+    else:
+        sample_coords = bins.reshape(1, -1)
+        r_n = bins
+    # Removing sample coords that belong to masked regions
+    # First, we pad the weights by setting the weights to 0 around bins
+    # that had weights of 0 from the start.
+    # This is to avoid interpolating close to 0-weighted regions.
+    # binary_weights = weights < 1e-10
+    # rolled = [np.roll(binary_weights, shift=1, axis=i) for i in range(len(coords))]
+    # padded_weights = np.logical_or.reduce(rolled)
+    # weights[padded_weights] = 0
+    # np.digitize can only be applied on a 1D array of bins
+    # for-loop over each dimension
+    indxs = np.array(
+        [np.digitize(sample_coords[i], coords[i]) for i in range(len(coords))]
     )
-    r_n = np.concatenate(
-        [[r] * (num_angular_bins[i] ** dims2avg) for i, r in enumerate(bins)]
-    )
-    sample_coords = _spherical2cartesian(r_n, phi_n)
-    interped_field = fnc(sample_coords.T)
+    masked_bins = np.array(np.where(weights < 1e-10)).reshape(3, -1)
+    void_samples = _asvoid(indxs.T)
+    void_masked = _asvoid(masked_bins.T)
+    to_remove = np.in1d(void_samples, void_masked)
+    sample_coords = sample_coords[:, ~to_remove]
+    r_n = r_n[~to_remove]
+
+    return sample_coords, r_n
+
+
+def _field_average_interpolate(coords, field, bins, weights, sample_coords, r_n):
+    # Grid is regular + can be ordered only in Cartesian coords.
+    if isinstance(weights, np.ndarray):
+        weights = weights.reshape(field.shape)
+    else:
+        weights = np.ones_like(field) * weights
+    # if field.dtype.kind == "c":
+    #    field = np.array(field, dtype=np.complex64)
+    # else:
+    #    field = np.array(field, dtype=np.float32)
+    # Set 0 weights to NaNs
+    field = field * weights
+    field[weights == 0] = np.nan
+    # Rescale the field (see scipy documentation for RegularGridInterpolator)
+    mean, std = np.nanmean(field), np.max(
+        [np.nanstd(field), 1.0]
+    )  # Avoid division by 0
+    rescaled_field = (field - mean) / std
+    fnc = RegularGridInterpolator(
+        coords,
+        rescaled_field,  # Complex data is accepted.
+        bounds_error=False,
+        fill_value=np.nan,
+    )  # To extrapolate at the edges if needed.
+    # Evaluate it on points in angular coords that we then convert to Cartesian.
+
+    interped_field = fnc(sample_coords.T) * std + mean
+    if np.all(np.isnan(interped_field)):
+        warnings.warn("Interpolator returned all NaNs.", stacklevel=2)
     # Average over the spherical shells for each radius / bin value
     avged_field = np.array([np.nanmean(interped_field[r_n == b]) for b in bins])
-    sumweights = np.unique(r_n, return_counts=True)[1]
+    sumweights = np.unique(r_n[~np.isnan(interped_field)], return_counts=True)[1]
     return avged_field, sumweights
 
 
@@ -353,7 +438,7 @@ def _field_variance(indx, field, average, weights, V1):
     return res
 
 
-def angular_average_nd(
+def angular_average_nd(  # noqa: C901
     field,
     coords,
     bins,
@@ -467,6 +552,8 @@ def angular_average_nd(
         raise ValueError("coords should be a list of arrays, one for each dimension.")
     if interpolation_method is not None and angular_resolution is None:
         angular_resolution = 1.0 / 2 ** (len(coords) - n)
+    if interpolation_method is not None and interpolation_method != "linear":
+        raise ValueError("Only linear interpolation is supported.")
     if n == len(coords):
         return angular_average(
             field,
@@ -483,19 +570,24 @@ def angular_average_nd(
         )
 
     coords_grid = _magnitude_grid([c for i, c in enumerate(coords) if i < n])
-
-    indx, bins, sumweights = _get_binweights(
-        coords_grid, weights, bins, average, bin_ave=bin_ave, log_bins=log_bins
-    )
-
     n1 = np.prod(field.shape[:n])
     n2 = np.prod(field.shape[n:])
     if interpolation_method is None:
+        indx, bins, sumweights = _get_binweights(
+            coords_grid, weights, bins, average, bin_ave=bin_ave, log_bins=log_bins
+        )
         res = np.zeros((len(sumweights), n2), dtype=field.dtype)
-    else:
+    if interpolation_method is not None:
+        bins = _getbins(bins, coords_grid, log_bins)
+        if log_bins:
+            bins = np.exp((np.log(bins[1:]) + np.log(bins[:-1])) / 2)
+        else:
+            bins = (bins[1:] + bins[:-1]) / 2
         res = np.zeros((len(bins), n2), dtype=field.dtype)
+
     if get_variance:
         var = np.zeros_like(res)
+
     for i, fld in enumerate(field.reshape((n1, n2)).T):
         try:
             w = weights.flatten()
@@ -503,16 +595,14 @@ def angular_average_nd(
             w = weights
         if interpolation_method is None:
             res[:, i] = _field_average(indx, fld, w, sumweights)
-
             if get_variance:
                 var[:, i] = _field_variance(indx, fld, res[:, i], w, sumweights)
         elif interpolation_method == "linear":
+            sample_coords, r_n = _sample_coords_interpolate(
+                coords[:n], bins, weights, angular_resolution=angular_resolution
+            )
             res[:, i], sumweights = _field_average_interpolate(
-                coords[:n],
-                fld.reshape(field.shape[:n]),
-                bins,
-                w,
-                angular_resolution=angular_resolution,
+                coords[:n], fld.reshape(field.shape[:n]), bins, w, sample_coords, r_n
             )
             if get_variance:
                 # TODO: Implement variance calculation for interpolation
@@ -590,7 +680,7 @@ def ignore_zero_absk(freq: list, kmag: np.ndarray | None):
         (len(k1), len(k2), len(k3)).
 
     """
-    k_weights = kmag != 0
+    k_weights = ~np.isclose(kmag, 0)
     return k_weights
 
 
@@ -616,7 +706,7 @@ def ignore_zero_ki(freq: list, kmag: np.ndarray = None):
     res_ndim = len(kmag.shape)
 
     coords = np.array(np.meshgrid(*freq[:res_ndim], sparse=False))
-    k_weights = np.any(coords != 0, axis=0)
+    k_weights = np.all(coords != 0, axis=0)
 
     return k_weights
 

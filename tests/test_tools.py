@@ -32,13 +32,42 @@ def test_angular_avg_nd_3():
     )
 
 
+def test_interp_w_weights():
+    x = np.linspace(-3, 3, 40)
+    P = np.ones((40, 40, 40))
+    P[:4, 3:6, 7:10] = 0
+    weights = np.ones_like(P)
+    weights[:4, :, :] = 0
+    weights[:, 3:6, :] = 0
+    weights[:, :, 7:10] = 0
+
+    # Test 4D avg works
+    freq = [x, x, x]
+    p_k_lin, k_av_bins_lin = angular_average(
+        P,
+        freq,
+        bins=10,
+        interpolation_method="linear",
+        weights=weights,
+        angular_resolution=0.1,
+    )
+
+    assert np.all(p_k_lin == 1.0)
+
+
 def test_angular_avg_nd():
     x = np.linspace(-3, 3, 40)
     X, Y, Z = np.meshgrid(x, x, x)
     r2 = X**2 + Y**2 + Z**2
     P = r2**-1.0
+
+    # Test 4D avg works
     P = np.repeat(P, 10).reshape(40, 40, 40, 10)
     freq = [x, x, x, np.linspace(-2, 2, 10)]
+    p_k_lin, k_av_bins_lin = angular_average(
+        P, freq, bins=10, interpolation_method="linear", weights=np.ones_like(P)
+    )
+
     p_k_lin, k_av_bins_lin = angular_average_nd(
         P, freq, bins=10, n=3, interpolation_method="linear"
     )
