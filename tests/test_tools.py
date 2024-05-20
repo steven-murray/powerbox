@@ -55,6 +55,21 @@ def test_interp_w_weights():
     assert np.all(p_k_lin == 1.0)
 
 
+def test_interp_method():
+    x = np.linspace(-3, 3, 40)
+    P = np.ones((40, 40, 40))
+    freq = [x, x, x]
+    with pytest.raises(ValueError):
+        ave, coord, var = angular_average_nd(
+            P, freq, bins=20, get_variance=True, interpolation_method="abc"
+        )
+
+    with pytest.raises(ValueError):
+        ave, coord, var = angular_average(
+            P, freq, bins=20, get_variance=True, interpolation_method="abc"
+        )
+
+
 def test_angular_avg_nd():
     x = np.linspace(-3, 3, 40)
     X, Y, Z = np.meshgrid(x, x, x)
@@ -64,8 +79,14 @@ def test_angular_avg_nd():
     # Test 4D avg works
     P = np.repeat(P, 10).reshape(40, 40, 40, 10)
     freq = [x, x, x, np.linspace(-2, 2, 10)]
-    p_k_lin, k_av_bins_lin = angular_average(
-        P, freq, bins=10, interpolation_method="linear", weights=np.ones_like(P)
+    p_k_lin, k_av_bins_lin, sumweights = angular_average(
+        P,
+        freq,
+        bins=10,
+        log_bins=True,
+        return_sumweights=True,
+        interpolation_method="linear",
+        weights=np.ones_like(P),
     )
 
     p_k_lin, k_av_bins_lin = angular_average_nd(
@@ -188,7 +209,9 @@ def test_angular_avg_nd_2_1_varnull():
     P = np.ones((200, 10))
 
     coords = [x, np.linspace(-2, 2, 10)]
-    p_k, k_av_bins, var = angular_average_nd(P, coords, bins=20, n=1, get_variance=True)
+    p_k, k_av_bins, var, sw = angular_average_nd(
+        P, coords, bins=20, n=1, get_variance=True, return_sumweights=True
+    )
 
     assert np.all(var == 0)
 

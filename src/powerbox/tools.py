@@ -238,15 +238,6 @@ def _spherical2cartesian(r, phi_n):
                 np.sin(phi_n[0]) * np.sin(phi_n[1]),
             ]
         )
-    elif phi_n.shape[0] == 3:
-        return r * np.array(
-            [
-                np.cos(phi_n[0]),
-                np.sin(phi_n[0]) * np.cos(phi_n[1]),
-                np.sin(phi_n[0]) * np.sin(phi_n[1]) * np.cos(phi_n[2]),
-                np.sin(phi_n[0]) * np.sin(phi_n[1]) * np.sin(phi_n[2]),
-            ]
-        )
     else:
         phi_n = np.concatenate(
             [2 * np.pi * np.ones(phi_n.shape[1])[np.newaxis, ...], phi_n], axis=0
@@ -266,12 +257,9 @@ def _asvoid(arr):
     viewed as one value. This allows comparisons to be performed on the entire row.
     """
     arr = np.ascontiguousarray(arr)
-    if np.issubdtype(arr.dtype, np.floating):
-        """Care needs to be taken here since
-        np.array([-0.]).view(np.void) != np.array([0.]).view(np.void)
-        Adding 0. converts -0. to 0.
-        """
-        arr += 0.0
+    # Since np.array([-0.]).view(np.void) != np.array([0.]).view(np.void)
+    # Adding 0. converts -0. to 0.
+    arr += 0.0
     return arr.view(np.dtype((np.void, arr.dtype.itemsize * arr.shape[-1])))
 
 
