@@ -259,7 +259,8 @@ def _asvoid(arr):
     arr = np.ascontiguousarray(arr)
     # Since np.array([-0.]).view(np.void) != np.array([0.]).view(np.void)
     # Adding 0. converts -0. to 0.
-    arr += 0.0
+    if np.issubdtype(arr.dtype, np.floating):
+        arr += 0.0
     return arr.view(np.dtype((np.void, arr.dtype.itemsize * arr.shape[-1])))
 
 
