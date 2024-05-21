@@ -15,22 +15,20 @@ from . import dft
 
 
 def _getbins(bins, coords, log):
-    center = np.array(coords.shape) // 2
-    max_Rs = []
-    if len(coords.shape) > 1:
-        for i in range(len(coords.shape)):
-            edge = np.copy(center)
-            edge[i] = -1
-            max_Rs.append(coords[tuple(edge)])
-    else:
-        max_Rs = [np.max(coords)]
-    mx = np.min(max_Rs)
+    try:
+        # Fails if coords is not a cube / inhomogeneous.
+        max_radius = np.min([np.max(coords, axis=i) for i in range(coords.ndim)])
+    except ValueError:
+        maxs = [np.max(coords, axis=i) for i in range(coords.ndim)]
+        maxs_flat = []
+        [maxs_flat.extend(m.ravel()) for m in maxs]
+        max_radius = np.min(maxs_flat)
     if not np.iterable(bins):
         if not log:
-            bins = np.linspace(coords.min(), mx, bins + 1)
+            bins = np.linspace(coords.min(), max_radius, bins + 1)
         else:
             mn = coords[coords > 0].min()
-            bins = np.logspace(np.log10(mn), np.log10(mx), bins + 1)
+            bins = np.logspace(np.log10(mn), np.log10(max_radius), bins + 1)
     return bins
 
 
@@ -44,7 +42,7 @@ def angular_average(
     get_variance=False,
     log_bins=False,
     interpolation_method=None,
-    angular_resolution=0.1,
+    interp_points_generator=None,
     return_sumweights=False,
 ):
     r"""
@@ -88,15 +86,22 @@ def angular_average(
     interpolation_method : str, optional
         If None, does not interpolate. Currently only 'linear' is supported.
 
-    angular_resolution : float, optional
-        The angular resolution in radians for the interpolation.
-        If None, defaults to 1.0 radians for 3D->1D averaging, and 0.5 for 3D->2D averaging.
+    interp_points_generator : callable, optional
+        A function that generates the sample points for the interpolation.
+        If None, defaults regular_angular_generator(resolution = 0.1).
+        If callable, a function that takes as input an angular resolution for the sampling
+        and returns a 1D array of radii and 2D array of angles
+        (see documentation on the inputs of _sphere2cartesian for more details on the outputs).
+        This function can be used to obtain an angular average over a certain region of the field by
+        limiting where the samples are taken for the interpolation. See function above_mu_min_generator
+        for an example of such a function.
 
     return_sumweights : bool, optional
         Whether to return the number of modes in each bin.
         Note that for the linear interpolation case,
         this corresponds to the number of samples averaged over
-        (which can be adjusted with the angular_resolution parameter).
+        (which can be adjusted by supplying a different interp_points_generator
+        function with a different angular resolution).
 
     Returns
     -------
@@ -141,7 +146,13 @@ def angular_average(
     if len(coords) == len(field.shape):
         # coords are a segmented list of dimensional co-ordinates
         coords_grid = _magnitude_grid(coords)
+    elif interpolation_method is not None:
+        raise ValueError(
+            "Must supply a list of len(field.shape) of 1D coordinate arrays for coords when interpolating!"
+        )
     else:
+        # coords are the magnitude of the co-ordinates
+        # since we are not interpolating, then we can just use the magnitude of the co-ordinates
         coords_grid = coords
     if interpolation_method is None:
         indx, bins, sumweights = _get_binweights(
@@ -159,8 +170,9 @@ def angular_average(
             bins = np.exp((np.log(bins[1:]) + np.log(bins[:-1])) / 2)
         else:
             bins = (bins[1:] + bins[:-1]) / 2
+
         sample_coords, r_n = _sample_coords_interpolate(
-            coords, bins, weights, angular_resolution=angular_resolution
+            coords, bins, weights, interp_points_generator
         )
         res, sumweights = _field_average_interpolate(
             coords, field, bins, weights, sample_coords, r_n
@@ -231,7 +243,24 @@ def _get_binweights(coords, weights, bins, average=True, bin_ave=True, log_bins=
 
 
 def _spherical2cartesian(r, phi_n):
-    """Convert spherical coordinates to Cartesian coordinates."""
+    r"""Convert spherical coordinates to Cartesian coordinates.
+
+    Parameters
+    ----------
+    r_n : array-like
+        1D array of radii.
+    phi_n : array-like
+        2D array of azimuthal angles with shape (ndim-1, N), where N is the number of points.
+        phi_n[0,:] :math:`\in [0,2*\pi]`, and phi_n[1:,:] :math:`\in [0,\pi]`.
+
+    Returns
+    -------
+    coords : array-like
+        2D array of Cartesian coordinates with shape (ndim, N).
+
+    For more details, see https://en.wikipedia.org/wiki/N-sphere#Spherical_coordinates
+
+    """
     if phi_n.shape[0] == 1:
         return r * np.array([np.cos(phi_n[0]), np.sin(phi_n[0])])
     elif phi_n.shape[0] == 2:
@@ -253,22 +282,103 @@ def _spherical2cartesian(r, phi_n):
         return cum_sines * cosines * r
 
 
-def _asvoid(arr):
+def above_mu_min_angular_generator(bins, dims2avg, angular_resolution=0.1, mu=0.97):
+    r"""
+    Returns a set of spherical coordinates above a certain :math:`\\mu` value.
+
+    Parameters
+    ----------
+    bins : array-like
+        1D array of radii at which we want to spherically average the field.
+    dims2avg : int
+        The number of dimensions to average over.
+    angular_resolution : float, optional
+        The angular resolution in radians for the sample points for the interpolation.
+    mu : float, optional
+        The minimum value of :math:`\\cos(\theta), \theta = \arctan (k_\\perp/k_\\parallel)`
+        for the sample points generated for the interpolation.
+
+    Returns
+    -------
+    r_n : array-like
+        1D array of radii.
+    phi_n : array-like
+        2D array of azimuthal angles with shape (ndim-1, N), where N is the number of points.
+        phi_n[0,:] :math:`\\in [0,2*\\pi]`, and phi_n[1:,:] :math:`\\in [0,\\pi]`.
     """
-    Based on http://stackoverflow.com/a/16973510/190597 (Jaime, 2013-06).
 
-    View the array as dtype np.void (bytes). The items along the last axis are
-    viewed as one value. This allows comparisons to be performed on the entire row.
+    def generator():
+        r_n, phi_n = regular_angular_generator(
+            bins, dims2avg, angular_resolution=angular_resolution
+        )
+        # sine because the phi_n are wrt x-axis and we need them wrt z-axis.
+        if len(phi_n) == 1:
+            mask = np.sin(phi_n[0, :]) >= mu
+        else:
+            mask = np.all(np.sin(phi_n[1:, :]) >= mu, axis=0)
+        return r_n[mask], phi_n[:, mask]
+
+    return generator()
+
+
+def regular_angular_generator(bins, dims2avg, angular_resolution=0.1):
+    r"""
+    Returns a set of spherical coordinates regularly sampled at a given angular resolution.
+
+    Parameters
+    ----------
+    bins : array-like
+        1D array of radii at which we want to spherically average the field.
+    dims2avg : int
+        The number of dimensions to average over.
+    angular_resolution : float, optional
+        The angular resolution in radians for the sample points for the interpolation.
+        Defaults to 0.1 rad.
+
+    Returns
+    -------
+    r_n : array-like
+        1D array of radii.
+    phi_n : array-like
+        2D array of azimuthal angles with shape (ndim-1, N), where N is the number of points.
+        phi_n[0,:] :math:`\in [0,2*\pi]`, and phi_n[1:,:] :math:`\in [0,\pi]`.
     """
-    arr = np.ascontiguousarray(arr)
-    # Since np.array([-0.]).view(np.void) != np.array([0.]).view(np.void)
-    # Adding 0. converts -0. to 0.
-    if np.issubdtype(arr.dtype, np.floating):
-        arr += 0.0
-    return arr.view(np.dtype((np.void, arr.dtype.itemsize * arr.shape[-1])))
+
+    def generator():
+        num_angular_bins = np.array(
+            np.max(
+                [
+                    np.round(2 * np.pi * bins / angular_resolution),
+                    np.ones_like(bins) * 100,
+                ],
+                axis=0,
+            ),
+            dtype=int,
+        )
+        phi_i = [np.linspace(0.0, np.pi, n) for n in num_angular_bins]
+        phi_N = [np.linspace(0.0, 2 * np.pi, n) for n in num_angular_bins]
+
+        # Angular resolution is same for all dims
+        phi_n = np.concatenate(
+            [
+                np.array(
+                    np.meshgrid(
+                        *([phi_N[i]] + [phi_i[i]] * (dims2avg - 1)), sparse=False
+                    )
+                ).reshape((dims2avg, num_angular_bins[i] ** dims2avg))
+                for i in range(len(bins))
+            ],
+            axis=-1,
+        )
+        r_n = np.concatenate(
+            [[r] * (num_angular_bins[i] ** dims2avg) for i, r in enumerate(bins)]
+        )
+        return r_n, phi_n
+
+    return generator()
 
 
-def _sample_coords_interpolate(coords, bins, weights, angular_resolution=0.1):
+def _sample_coords_interpolate(coords, bins, weights, interp_points_generator):
     # Grid is regular + can be ordered only in Cartesian coords.
     field_shape = [len(c) for c in coords]
     if isinstance(weights, np.ndarray):
@@ -281,60 +391,30 @@ def _sample_coords_interpolate(coords, bins, weights, angular_resolution=0.1):
     # Larger wavemodes / radii will have more samples in theta
     # "bins" is always 1D
     # Max is to set a minimum number of bins for the smaller wavemode bins
-    num_angular_bins = np.array(
-        np.max(
-            [
-                np.round(2 * np.pi * bins / angular_resolution),
-                np.ones_like(bins) * 100,
-            ],
-            axis=0,
-        ),
-        dtype=int,
-    )
+    if interp_points_generator is None:
+        interp_points_generator = regular_angular_generator
     if len(coords) > 1:
-        phi_n = [np.linspace(0.0, np.pi, n) for n in num_angular_bins]
-        phi_N = [np.linspace(0.0, 2 * np.pi, n) for n in num_angular_bins]
-
-        dims2avg = len(coords) - 1
-        # Angular resolution is same for all dims
-        phi_n = np.concatenate(
-            [
-                np.array(
-                    np.meshgrid(
-                        *([phi_N[i]] + [phi_n[i]] * (dims2avg - 1)), sparse=False
-                    )
-                ).reshape((dims2avg, num_angular_bins[i] ** dims2avg))
-                for i in range(len(bins))
-            ],
-            axis=-1,
-        )
-        r_n = np.concatenate(
-            [[r] * (num_angular_bins[i] ** dims2avg) for i, r in enumerate(bins)]
-        )
+        r_n, phi_n = interp_points_generator(bins, len(coords) - 1)
         sample_coords = _spherical2cartesian(r_n, phi_n)
     else:
         sample_coords = bins.reshape(1, -1)
         r_n = bins
-    # Removing sample coords that belong to masked regions
-    # First, we pad the weights by setting the weights to 0 around bins
-    # that had weights of 0 from the start.
-    # This is to avoid interpolating close to 0-weighted regions.
-    # binary_weights = weights < 1e-10
-    # rolled = [np.roll(binary_weights, shift=1, axis=i) for i in range(len(coords))]
-    # padded_weights = np.logical_or.reduce(rolled)
-    # weights[padded_weights] = 0
-    # np.digitize can only be applied on a 1D array of bins
-    # for-loop over each dimension
-    indxs = np.array(
-        [np.digitize(sample_coords[i], coords[i]) for i in range(len(coords))]
-    )
-    masked_bins = np.array(np.where(weights < 1e-10)).reshape(len(coords), -1)
-    void_samples = _asvoid(indxs.T)
-    void_masked = _asvoid(masked_bins.T)
-    to_remove = np.in1d(void_samples, void_masked)
-    sample_coords = sample_coords[:, ~to_remove]
-    r_n = r_n[~to_remove]
 
+    # Remove sample coords that are not even on the coords grid (e.g. due to phi)
+    mask1 = np.all(
+        sample_coords >= np.array([c.min() for c in coords])[..., np.newaxis], axis=0
+    )
+    mask2 = np.all(
+        sample_coords <= np.array([c.max() for c in coords])[..., np.newaxis], axis=0
+    )
+
+    mask = mask1 & mask2
+    sample_coords = sample_coords[:, mask]
+    r_n = r_n[mask]
+    if len(r_n) == 0:
+        raise ValueError(
+            "Generated sample points are outside of the coordinate box provided for the field! Try changing your points generator or field coordinates."
+        )
     return sample_coords, r_n
 
 
@@ -442,7 +522,7 @@ def angular_average_nd(  # noqa: C901
     get_variance=False,
     log_bins=False,
     interpolation_method=None,
-    angular_resolution=None,
+    interp_points_generator=None,
     return_sumweights=False,
 ):
     """
@@ -491,15 +571,22 @@ def angular_average_nd(  # noqa: C901
     interpolation_method : str, optional
         If None, does not interpolate. Currently only 'linear' is supported.
 
-    angular_resolution : float, optional
-        The angular resolution in radians for the interpolation.
-        If None, defaults to 1.0 radians for 3D->1D averaging, and 0.5 for 3D->2D averaging.
+    interp_points_generator : callable, optional
+        A function that generates the sample points for the interpolation.
+        If None, defaults regular_angular_generator(resolution = 0.1).
+        If callable, a function that takes as input an angular resolution for the sampling
+        and returns a 1D array of radii and 2D array of angles
+        (see documentation on the inputs of _sphere2cartesian for more details on the outputs).
+        This function can be used to obtain an angular average over a certain region of the field by
+        limiting where the samples are taken for the interpolation. See function above_mu_min_generator
+        for an example of such a function.
 
     return_sumweights : bool, optional
         Whether to return the number of modes in each bin.
         Note that for the linear interpolation case,
         this corresponds to the number of samples averaged over
-        (which can be adjusted with the angular_resolution parameter).
+        (which can be adjusted by supplying a different interp_points_generator
+        function with a different angular resolution).
 
     Returns
     -------
@@ -543,10 +630,13 @@ def angular_average_nd(  # noqa: C901
 
     if len(coords) != len(field.shape):
         raise ValueError("coords should be a list of arrays, one for each dimension.")
-    if interpolation_method is not None and angular_resolution is None:
-        angular_resolution = 1.0 / 2 ** (len(coords) - n)
+
+    if interpolation_method is not None and interp_points_generator is None:
+        interp_points_generator = regular_angular_generator
+
     if interpolation_method is not None and interpolation_method != "linear":
         raise ValueError("Only linear interpolation is supported.")
+
     if n == len(coords):
         return angular_average(
             field,
@@ -558,9 +648,21 @@ def angular_average_nd(  # noqa: C901
             get_variance,
             log_bins=log_bins,
             interpolation_method=interpolation_method,
-            angular_resolution=angular_resolution,
+            interp_points_generator=interp_points_generator,
             return_sumweights=return_sumweights,
         )
+
+    if len(coords) == len(field.shape):
+        # coords are a segmented list of dimensional co-ordinates
+        coords_grid = _magnitude_grid([c for i, c in enumerate(coords) if i < n])
+    elif interpolation_method is not None:
+        raise ValueError(
+            "Must supply a list of len(field.shape) of 1D coordinate arrays for coords when interpolating!"
+        )
+    else:
+        # coords are the magnitude of the co-ordinates
+        # since we are not interpolating, then we can just use the magnitude of the co-ordinates
+        coords_grid = coords
 
     coords_grid = _magnitude_grid([c for i, c in enumerate(coords) if i < n])
     n1 = np.prod(field.shape[:n])
@@ -592,7 +694,7 @@ def angular_average_nd(  # noqa: C901
                 var[:, i] = _field_variance(indx, fld, res[:, i], w, sumweights)
         elif interpolation_method == "linear":
             sample_coords, r_n = _sample_coords_interpolate(
-                coords[:n], bins, weights, angular_resolution=angular_resolution
+                coords[:n], bins, weights, interp_points_generator
             )
             res[:, i], sumweights = _field_average_interpolate(
                 coords[:n], fld.reshape(field.shape[:n]), bins, w, sample_coords, r_n
@@ -840,7 +942,7 @@ def get_power(
     nthreads=None,
     prefactor_fnc=None,
     interpolation_method=None,
-    angular_resolution=None,
+    interp_points_generator=None,
     return_sumweights=False,
 ):
     r"""
@@ -916,11 +1018,15 @@ def get_power(
         power into power-per-logarithmic k ($\Delta^2$).
     interpolation_method : str, optional
         If None, does not interpolate. Currently only 'linear' is supported.
-
-    angular_resolution : float, optional
-        The angular resolution in radians for the interpolation.
-        If None, defaults to 1.0 radians for 3D->1D averaging, and 0.5 for 3D->2D averaging.
-
+    interp_points_generator : callable, optional
+        A function that generates the sample points for the interpolation.
+        If None, defaults regular_angular_generator(resolution = 0.1).
+        If callable, a function that takes as input an angular resolution for the sampling
+        and returns a 1D array of radii and 2D array of angles
+        (see documentation on the inputs of _sphere2cartesian for more details on the outputs).
+        This function can be used to obtain an angular average over a certain region of the field by
+        limiting where the samples are taken for the interpolation. See function above_mu_min_generator
+        for an example of such a function.
     return_sumweights : bool, optional
         Whether to return the number of modes in each bin.
         Note that for the linear interpolation case,
@@ -1040,7 +1146,7 @@ def get_power(
         log_bins=log_bins,
         weights=k_weights,
         interpolation_method=interpolation_method,
-        angular_resolution=angular_resolution,
+        interp_points_generator=interp_points_generator,
         return_sumweights=return_sumweights,
     )
     res = list(res)
