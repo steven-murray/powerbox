@@ -35,17 +35,31 @@ def test_angular_avg_nd_3(interpolation_method):
         )
 
 
-def test_interp_w_weights():
+@pytest.mark.parametrize("n", range(1, 5))
+def test_interp_w_weights(n):
     x = np.linspace(-3, 3, 40)
-    P = np.ones((40, 40, 40))
-    P[:4, 3:6, 7:10] = 0
+    P = np.ones(n * [40])
     weights = np.ones_like(P)
-    weights[:4, :, :] = 0
-    weights[:, 3:6, :] = 0
-    weights[:, :, 7:10] = 0
+    if n == 1:
+        P[2:5] = 0
+        weights[2:5] = 0
+    elif n == 2:
+        P[2:5, 2:5] = 0
+        weights[2:5, 2:5] = 0
+    elif n == 3:
+        P[:4, 3:6, 7:10] = 0
+        weights[:4, :, :] = 0
+        weights[:, 3:6, :] = 0
+        weights[:, :, 7:10] = 0
+    else:
+        P[:4, 3:6, 7:10, 1:2] = 0
+        weights[:4, :, :, :] = 0
+        weights[:, 3:6, :, :] = 0
+        weights[:, :, 7:10, :] = 0
+        weights[:, :, :, 1:2] = 0
 
     # Test 4D avg works
-    freq = [x, x, x]
+    freq = [x for _ in range(n)]
     p_k_lin, k_av_bins_lin = angular_average(
         P,
         freq,
@@ -56,6 +70,9 @@ def test_interp_w_weights():
     )
 
     assert np.all(p_k_lin == 1.0)
+
+
+def test_interp_w_mu():
     x = np.linspace(0.0, 3, 40)
     kpar_mesh, kperp_mesh = np.meshgrid(x, x)
     theta = np.arctan(kperp_mesh / kpar_mesh)
@@ -158,7 +175,8 @@ def test_kmag_coords_nointerp():
         )
 
 
-def test_angular_avg_nd():
+@pytest.mark.parametrize("n", range(1, 3))
+def test_angular_avg_nd(n):
     x = np.linspace(-3, 3, 40)
     X, Y, Z = np.meshgrid(x, x, x)
     r2 = X**2 + Y**2 + Z**2
@@ -167,48 +185,42 @@ def test_angular_avg_nd():
     # Test 4D avg works
     P = np.repeat(P, 10).reshape(40, 40, 40, 10)
     freq = [x, x, x, np.linspace(-2, 2, 10)]
-    p_k_lin, k_av_bins_lin, sumweights = angular_average(
-        P,
-        freq,
-        bins=10,
-        log_bins=True,
-        return_sumweights=True,
-        interpolation_method="linear",
-        weights=np.ones_like(P),
-    )
 
     p_k_lin, k_av_bins_lin = angular_average_nd(
-        P, freq, bins=10, n=3, interpolation_method="linear"
-    )
-    assert (
-        np.max(np.abs((p_k_lin[:, 0] - k_av_bins_lin**-2.0) / k_av_bins_lin**-2.0))
-        < 0.05
+        P, freq, bins=10, n=n, interpolation_method="linear"
     )
 
-    p_k_lin, k_av_bins_lin = angular_average_nd(
-        P, freq, bins=10, n=2, interpolation_method="linear"
-    )
-    assert (
-        np.max(
-            np.abs(
-                (p_k_lin[:, len(x) // 2, 0] - k_av_bins_lin**-2.0) / k_av_bins_lin**-2.0
+    if n == 1:
+        # Without interpolation, the radially-averaged power is not very accurate
+        # due to the low number of bins at small values of k_av_bins, so we start
+        # the comparison at the 6th bin.
+        assert (
+            np.max(
+                np.abs(
+                    (
+                        p_k_lin[6:, len(x) // 2, len(x) // 2, 0]
+                        - k_av_bins_lin[6:] ** -2.0
+                    )
+                    / k_av_bins_lin[6:] ** -2.0
+                )
             )
+            < 0.05
         )
-        < 0.05
-    )
-
-    p_k_lin, k_av_bins_lin = angular_average_nd(
-        P, freq, bins=10, n=1, interpolation_method="linear"
-    )
-    assert (
-        np.max(
-            np.abs(
-                (p_k_lin[6:, len(x) // 2, len(x) // 2, 0] - k_av_bins_lin[6:] ** -2.0)
-                / k_av_bins_lin[6:] ** -2.0
+    elif n == 2:
+        assert (
+            np.max(
+                np.abs(
+                    (p_k_lin[:, len(x) // 2, 0] - k_av_bins_lin**-2.0)
+                    / k_av_bins_lin**-2.0
+                )
             )
+            < 0.05
         )
-        < 0.05
-    )
+    else:
+        assert (
+            np.max(np.abs((p_k_lin[:, 0] - k_av_bins_lin**-2.0) / k_av_bins_lin**-2.0))
+            < 0.05
+        )
 
 
 def test_angular_avg_nd_complex_interp():
