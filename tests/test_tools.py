@@ -20,8 +20,13 @@ def test_angular_avg_nd_3(interpolation_method):
     P = r2**-1.0
     P = np.repeat(P, 100).reshape(400, 400, 100)
     freq = [x, x, np.linspace(-2, 2, 100)]
-    p_k, k_av_bins = angular_average_nd(
-        P, freq, bins=50, n=2, interpolation_method=interpolation_method
+    p_k, k_av_bins, sw = angular_average_nd(
+        P,
+        freq,
+        bins=50,
+        n=2,
+        interpolation_method=interpolation_method,
+        return_sumweights=True,
     )
     if interpolation_method == "linear":
         assert np.max(np.abs((p_k[:, 0] - k_av_bins**-2.0) / k_av_bins**-2.0)) < 0.05
@@ -32,6 +37,21 @@ def test_angular_avg_nd_3(interpolation_method):
         assert (
             np.max(np.abs((p_k[6:, 0] - k_av_bins[6:] ** -2.0) / k_av_bins[6:] ** -2.0))
             < 0.05
+        )
+
+
+def test_weights_shape():
+    x = np.linspace(-3, 3, 40)
+    P = np.ones(3 * [40])
+    weights = np.ones(3 * [20])
+    freq = [x for _ in range(3)]
+
+    with pytest.raises(ValueError):
+        p_k_lin, k_av_bins_lin = angular_average(
+            P,
+            freq,
+            bins=10,
+            weights=weights,
         )
 
 
@@ -67,16 +87,45 @@ def test_interp_w_weights(n):
         interpolation_method="linear",
         weights=weights,
         interp_points_generator=regular_angular_generator,
+        log_bins=True,
     )
 
     assert np.all(p_k_lin == 1.0)
 
 
-def test_interp_w_mu():
+@pytest.mark.parametrize("n", range(1, 3))
+def test_zero_ki(n):
+    x = np.arange(-100, 100, 1)
+    from powerbox.tools import ignore_zero_ki
+
+    # needed only for shape
+    freq = n * [x]
+    coords = np.array(np.meshgrid(*freq))
+    kmag = np.sqrt(np.sum(coords**2, axis=0))
+    weights = ignore_zero_ki(freq, kmag)
+    L = x[-1] - x[0] + 1
+    masked_points = np.sum(weights == 0)
+    if n == 1:
+        assert masked_points == 1
+    elif n == 2:
+        assert masked_points == n * L - 1
+    elif n == 3:
+        assert masked_points == n * L**2 - n * L + 1
+    else:
+        assert masked_points == n * L**3 - n * L**2 + n * L - 1
+
+
+@pytest.mark.parametrize("n", range(2, 3))
+def test_interp_w_mu(n):
     x = np.linspace(0.0, 3, 40)
-    kpar_mesh, kperp_mesh = np.meshgrid(x, x)
-    theta = np.arctan(kperp_mesh / kpar_mesh)
-    mu_mesh = np.cos(theta)
+    if n == 2:
+        kpar_mesh, kperp_mesh = np.meshgrid(x, x)
+        theta = np.arctan(kperp_mesh / kpar_mesh)
+        mu_mesh = np.cos(theta)
+    else:
+        kx_mesh, ky_mesh, kz_mesh = np.meshgrid(x, x, x, indexing="ij")
+        theta = np.arccos(kz_mesh / np.sqrt(kx_mesh**2 + ky_mesh**2 + kz_mesh**2))
+        mu_mesh = np.cos(theta)
 
     # Need a little cushion so we test against data at mu = 0.95
     # If we test for mu that is higher (default is mu >= 0.97)
@@ -88,7 +137,7 @@ def test_interp_w_mu():
 
     p_k_lin, k_av_bins_lin = angular_average(
         P,
-        [x, x],
+        n * [x],
         bins=10,
         interpolation_method="linear",
         weights=1.0,
@@ -317,7 +366,6 @@ def test_variance_2d():
     ave, coord, var = angular_average(
         P, np.sqrt(r2), bins=np.linspace(0, x.max(), 20), get_variance=True
     )
-    print(np.diff(var))
     assert np.all(np.diff(var) <= 0)
 
 
@@ -348,6 +396,9 @@ def test_sum():
     r2 = X**2 + Y**2
     P = r2**-1.0
     ave, coord = angular_average(P, np.sqrt(r2), bins=20, bin_ave=False, average=False)
+    assert np.sum(P[r2 < 9.0]) == np.sum(ave)
+
+    ave, coord = angular_average(P, np.sqrt(r2), bins=20, bin_ave=True, average=False)
     assert np.sum(P[r2 < 9.0]) == np.sum(ave)
 
 

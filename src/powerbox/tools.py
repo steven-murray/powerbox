@@ -321,7 +321,7 @@ def above_mu_min_angular_generator(bins, dims2avg, angular_resolution=0.1, mu=0.
     return generator()
 
 
-def regular_angular_generator(bins, dims2avg, angular_resolution=0.1):
+def regular_angular_generator(bins, dims2avg, angular_resolution=0.05):
     r"""
     Returns a set of spherical coordinates regularly sampled at a given angular resolution.
 
@@ -399,7 +399,6 @@ def _sample_coords_interpolate(coords, bins, weights, interp_points_generator):
     else:
         sample_coords = bins.reshape(1, -1)
         r_n = bins
-
     # Remove sample coords that are not even on the coords grid (e.g. due to phi)
     mask1 = np.all(
         sample_coords >= np.array([c.min() for c in coords])[..., np.newaxis], axis=0
@@ -424,10 +423,6 @@ def _field_average_interpolate(coords, field, bins, weights, sample_coords, r_n)
         weights = weights.reshape(field.shape)
     else:
         weights = np.ones_like(field) * weights
-    # if field.dtype.kind == "c":
-    #    field = np.array(field, dtype=np.complex64)
-    # else:
-    #    field = np.array(field, dtype=np.float32)
     # Set 0 weights to NaNs
     field = field * weights
     field[weights == 0] = np.nan
@@ -449,14 +444,22 @@ def _field_average_interpolate(coords, field, bins, weights, sample_coords, r_n)
         warnings.warn("Interpolator returned all NaNs.", stacklevel=2)
     # Average over the spherical shells for each radius / bin value
     avged_field = np.array([np.nanmean(interped_field[r_n == b]) for b in bins])
-    sumweights = np.unique(r_n[~np.isnan(interped_field)], return_counts=True)[1]
-    return avged_field, sumweights
+    unique_rn, sumweights = np.unique(
+        r_n[~np.isnan(interped_field)], return_counts=True
+    )
+    final_sumweights = []
+    for b in bins:
+        if b in unique_rn:
+            final_sumweights.append(sumweights[unique_rn == b][0])
+        else:
+            final_sumweights.append(0)
+    return avged_field, np.array(final_sumweights)
 
 
 def _field_average(indx, field, weights, sumweights):
     if not np.isscalar(weights) and field.shape != weights.shape:
         raise ValueError(
-            "the field and weights must have the same shape!",
+            "The field and weights must have the same shape!",
             field.shape,
             weights.shape,
         )
@@ -801,8 +804,7 @@ def ignore_zero_ki(freq: list, kmag: np.ndarray = None):
     res_ndim = len(kmag.shape)
 
     coords = np.array(np.meshgrid(*freq[:res_ndim], sparse=False))
-    k_weights = np.all(coords != 0, axis=0)
-
+    k_weights = ~np.any(coords == 0, axis=0)
     return k_weights
 
 
