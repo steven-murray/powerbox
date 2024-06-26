@@ -9,6 +9,7 @@ subclassing :class:`PowerBox` and over-writing the same methods as are over-writ
 
 from __future__ import annotations
 
+import numbers
 import numpy as np
 import warnings
 
@@ -141,14 +142,18 @@ class PowerBox:
         seed=None,
         nthreads=None,
     ):
-        self.N = N
         self.dim = dim
+        self.N = N
+        if isinstance(self.N, numbers.Number):
+            self.N = [self.N] * self.dim
         self.boxlength = boxlength
+        if isinstance(self.boxlength, numbers.Number):
+            self.boxlength = [self.boxlength] * self.dim
         self.L = boxlength
         self.fourier_a = a
         self.fourier_b = b
         self.vol_normalised_power = vol_normalised_power
-        self.V = self.boxlength**self.dim
+        self.V = np.prod(self.boxlength)
         self.fftbackend = dft.get_fft_backend(nthreads)
 
         if self.vol_normalised_power:
@@ -157,52 +162,65 @@ class PowerBox:
             self.pk = pk
 
         self.ensure_physical = ensure_physical
-        self.Ntot = self.N**self.dim
+        self.Ntot = np.prod(self.N)
 
         self.seed = seed
 
-        if N % 2 == 0:
-            self._even = True
-        else:
-            self._even = False
+        self._even = [N_i % 2 == 0 for N_i in self.N]
 
-        self.n = N + 1 if self._even else N
+        self.n = [N_i + 1 if N_i % 2 == 0 else N_i for N_i in self.N]
 
         # Get the grid-size for the final real-space box.
-        self.dx = float(boxlength) / N
+        self.dx = np.array(self.boxlength) / np.array(self.N)
 
     def k(self):
         """The entire grid of wavenumber magitudes."""
-        return _magnitude_grid(self.kvec, self.dim)
+        kval = np.meshgrid(*self.kvec, indexing="ij")
+        kmode = np.sqrt(np.sum([k_i**2 for k_i in kval], axis=0))
+        return kmode
 
     @property
     def kvec(self):
-        """The vector of wavenumbers along a side."""
-        return self.fftbackend.fftfreq(self.N, d=self.dx, b=self.fourier_b)
+        """The vector of wavenumbers along each side."""
+        kvec_arr = ()
+        for i in range(self.dim):
+            kvec_i = self.fftbackend.fftfreq(self.N[i], d=self.dx[i], b=self.fourier_b)
+            kvec_arr += (kvec_i,)
+        return kvec_arr
 
     @property
     def r(self):
         """The radial position of every point in the grid."""
-        return _magnitude_grid(self.x, self.dim)
+        xval = np.meshgrid(*self.x, indexing="ij")
+        rmode = np.sqrt(np.sum([x_i**2 for x_i in xval], axis=0))
+        return rmode
 
     @property
     def x(self):
         """The co-ordinates of the grid along a side."""
-        return np.arange(-self.boxlength / 2, self.boxlength / 2, self.dx)[: self.N]
+        xvec_arr = ()
+        for i in range(self.dim):
+            xvec_i = np.arange(
+                -self.boxlength[i] / 2, self.boxlength[i] / 2, self.dx[i]
+            )[: self.N[i]]
+            xvec_arr += (xvec_i,)
+        return xvec_arr
 
     def gauss_hermitian(self):
         """A random array which has Gaussian magnitudes and Hermitian symmetry."""
         if self.seed:
             np.random.seed(self.seed)
 
-        mag = np.random.normal(0, 1, size=[self.n] * self.dim)
-        pha = 2 * np.pi * np.random.uniform(size=[self.n] * self.dim)
+        mag = np.random.normal(0, 1, size=self.n)
+        pha = 2 * np.pi * np.random.uniform(size=self.n)
 
         dk = _make_hermitian(mag, pha)
 
-        if self._even:
-            cutidx = (slice(None, -1),) * self.dim
-            dk = dk[cutidx]
+        slice_arr = ()
+        for i in range(self.dim):
+            inp = -1 if self._even[i] else None
+            slice_arr += (slice(None, inp),)
+        dk = dk[slice_arr]
 
         return dk
 
@@ -235,7 +253,7 @@ class PowerBox:
         """The realised field in real-space from the input power spectrum."""
         # Here we multiply by V because the (inverse) fourier-transform of the (dimensionless) power has
         # units of 1/V and we require a unitless quantity for delta_x.
-        dk = self.fftbackend.empty((self.N,) * self.dim, dtype="complex128")
+        dk = self.fftbackend.empty(self.N, dtype="complex128")
         dk[...] = self.delta_k()
         dk[...] = (
             self.V
@@ -306,13 +324,13 @@ class PowerBox:
         else:
             dx = delta_x
 
-        dx = (dx + 1) * self.dx**self.dim * nbar
+        dx = (dx + 1) * np.prod(self.dx) * nbar
         n = dx
 
         self.n_per_cell = np.random.poisson(n)
 
         # Get all source positions
-        args = [self.x] * self.dim
+        args = self.x
         X = np.meshgrid(*args, indexing="ij")
 
         tracer_positions = np.array([x.flatten() for x in X]).T
@@ -320,7 +338,8 @@ class PowerBox:
 
         if randomise_in_cell:
             tracer_positions += (
-                np.random.uniform(size=(np.sum(self.n_per_cell), self.dim)) * self.dx
+                np.random.uniform(size=(np.sum(self.n_per_cell), self.dim))
+                * self.dx[None, :]
             )
 
         if min_at_zero:
@@ -379,7 +398,7 @@ class LogNormalPowerBox(PowerBox):
 
     def correlation_array(self):
         """The correlation function from the input power, on the grid."""
-        pa = self.fftbackend.empty((self.N,) * self.dim)
+        pa = self.fftbackend.empty(self.N)
         pa[...] = self.power_array()
         return self.V * np.real(
             dft.ifft(
@@ -397,7 +416,7 @@ class LogNormalPowerBox(PowerBox):
 
     def gaussian_power_array(self):
         """The power spectrum required for a Gaussian field to produce the input power on a lognormal field."""
-        gca = self.fftbackend.empty((self.N,) * self.dim)
+        gca = self.fftbackend.empty(self.N)
         gca[...] = self.gaussian_correlation_array()
         gpa = np.abs(
             dft.fft(
@@ -425,7 +444,7 @@ class LogNormalPowerBox(PowerBox):
 
     def delta_x(self):
         """The real-space over-density field, from the input power spectrum."""
-        dk = self.fftbackend.empty((self.N,) * self.dim, dtype="complex128")
+        dk = self.fftbackend.empty(self.N, dtype="complex128")
         dk[...] = self.delta_k()
         dk[...] = (
             np.sqrt(self.V)
