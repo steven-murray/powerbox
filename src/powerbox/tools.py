@@ -88,7 +88,7 @@ def angular_average(
 
     interp_points_generator : callable, optional
         A function that generates the sample points for the interpolation.
-        If None, defaults regular_angular_generator(resolution = 0.1).
+        If None, defaults regular_angular_generator with resolution = 0.05.
         If callable, a function that takes as input an angular resolution for the sampling
         and returns a 1D array of radii and 2D array of angles
         (see documentation on the inputs of _sphere2cartesian for more details on the outputs).
@@ -283,7 +283,7 @@ def _spherical2cartesian(r, phi_n):
         return cum_sines * cosines * r
 
 
-def above_mu_min_angular_generator(bins, dims2avg, angular_resolution=0.1, mu=0.97):
+def above_mu_min_angular_generator(bins, dims2avg):
     r"""
     Returns a set of spherical coordinates above a certain :math:`\\mu` value.
 
@@ -308,10 +308,11 @@ def above_mu_min_angular_generator(bins, dims2avg, angular_resolution=0.1, mu=0.
         phi_n[0,:] :math:`\\in [0,2*\\pi]`, and phi_n[1:,:] :math:`\\in [0,\\pi]`.
     """
 
-    def generator():
-        r_n, phi_n = regular_angular_generator(
-            bins, dims2avg, angular_resolution=angular_resolution
+    def generator(angular_resolution=0.1, mu=0.97):
+        r_n, phi_n = regular_angular_generator(bins, dims2avg)(
+            angular_resolution=angular_resolution
         )
+
         # sine because the phi_n are wrt x-axis and we need them wrt z-axis.
         if len(phi_n) == 1:
             mask = np.sin(phi_n[0, :]) >= mu
@@ -319,10 +320,10 @@ def above_mu_min_angular_generator(bins, dims2avg, angular_resolution=0.1, mu=0.
             mask = np.all(np.sin(phi_n[1:, :]) >= mu, axis=0)
         return r_n[mask], phi_n[:, mask]
 
-    return generator()
+    return generator
 
 
-def regular_angular_generator(bins, dims2avg, angular_resolution=0.05):
+def regular_angular_generator(bins, dims2avg):
     r"""
     Returns a set of spherical coordinates regularly sampled at a given angular resolution.
 
@@ -345,7 +346,7 @@ def regular_angular_generator(bins, dims2avg, angular_resolution=0.05):
         phi_n[0,:] :math:`\in [0,2*\pi]`, and phi_n[1:,:] :math:`\in [0,\pi]`.
     """
 
-    def generator():
+    def generator(angular_resolution=0.05):
         num_angular_bins = np.array(
             np.max(
                 [
@@ -376,7 +377,7 @@ def regular_angular_generator(bins, dims2avg, angular_resolution=0.05):
         )
         return r_n, phi_n
 
-    return generator()
+    return generator
 
 
 def _sample_coords_interpolate(coords, bins, weights, interp_points_generator):
@@ -393,9 +394,9 @@ def _sample_coords_interpolate(coords, bins, weights, interp_points_generator):
     # "bins" is always 1D
     # Max is to set a minimum number of bins for the smaller wavemode bins
     if interp_points_generator is None:
-        interp_points_generator = regular_angular_generator
+        interp_points_generator = regular_angular_generator(bins, len(coords) - 1)
     if len(coords) > 1:
-        r_n, phi_n = interp_points_generator(bins, len(coords) - 1)
+        r_n, phi_n = interp_points_generator()
         sample_coords = _spherical2cartesian(r_n, phi_n)
     else:
         sample_coords = bins.reshape(1, -1)
@@ -603,7 +604,7 @@ def angular_average_nd(  # noqa: C901
 
     interp_points_generator : callable, optional
         A function that generates the sample points for the interpolation.
-        If None, defaults regular_angular_generator(resolution = 0.1).
+        If None, defaults to regular_angular_generator with resolution = 0.05.
         If callable, a function that takes as input an angular resolution for the sampling
         and returns a 1D array of radii and 2D array of angles
         (see documentation on the inputs of _sphere2cartesian for more details on the outputs).
@@ -662,7 +663,7 @@ def angular_average_nd(  # noqa: C901
         raise ValueError("coords should be a list of arrays, one for each dimension.")
 
     if interpolation_method is not None and interp_points_generator is None:
-        interp_points_generator = regular_angular_generator
+        interp_points_generator = regular_angular_generator(bins, len(coords) - 1)
 
     if interpolation_method is not None and interpolation_method != "linear":
         raise ValueError("Only linear interpolation is supported.")
@@ -1050,7 +1051,7 @@ def get_power(
         If None, does not interpolate. Currently only 'linear' is supported.
     interp_points_generator : callable, optional
         A function that generates the sample points for the interpolation.
-        If None, defaults regular_angular_generator(resolution = 0.1).
+        If None, defaults regular_angular_generator with resolution = 0.05.
         If callable, a function that takes as input an angular resolution for the sampling
         and returns a 1D array of radii and 2D array of angles
         (see documentation on the inputs of _sphere2cartesian for more details on the outputs).
