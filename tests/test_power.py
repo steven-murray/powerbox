@@ -1,4 +1,5 @@
 import numpy as np
+import warnings
 
 from powerbox import PowerBox, get_power, ignore_zero_absk, ignore_zero_ki, power2delta
 
@@ -118,7 +119,11 @@ def test_prefactor_fnc():
 
 def test_k_weights_fnc():
     pb = PowerBox(50, dim=3, pk=lambda k: 1.0 * k**-2.0, boxlength=1.0, b=1)
-    p_ki0, k_ki0 = get_power(pb.delta_x(), pb.boxlength, k_weights=ignore_zero_ki)
+    with warnings.catch_warnings():
+        warnings.filterwarnings(
+            "ignore", message="divide by zero encountered in divide"
+        )
+        p_ki0, k_ki0 = get_power(pb.delta_x(), pb.boxlength, k_weights=ignore_zero_ki)
     p, k = get_power(pb.delta_x(), pb.boxlength, k_weights=ignore_zero_absk)
 
     assert not np.allclose(p, p_ki0)

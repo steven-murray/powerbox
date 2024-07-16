@@ -1,6 +1,7 @@
 import pytest
 
 import numpy as np
+import warnings
 
 from powerbox.powerbox import PowerBox
 from powerbox.tools import (
@@ -10,6 +11,23 @@ from powerbox.tools import (
     get_power,
     regular_angular_generator,
 )
+
+
+def test_warn_interp_weights():
+    x = np.linspace(-3, 3, 40)
+    P = np.ones(3 * [40])
+    weights = np.ones_like(P)
+    weights[2:5] = 0
+    freq = [x for _ in range(3)]
+    with pytest.warns(RuntimeWarning):
+        p_k_lin, k_av_bins_lin = angular_average(
+            P,
+            freq,
+            bins=10,
+            interpolation_method="linear",
+            weights=weights,
+            interp_points_generator=regular_angular_generator,
+        )
 
 
 @pytest.mark.parametrize("interpolation_method", [None, "linear"])
@@ -120,7 +138,11 @@ def test_interp_w_mu(n):
     x = np.linspace(0.0, 3, 40)
     if n == 2:
         kpar_mesh, kperp_mesh = np.meshgrid(x, x)
-        theta = np.arctan(kperp_mesh / kpar_mesh)
+        with warnings.catch_warnings():
+            warnings.filterwarnings(
+                "ignore", message="divide by zero encountered in divide"
+            )
+            theta = np.arctan2(kperp_mesh, kpar_mesh)
         mu_mesh = np.cos(theta)
     else:
         kx_mesh, ky_mesh, kz_mesh = np.meshgrid(x, x, x, indexing="ij")
@@ -150,7 +172,7 @@ def test_interp_w_mu(n):
 def test_error_coords_and_mask():
     x = np.linspace(1.0, 3, 40)
     kpar_mesh, kperp_mesh = np.meshgrid(x, x)
-    theta = np.arctan(kperp_mesh / kpar_mesh)
+    theta = np.arctan2(kperp_mesh, kpar_mesh)
     mu_mesh = np.cos(theta)
 
     mask = mu_mesh >= 0.97

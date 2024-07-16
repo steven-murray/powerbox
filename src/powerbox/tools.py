@@ -15,15 +15,15 @@ from . import dft
 
 
 def _getbins(bins, coords, log):
-    try:
-        # Fails if coords is not a cube / inhomogeneous.
-        max_radius = np.min([np.max(coords, axis=i) for i in range(coords.ndim)])
-    except ValueError:
-        maxs = [np.max(coords, axis=i) for i in range(coords.ndim)]
-        maxs_flat = []
-        [maxs_flat.extend(m.ravel()) for m in maxs]
-        max_radius = np.min(maxs_flat)
     if not np.iterable(bins):
+        try:
+            # Fails if coords is not a cube / inhomogeneous.
+            max_radius = np.min([np.max(coords, axis=i) for i in range(coords.ndim)])
+        except ValueError:
+            maxs = [np.max(coords, axis=i) for i in range(coords.ndim)]
+            maxs_flat = []
+            [maxs_flat.extend(m.ravel()) for m in maxs]
+            max_radius = np.min(maxs_flat)
         if not log:
             bins = np.linspace(coords.min(), max_radius, bins + 1)
         else:
@@ -166,10 +166,11 @@ def angular_average(
         res = _field_average(indx, field, weights, sumweights)
     else:
         bins = _getbins(bins, coords_grid, log_bins)
-        if log_bins:
-            bins = np.exp((np.log(bins[1:]) + np.log(bins[:-1])) / 2)
-        else:
-            bins = (bins[1:] + bins[:-1]) / 2
+        if bin_ave:
+            if log_bins:
+                bins = np.exp((np.log(bins[1:]) + np.log(bins[:-1])) / 2)
+            else:
+                bins = (bins[1:] + bins[:-1]) / 2
 
         sample_coords, r_n = _sample_coords_interpolate(
             coords, bins, weights, interp_points_generator
@@ -421,10 +422,17 @@ def _field_average_interpolate(coords, field, bins, weights, sample_coords, r_n)
     # Grid is regular + can be ordered only in Cartesian coords.
     if isinstance(weights, np.ndarray):
         weights = weights.reshape(field.shape)
+        if not ((weights == 0) | (weights == 1)).all():
+            warnings.warn(
+                "Interpolating with non-binary weights is slow.",
+                UserWarning,
+                stacklevel=2,
+            )
+        else:
+            field = field * weights
     else:
         weights = np.ones_like(field) * weights
     # Set 0 weights to NaNs
-    field = field * weights
     field[weights == 0] = np.nan
     # Rescale the field (see scipy documentation for RegularGridInterpolator)
     mean, std = np.nanmean(field), np.max(
@@ -441,18 +449,37 @@ def _field_average_interpolate(coords, field, bins, weights, sample_coords, r_n)
 
     interped_field = fnc(sample_coords.T) * std + mean
     if np.all(np.isnan(interped_field)):
-        warnings.warn("Interpolator returned all NaNs.", stacklevel=2)
+        warnings.warn("Interpolator returned all NaNs.", RuntimeWarning, stacklevel=2)
     # Average over the spherical shells for each radius / bin value
-    avged_field = np.array([np.nanmean(interped_field[r_n == b]) for b in bins])
-    unique_rn, sumweights = np.unique(
-        r_n[~np.isnan(interped_field)], return_counts=True
-    )
-    final_sumweights = []
-    for b in bins:
-        if b in unique_rn:
-            final_sumweights.append(sumweights[unique_rn == b][0])
-        else:
-            final_sumweights.append(0)
+    if not ((weights == 0) | (weights == 1)).all():
+        fnc = RegularGridInterpolator(
+            coords,
+            weights,  # Complex data is accepted.
+            bounds_error=False,
+            fill_value=np.nan,
+        )
+        interped_weights = fnc(sample_coords.T)
+
+        avged_field = []
+
+        final_sumweights = []
+        for b in bins:
+            mbin = np.logical_and(r_n == b, ~np.isnan(interped_field))
+            avged_field.append(np.sum(interped_field[mbin] * interped_weights[mbin]))
+            final_sumweights.append(np.sum(interped_weights[mbin]))
+        avged_field = np.array(avged_field) / final_sumweights
+    else:
+        avged_field = np.array([np.nanmean(interped_field[r_n == b]) for b in bins])
+        unique_rn, sumweights = np.unique(
+            r_n[~np.isnan(interped_field)],
+            return_counts=True,
+        )
+        final_sumweights = []
+        for b in bins:
+            if b in unique_rn:
+                final_sumweights.append(sumweights[unique_rn == b][0])
+            else:
+                final_sumweights.append(0)
     return avged_field, np.array(final_sumweights)
 
 
@@ -677,10 +704,11 @@ def angular_average_nd(  # noqa: C901
         res = np.zeros((len(sumweights), n2), dtype=field.dtype)
     if interpolation_method is not None:
         bins = _getbins(bins, coords_grid, log_bins)
-        if log_bins:
-            bins = np.exp((np.log(bins[1:]) + np.log(bins[:-1])) / 2)
-        else:
-            bins = (bins[1:] + bins[:-1]) / 2
+        if bin_ave:
+            if log_bins:
+                bins = np.exp((np.log(bins[1:]) + np.log(bins[:-1])) / 2)
+            else:
+                bins = (bins[1:] + bins[:-1]) / 2
         res = np.zeros((len(bins), n2), dtype=field.dtype)
 
     if get_variance:
