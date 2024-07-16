@@ -88,13 +88,16 @@ def angular_average(
 
     interp_points_generator : callable, optional
         A function that generates the sample points for the interpolation.
-        If None, defaults regular_angular_generator with resolution = 0.05.
-        If callable, a function that takes as input an angular resolution for the sampling
-        and returns a 1D array of radii and 2D array of angles
-        (see documentation on the inputs of _sphere2cartesian for more details on the outputs).
-        This function can be used to obtain an angular average over a certain region of the field by
-        limiting where the samples are taken for the interpolation. See function above_mu_min_generator
-        for an example of such a function.
+        If None, default is regular_angular_generator with resolution = 0.05.
+        If callable, a nested function that takes as input `bins`, which the array of bins at
+        which we want to average the field, and `dims2avg`, which is the number of dims to average over.
+        The nested function inside takes in a single argument `angular_resolution` which defines the
+        angular resolution in radians for the samples taken for the interpolation.
+        The main function returns the nested function.
+        The nested function returns a 1D array of radii and a 2D array of azimuthal angules with shape
+        (ndim-1,N), where N is the number of samples.
+        The azimual angles havephi_n[0,:] :math:`\in [0,2*\pi]`, and phi_n[1:,:] :math:`\in [0,\pi]`.
+        See the functions `regular_angular_generator` and `above_mu_min_angular_generator` for examples.
 
     return_sumweights : bool, optional
         Whether to return the number of modes in each bin.
@@ -380,7 +383,7 @@ def regular_angular_generator(bins, dims2avg):
     return generator
 
 
-def _sample_coords_interpolate(coords, bins, weights, interp_points_generator):
+def _sample_coords_interpolate(coords, bins, weights, interp_points_generator=None):
     # Grid is regular + can be ordered only in Cartesian coords.
     field_shape = [len(c) for c in coords]
     if isinstance(weights, np.ndarray):
@@ -609,7 +612,7 @@ def angular_average_nd(  # noqa: C901
         and returns a 1D array of radii and 2D array of angles
         (see documentation on the inputs of _sphere2cartesian for more details on the outputs).
         This function can be used to obtain an angular average over a certain region of the field by
-        limiting where the samples are taken for the interpolation. See function above_mu_min_generator
+        limiting where the samples are taken for the interpolation. See function `above_mu_min_generator`
         for an example of such a function.
 
     return_sumweights : bool, optional
@@ -1056,7 +1059,7 @@ def get_power(
         and returns a 1D array of radii and 2D array of angles
         (see documentation on the inputs of _sphere2cartesian for more details on the outputs).
         This function can be used to obtain an angular average over a certain region of the field by
-        limiting where the samples are taken for the interpolation. See function above_mu_min_generator
+        limiting where the samples are taken for the interpolation. See function `above_mu_min_generator`
         for an example of such a function.
     return_sumweights : bool, optional
         Whether to return the number of modes in each bin.
