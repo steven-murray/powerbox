@@ -165,7 +165,7 @@ def test_interp_w_mu(n):
         bins=10,
         interpolation_method="linear",
         weights=1.0,
-        interp_points_generator=above_mu_min_angular_generator(mu=0.95),
+        interp_points_generator=above_mu_min_angular_generator(),
     )
     # Start from the 4th bin due to the average being a bit < 1 at low radii
     assert np.all(p_k_lin[3:] == 1.0)
