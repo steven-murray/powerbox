@@ -14,19 +14,21 @@ from powerbox.tools import (
 
 
 def test_warn_interp_weights():
-    x = np.linspace(-3, 3, 40)
-    P = np.ones(3 * [40])
-    weights = np.ones_like(P)
-    weights[2:5] = 0
-    freq = [x for _ in range(3)]
+    x = np.linspace(-3, 3, 400)
+    X, Y = np.meshgrid(x, x)
+    r2 = X**2 + Y**2
+    P = r2**-1.0
+    P = np.repeat(P, 100).reshape(400, 400, 100)
+    freq = [x, x, np.linspace(-2, 2, 100)]
+    weights = np.random.rand(np.prod(P.shape)).reshape(P.shape)
     with pytest.warns(RuntimeWarning):
-        p_k_lin, k_av_bins_lin = angular_average(
+        angular_average(
             P,
             freq,
             bins=10,
             interpolation_method="linear",
             weights=weights,
-            interp_points_generator=regular_angular_generator,
+            interp_points_generator=regular_angular_generator(),
         )
 
 
@@ -104,7 +106,7 @@ def test_interp_w_weights(n):
         bins=10,
         interpolation_method="linear",
         weights=weights,
-        interp_points_generator=regular_angular_generator,
+        interp_points_generator=regular_angular_generator(),
         log_bins=True,
     )
 
@@ -163,7 +165,7 @@ def test_interp_w_mu(n):
         bins=10,
         interpolation_method="linear",
         weights=1.0,
-        interp_points_generator=above_mu_min_angular_generator,
+        interp_points_generator=above_mu_min_angular_generator(mu=0.95),
     )
     # Start from the 4th bin due to the average being a bit < 1 at low radii
     assert np.all(p_k_lin[3:] == 1.0)
@@ -185,7 +187,7 @@ def test_error_coords_and_mask():
             bins=10,
             interpolation_method="linear",
             weights=1.0,
-            interp_points_generator=above_mu_min_angular_generator,
+            interp_points_generator=above_mu_min_angular_generator(mu=0.97),
         )
 
 

@@ -89,10 +89,11 @@ def angular_average(
     interp_points_generator : callable, optional
         A function that generates the sample points for the interpolation.
         If None, default is regular_angular_generator with resolution = 0.05.
-        If callable, a nested function that takes as input `bins`, which the array of bins at
+        If callable, a nested function whose main function takes in a single
+        argument `angular_resolution` which defines the angular resolution in radians
+        for the samples taken for the interpolation.
+        The nested function inside takes as input `bins`, which the array of bins at
         which we want to average the field, and `dims2avg`, which is the number of dims to average over.
-        The nested function inside takes in a single argument `angular_resolution` which defines the
-        angular resolution in radians for the samples taken for the interpolation.
         The main function returns the nested function.
         The nested function returns a 1D array of radii and a 2D array of azimuthal angules with shape
         (ndim-1,N), where N is the number of samples.
@@ -286,7 +287,7 @@ def _spherical2cartesian(r, phi_n):
         return cum_sines * cosines * r
 
 
-def above_mu_min_angular_generator(bins, dims2avg):
+def above_mu_min_angular_generator(angular_resolution=0.1, mu=0.97):
     r"""
     Returns a set of spherical coordinates above a certain :math:`\\mu` value.
 
@@ -311,10 +312,8 @@ def above_mu_min_angular_generator(bins, dims2avg):
         phi_n[0,:] :math:`\\in [0,2*\\pi]`, and phi_n[1:,:] :math:`\\in [0,\\pi]`.
     """
 
-    def generator(angular_resolution=0.1, mu=0.97):
-        r_n, phi_n = regular_angular_generator(bins, dims2avg)(
-            angular_resolution=angular_resolution
-        )
+    def generator(bins, dims2avg):
+        r_n, phi_n = regular_angular_generator(angular_resolution)(bins, dims2avg)
 
         # sine because the phi_n are wrt x-axis and we need them wrt z-axis.
         if len(phi_n) == 1:
@@ -326,7 +325,7 @@ def above_mu_min_angular_generator(bins, dims2avg):
     return generator
 
 
-def regular_angular_generator(bins, dims2avg):
+def regular_angular_generator(angular_resolution=0.05):
     r"""
     Returns a set of spherical coordinates regularly sampled at a given angular resolution.
 
@@ -349,7 +348,7 @@ def regular_angular_generator(bins, dims2avg):
         phi_n[0,:] :math:`\in [0,2*\pi]`, and phi_n[1:,:] :math:`\in [0,\pi]`.
     """
 
-    def generator(angular_resolution=0.05):
+    def generator(bins, dims2avg):
         num_angular_bins = np.array(
             np.max(
                 [
@@ -397,9 +396,9 @@ def _sample_coords_interpolate(coords, bins, weights, interp_points_generator=No
     # "bins" is always 1D
     # Max is to set a minimum number of bins for the smaller wavemode bins
     if interp_points_generator is None:
-        interp_points_generator = regular_angular_generator(bins, len(coords) - 1)
+        interp_points_generator = regular_angular_generator()
     if len(coords) > 1:
-        r_n, phi_n = interp_points_generator()
+        r_n, phi_n = interp_points_generator(bins, len(coords) - 1)
         sample_coords = _spherical2cartesian(r_n, phi_n)
     else:
         sample_coords = bins.reshape(1, -1)
@@ -429,7 +428,7 @@ def _field_average_interpolate(coords, field, bins, weights, sample_coords, r_n)
         if not ((weights == 0) | (weights == 1)).all():
             warnings.warn(
                 "Interpolating with non-binary weights is slow.",
-                UserWarning,
+                RuntimeWarning,
                 stacklevel=2,
             )
         else:
@@ -666,7 +665,7 @@ def angular_average_nd(  # noqa: C901
         raise ValueError("coords should be a list of arrays, one for each dimension.")
 
     if interpolation_method is not None and interp_points_generator is None:
-        interp_points_generator = regular_angular_generator(bins, len(coords) - 1)
+        interp_points_generator = regular_angular_generator()
 
     if interpolation_method is not None and interpolation_method != "linear":
         raise ValueError("Only linear interpolation is supported.")
