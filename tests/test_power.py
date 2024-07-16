@@ -121,6 +121,9 @@ def test_k_weights_fnc():
     pb = PowerBox(50, dim=3, pk=lambda k: 1.0 * k**-2.0, boxlength=1.0, b=1)
     with warnings.catch_warnings():
         warnings.filterwarnings("ignore", message="invalid value encountered in divide")
+        warnings.filterwarnings(
+            "ignore", message="One or more radial bins had no cells within it"
+        )
         p_ki0, k_ki0 = get_power(pb.delta_x(), pb.boxlength, k_weights=ignore_zero_ki)
     p, k = get_power(pb.delta_x(), pb.boxlength, k_weights=ignore_zero_absk)
 
