@@ -459,6 +459,9 @@ def test_cross_power_identity():
     p, k = get_power(dx, pb.boxlength, b=1)
     p_cross, k = get_power(dx, pb.boxlength, b=1, deltax2=dx)
     assert np.all(np.isclose(p, p_cross))
+    p, k = get_power(dx, [1, 1], b=1)
+    p_cross, k = get_power(dx, [1, 1], b=1, deltax2=dx)
+    assert np.all(np.isclose(p, p_cross))
 
 
 @pytest.mark.skip()

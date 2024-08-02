@@ -1120,7 +1120,9 @@ def get_power(
         dim = len(deltax.shape)
 
         if not np.iterable(boxlength):
-            boxlength = [boxlength] * dim
+            boxlength = [float(boxlength)] * dim
+        else:
+            boxlength = [float(val) for val in boxlength]
 
         if deltax2 is not None and deltax.shape != deltax2.shape:
             raise ValueError("deltax and deltax2 must have the same shape!")
