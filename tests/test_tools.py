@@ -2,6 +2,7 @@ import pytest
 
 import numpy as np
 import warnings
+from functools import partial
 
 from powerbox.powerbox import PowerBox
 from powerbox.tools import (
@@ -14,6 +15,9 @@ from powerbox.tools import (
     regular_angular_generator,
 )
 
+get_power = partial(get_power, bins_upto_boxlen=True)
+angular_average = partial(angular_average, bins_upto_boxlen=True)
+angular_average_nd = partial(angular_average_nd, bins_upto_boxlen=True)
 
 def test_warn_interp_weights():
     x = np.linspace(-3, 3, 400)
