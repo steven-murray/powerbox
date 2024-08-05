@@ -761,7 +761,13 @@ def angular_average_nd(  # noqa: C901
     n2 = np.prod(field.shape[n:])
     if interpolation_method is None:
         indx, bins, sumweights = _get_binweights(
-            coord_mags, weights, bins, average, bin_ave=bin_ave, log_bins=log_bins
+            coord_mags,
+            weights,
+            bins,
+            average,
+            bin_ave=bin_ave,
+            log_bins=log_bins,
+            bins_upto_boxlen=bins_upto_boxlen,
         )
         res = np.zeros((len(sumweights), n2), dtype=field.dtype)
     if interpolation_method is not None:
@@ -1248,6 +1254,7 @@ def get_power(
         interpolation_method=interpolation_method,
         interp_points_generator=interp_points_generator,
         return_sumweights=return_sumweights,
+        bins_upto_boxlen=bins_upto_boxlen,
     )
     res = list(res)
     # Remove shot-noise
