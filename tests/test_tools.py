@@ -19,6 +19,7 @@ get_power = partial(get_power, bins_upto_boxlen=True)
 angular_average = partial(angular_average, bins_upto_boxlen=True)
 angular_average_nd = partial(angular_average_nd, bins_upto_boxlen=True)
 
+
 def test_warn_interp_weights():
     x = np.linspace(-3, 3, 400)
     X, Y = np.meshgrid(x, x)
