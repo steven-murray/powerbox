@@ -1,8 +1,10 @@
 import numpy as np
 from functools import partial
+
 from powerbox import LogNormalPowerBox, PowerBox, get_power
 
 get_power = partial(get_power, bins_upto_boxlen=True)
+
 
 def test_ln_vs_straight():
     # Set up two boxes with exactly the same parameters

@@ -2,10 +2,11 @@ import pytest
 
 import numpy as np
 from functools import partial
+
 from powerbox import LogNormalPowerBox, PowerBox, get_power
 
-
 get_power = partial(get_power, bins_upto_boxlen=True)
+
 
 def test_discrete_power_gaussian():
     pb = PowerBox(
