@@ -503,7 +503,9 @@ def test_logbins():
     X, Y = np.meshgrid(x, x)
     r2 = X**2 + Y**2
     P = np.ones_like(r2)
-    ave, coord = angular_average(P, np.sqrt(r2), bins=10, bin_ave=False, log_bins=True)
+    ave, coord = angular_average(
+        P, np.sqrt(r2), bins=10, bin_ave=False, log_bins=True, bins_upto_boxlen=True
+    )
 
     assert np.all(np.isclose(np.diff(coord[1:] / coord[:-1]), 0))
 
