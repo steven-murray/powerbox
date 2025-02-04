@@ -32,7 +32,7 @@ jobs:
         run: |
           papermill -k docs docs/demos/${{ matrix.demo }}.ipynb output-${{ matrix.demo }}.ipynb
 
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.demo }}
           path: output-${{ matrix.demo }}.ipynb
