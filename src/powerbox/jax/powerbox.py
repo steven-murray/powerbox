@@ -9,7 +9,7 @@ subclassing :class:`PowerBox` and over-writing the same methods as are over-writ
 
 from __future__ import annotations
 
-import numpy as np
+import jax.numpy as jnp
 import warnings
 
 from . import dft
@@ -38,9 +38,9 @@ def _make_hermitian(mag, pha):
         A complex hermitian array with normally distributed amplitudes.
     """
     revidx = (slice(None, None, -1),) * len(mag.shape)
-    mag = (mag + mag[revidx]) / np.sqrt(2)
-    pha = (pha - pha[revidx]) / 2 + np.pi
-    return mag * (np.cos(pha) + 1j * np.sin(pha))
+    mag = (mag + mag[revidx]) / jnp.sqrt(2)
+    pha = (pha - pha[revidx]) / 2 + jnp.pi
+    return mag * (jnp.cos(pha) + 1j * jnp.sin(pha))
 
 
 class PowerBox:
@@ -188,15 +188,15 @@ class PowerBox:
     @property
     def x(self):
         """The co-ordinates of the grid along a side."""
-        return np.arange(-self.boxlength / 2, self.boxlength / 2, self.dx)[: self.N]
+        return jnp.arange(-self.boxlength / 2, self.boxlength / 2, self.dx)[: self.N]
 
     def gauss_hermitian(self):
         """A random array which has Gaussian magnitudes and Hermitian symmetry."""
         if self.seed:
-            np.random.seed(self.seed)
+            jnp.random.seed(self.seed)
 
-        mag = np.random.normal(0, 1, size=[self.n] * self.dim)
-        pha = 2 * np.pi * np.random.uniform(size=[self.n] * self.dim)
+        mag = jnp.random.normal(0, 1, size=[self.n] * self.dim)
+        pha = 2 * jnp.pi * jnp.random.uniform(size=[self.n] * self.dim)
 
         dk = _make_hermitian(mag, pha)
 
@@ -222,13 +222,13 @@ class PowerBox:
         """
         p = self.power_array()
 
-        if np.any(p < 0):
+        if jnp.any(p < 0):
             raise ValueError(
                 "The power spectrum function has returned negative values."
             )
 
         gh = self.gauss_hermitian()
-        gh[...] = np.sqrt(p) * gh
+        gh[...] = jnp.sqrt(p) * gh
         return gh
 
     def delta_x(self):
@@ -247,10 +247,10 @@ class PowerBox:
                 backend=self.fftbackend,
             )[0]
         )
-        dk = np.real(dk)
+        dk = jnp.real(dk)
 
         if self.ensure_physical:
-            np.clip(dk, -1, np.inf, dk)
+            jnp.clip(dk, -1, jnp.inf, dk)
 
         return dk
 
@@ -309,18 +309,18 @@ class PowerBox:
         dx = (dx + 1) * self.dx**self.dim * nbar
         n = dx
 
-        self.n_per_cell = np.random.poisson(n)
+        self.n_per_cell = jnp.random.poisson(n)
 
         # Get all source positions
         args = [self.x] * self.dim
-        X = np.meshgrid(*args, indexing="ij")
+        X = jnp.meshgrid(*args, indexing="ij")
 
-        tracer_positions = np.array([x.flatten() for x in X]).T
+        tracer_positions = jnp.array([x.flatten() for x in X]).T
         tracer_positions = tracer_positions.repeat(self.n_per_cell.flatten(), axis=0)
 
         if randomise_in_cell:
             tracer_positions += (
-                np.random.uniform(size=(np.sum(self.n_per_cell), self.dim)) * self.dx
+                jnp.random.uniform(size=(jnp.sum(self.n_per_cell), self.dim)) * self.dx
             )
 
         if min_at_zero:
@@ -381,7 +381,7 @@ class LogNormalPowerBox(PowerBox):
         """The correlation function from the input power, on the grid."""
         pa = self.fftbackend.empty((self.N,) * self.dim)
         pa[...] = self.power_array()
-        return self.V * np.real(
+        return self.V * jnp.real(
             dft.ifft(
                 pa,
                 L=self.boxlength,
@@ -393,13 +393,13 @@ class LogNormalPowerBox(PowerBox):
 
     def gaussian_correlation_array(self):
         """The correlation function required for a Gaussian field to produce the input power on a lognormal field."""
-        return np.log(1 + self.correlation_array())
+        return jnp.log(1 + self.correlation_array())
 
     def gaussian_power_array(self):
         """The power spectrum required for a Gaussian field to produce the input power on a lognormal field."""
         gca = self.fftbackend.empty((self.N,) * self.dim)
         gca[...] = self.gaussian_correlation_array()
-        gpa = np.abs(
+        gpa = jnp.abs(
             dft.fft(
                 gca,
                 L=self.boxlength,
@@ -420,7 +420,7 @@ class LogNormalPowerBox(PowerBox):
         """
         p = self.gaussian_power_array()
         gh = self.gauss_hermitian()
-        gh[...] = np.sqrt(p) * gh
+        gh[...] = jnp.sqrt(p) * gh
         return gh
 
     def delta_x(self):
@@ -428,7 +428,7 @@ class LogNormalPowerBox(PowerBox):
         dk = self.fftbackend.empty((self.N,) * self.dim, dtype="complex128")
         dk[...] = self.delta_k()
         dk[...] = (
-            np.sqrt(self.V)
+            jnp.sqrt(self.V)
             * dft.ifft(
                 dk,
                 L=self.boxlength,
@@ -437,7 +437,7 @@ class LogNormalPowerBox(PowerBox):
                 backend=self.fftbackend,
             )[0]
         )
-        dk = np.real(dk)
+        dk = jnp.real(dk)
 
-        sg = np.var(dk)
-        return np.exp(dk - sg / 2) - 1
+        sg = jnp.var(dk)
+        return jnp.exp(dk - sg / 2) - 1
