@@ -2,7 +2,7 @@ import jax.numpy as jnp
 import warnings
 from functools import partial
 
-from powerbox.jax import (
+from powerbox.diff import (
     PowerBox,
     get_power,
     ignore_zero_absk,

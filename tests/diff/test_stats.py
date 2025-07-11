@@ -3,7 +3,7 @@ import pytest
 import jax.numpy as jnp
 from scipy.ndimage import gaussian_filter
 
-from powerbox.jax import PowerBox
+from powerbox.diff import PowerBox
 
 
 @pytest.mark.skip(

@@ -3,7 +3,7 @@ import pytest
 import jax.numpy as jnp
 from functools import partial
 
-from powerbox.jax import LogNormalPowerBox, PowerBox, get_power
+from powerbox.diff import LogNormalPowerBox, PowerBox, get_power
 
 get_power = partial(get_power, bins_upto_boxlen=True)
 

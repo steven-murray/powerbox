@@ -32,7 +32,7 @@ __all__ = ["fft", "ifft", "fftfreq", "fftshift", "ifftshift"]
 # To avoid MKL-related bugs, numpy needs to be imported after pyfftw: see https://github.com/pyFFTW/pyFFTW/issues/40
 import jax.numpy as jnp
 
-from .dft_backend import FFTBackend, get_fft_backend
+from powerbox.dft_backend import FFTBackend, get_fft_backend
 
 
 def fftshift(x, *args, **kwargs):  # noqa: D103

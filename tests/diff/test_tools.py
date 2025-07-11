@@ -1,10 +1,11 @@
 import pytest
 
+import jax
 import jax.numpy as jnp
 import warnings
 from functools import partial
 
-from powerbox.jax.tools import (
+from powerbox.diff.tools import (
     _getbins,
     _magnitude_grid,
     above_mu_min_angular_generator,
@@ -27,7 +28,9 @@ def test_warn_interp_weights():
     P = r2**-1.0
     P = jnp.repeat(P, 100).reshape(400, 400, 100)
     freq = [x, x, jnp.linspace(-2, 2, 100)]
-    weights = jnp.random.rand(jnp.prod(P.shape)).reshape(P.shape)
+    rng = jax.random.PRNGKey(0)
+    # weights = jnp.random.rand(jnp.prod(P.shape)).reshape(P.shape)
+    weights = jax.random.uniform(rng, P.shape)
     with pytest.warns(RuntimeWarning):
         angular_average(
             P,
