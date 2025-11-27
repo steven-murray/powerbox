@@ -285,8 +285,8 @@ def ifft(
 
 
 def _adjust_phase(ft, left_edge, freq, axes, b):
-    for i, (l, f) in enumerate(zip(left_edge, freq)):
-        xp = np.exp(-b * 1j * f * l)
+    for i, (ledge, fq) in enumerate(zip(left_edge, freq)):
+        xp = np.exp(-b * 1j * fq * ledge)
         obj = (
             tuple([None] * axes[i])
             + (slice(None, None, None),)
