@@ -10,6 +10,7 @@ import numpy as np
 import warnings
 from scipy.interpolate import RegularGridInterpolator
 from scipy.special import gamma
+from typing import Literal, Sequence
 
 from . import dft
 
@@ -59,105 +60,97 @@ def _getbins(
 
 
 def angular_average(
-    field,
-    coords,
-    bins,
-    weights=1,
-    average=True,
-    bin_ave=True,
-    get_variance=False,
-    log_bins=False,
-    interpolation_method=None,
-    interp_points_generator=None,
-    return_sumweights=False,
+    field: np.ndarray,
+    coords: np.ndarray | Sequence[np.ndarray],
+    bins: int | np.ndarray,
+    weights: np.ndarray | float = 1.0,
+    average: bool = True,
+    bin_ave: bool = True,
+    get_variance: bool = False,
+    log_bins: bool = False,
+    interpolation_method: Literal["linear"] | None = None,
+    interp_points_generator: callable[
+        [float], callable[[np.ndarray, int], tuple[np.ndarray, np.ndarray]]
+    ] = None,
     bins_upto_boxlen: bool | None = None,
-):
-    r"""
+) -> tuple[np.ndarray, np.ndarray, np.ndarray | None, np.ndarray]:
+    """
     Average a given field within radial bins.
 
-    This function can be used in fields of arbitrary dimension (memory permitting), and the field need not be centred
-    at the origin. The averaging assumes that the grid cells fall completely into the bin which encompasses the
-    co-ordinate point for the cell (i.e. there is no weighted splitting of cells if they intersect a bin edge).
+    This function can be used in fields of arbitrary dimension (memory permitting), and
+    the field need not be centred at the origin. The averaging assumes that the grid
+    cells fall completely into the bin which encompasses the co-ordinate point for the
+    cell (i.e. there is no weighted splitting of cells if they intersect a bin edge).
 
-    It is optimized for applying a set of weights, and obtaining the variance of the mean, at the same time as
-    averaging.
+    It is optimized for applying a set of weights, and obtaining the variance of the
+    mean, at the same time as averaging.
 
     Parameters
     ----------
-    field: nd-array
+    field
         An array of arbitrary dimension specifying the field to be angularly averaged.
-
-    coords: nd-array or list of n arrays.
-        Either the *magnitude* of the co-ordinates at each point of `field`, or a list of 1D arrays specifying the
+    coords
+        Either an array of the same shape as field specifying the *magnitude* of the
+        co-ordinates at each point of `field`, or a list of 1D arrays specifying the
         co-ordinates in each dimension.
-
-    bins: float or array.
-        The ``bins`` argument provided to histogram. Can be an int or array specifying radial bin edges.
-
-    weights: array, optional
+    bins
+        The ``bins`` argument provided to histogram. Can be an int specifying the
+        number of bins, or array specifying radial bin edges.
+    weights
         An array of the same shape as `field`, giving a weight for each entry.
-
-    average: bool, optional
+    average
         Whether to take the (weighted) average. If False, returns the (unweighted) sum.
-
-    bin_ave : bool, optional
-        Whether to return the bin co-ordinates as the (weighted) average of cells within the bin (if True), or
-        the regularly spaced edges of the bins.
-
-    get_variance : bool, optional
-        Whether to also return an estimate of the variance of the power in each bin.
-
-    log_bins : bool, optional
-        Whether to create bins in log-space.
-
-    interpolation_method : str, optional
-        If None, does not interpolate. Currently only 'linear' is supported.
-
-    interp_points_generator : callable, optional
-        A function that generates the sample points for the interpolation.
-        If None, default is regular_angular_generator with resolution = 0.05.
-        If callable, a nested function whose main function takes in a single
-        argument `angular_resolution` which defines the angular resolution in radians
-        for the samples taken for the interpolation.
-        The nested function inside takes as input `bins`, which the array of bins at
-        which we want to average the field, and `dims2avg`, which is the number of dims to average over.
-        The main function returns the nested function.
-        The nested function returns a 1D array of radii and a 2D array of azimuthal angules with shape
-        (ndim-1,N), where N is the number of samples.
-        The azimual angles havephi_n[0,:] :math:`\in [0,2*\pi]`, and phi_n[1:,:] :math:`\in [0,\pi]`.
-        See the functions `regular_angular_generator` and `above_mu_min_angular_generator` for examples.
-
-    return_sumweights : bool, optional
-        Whether to return the number of modes in each bin.
-        Note that for the linear interpolation case,
-        this corresponds to the number of samples averaged over
-        (which can be adjusted by supplying a different interp_points_generator
-        function with a different angular resolution).
-
-    bins_upto_boxlen : bool, optional
+    bin_ave
+        Whether to return the bin co-ordinates as the (weighted) average of cells
+        within the bin (if True), otherwise the regularly spaced edges of the bins.
+    get_variance
+        Whether to also return an estimate of the variance of the field in each bin.
+    log_bins
+        Whether to create bins in log-space (default linear).
+    interpolation_method
+        By default, grid points are included in a bin as they are if their centre
+        falls within the radial bin. If `interpolation_method` is set, the grid values
+        will be interpolated to a set of points on a hypersphere instead (and then
+        these interpolated values will be averaged). Currently only 'linear' is
+        supported. See `interp_points_generator`.
+    interp_points_generator
+        If `interpolation_method` is not None, this parameter specifies a function
+        to generate the sample points on a hypersphere to which to interpolate.
+        The default is :func:`regular_angular_generator(angular_resolution=0.05)`.
+        This should be specified as a callable that takes two arguments: an array of
+        radial coordinates to which we are to interpolate, and an integer specifying the
+        number of dimensions over which we are averaging. The rerturned callable should
+        itself return a 1D array of radii and a 2D array of azimuthal angles with shape
+        (ndim-1,N), where N is the number of interpolation points. The azimual angles
+        are expected to have their first  coordinate in the range 0-2pi and the rest of
+        the coordinates in 0-pi. See the functions :func:`regular_angular_generator` and
+        :func:`above_mu_min_angular_generator` for examples.
+    bins_upto_boxlen
         If set to True and the bins are determined automatically, calculate bins only
-        up to the maximum k along any dimension. Otherwise, calculate bins up to the
-        maximum magnitude of k (i.e. a factor of sqrt(ndim) higher). Default is False
-        for backwards compatibility.
+        up to the maximum coordinate along any dimension. Otherwise, calculate bins up
+        to the maximum magnitude of k (i.e. a factor of sqrt(ndim) higher). Default is
+        False for backwards compatibility.
 
     Returns
     -------
-    field_1d : 1D-array
-        The angularly-averaged field.
-
-    bins : 1D-array
-        Array of same shape as field_1d specifying the radial co-ordinates of the bins. Either the mean co-ordinate
-        from the input data, or the regularly spaced bins, dependent on `bin_ave`.
-
-    var : 1D-array, optional
-        The variance of the averaged field (same shape as bins), estimated from the mean standard error.
-        Only returned if `get_variance` is True.
+    fieldavg
+        The angularly-averaged field as a 1D array.
+    bins
+        Array of same shape as fieldavg specifying the radial co-ordinates of the bins.
+        Either the mean co-ordinate from the input data, or the regularly spaced bins,
+        dependent on `bin_ave`.
+    var
+        The variance of the averaged field (same shape as bins), estimated from the mean
+        standard error. If `get_variance` is False, this will be None.
+    sumweights
+        The sum of the weights in each bin, same shape as `fieldavg`.
 
     Notes
     -----
-    If desired, the variance is calculated as the weight unbiased variance, using the formula at
-    https://en.wikipedia.org/wiki/Weighted_arithmetic_mean#Reliability_weights for the variance in each cell, and
-    normalising by a factor of :math:`V_2/V_1^2` to estimate the variance of the average.
+    If desired, the variance is calculated as the weight unbiased variance, using the
+    formula at https://en.wikipedia.org/wiki/Weighted_arithmetic_mean#Reliability_weights
+    for the variance in each cell, and normalising by a factor of :math:`V_2/V_1^2` to
+    estimate the variance of the average.
 
     Examples
     --------
@@ -165,12 +158,17 @@ def angular_average(
 
     >>> import numpy as np
     >>> import matplotlib.pyplot as plt
+
     >>> x = np.linspace(-5,5,128)   # Setup a grid
     >>> X,Y,Z = np.meshgrid(x,x,x)
     >>> r = np.sqrt(X**2+Y**2+Z**2) # Get the radial co-ordinate of grid
     >>> field = np.exp(-r**2)       # Generate a radial field
-    >>> avgfunc, bins = angular_average(field,r,bins=100)   # Call angular_average
-    >>> plt.plot(bins, np.exp(-bins**2), label="Input Function")   # Plot input function versus ang. avg.
+
+    >>> # Call angular_average
+    >>> avgfunc, bins, v, w = angular_average(field,r,bins=100)
+
+    >>> # Plot input function versus angular average
+    >>> plt.plot(bins, np.exp(-bins**2), label="Input Function")
     >>> plt.plot(bins, avgfunc, label="Averaged Function")
 
     See Also
@@ -178,18 +176,25 @@ def angular_average(
     angular_average_nd : Perform an angular average in a subset of the total dimensions.
 
     """
-    if interpolation_method is not None and interpolation_method != "linear":
+    if interpolation_method not in (None, "linear"):
         raise ValueError("Only linear interpolation is supported.")
-    if len(coords) == len(field.shape):
-        # coords are a segmented list of dimensional co-ordinates
+
+    ndim = field.ndim
+    if isinstance(coords, list | tuple):
+        if len(coords) != ndim:
+            raise ValueError(
+                f"list of coords must be same length as field.ndim. Got {len(coords)} "
+                f"instead of {ndim}"
+            )
         coord_mags = _magnitude_grid(coords)
-    elif interpolation_method is not None:
-        raise ValueError(
-            "Must supply a list of len(field.shape) of 1D coordinate arrays for coords when interpolating!"
-        )
     else:
         # coords are the magnitude of the co-ordinates
-        # since we are not interpolating, then we can just use the magnitude of the co-ordinates
+        if interpolation_method is not None:
+            raise ValueError(
+                "coords must be a list of 1D coordinate arrays when interpolating!"
+            )
+        if coords.shape != field.shape:
+            raise ValueError("coords must have the same shape as the field")
         coord_mags = coords
 
     if interpolation_method is None:
@@ -223,22 +228,11 @@ def angular_average(
         res, sumweights = _field_average_interpolate(
             coords, field, bins, weights, sample_coords, r_n
         )
-    if get_variance:
-        if interpolation_method is None:
-            var = _field_variance(indx, field, res, weights, sumweights)
-        else:
-            raise NotImplementedError(
-                "Variance calculation not implemented for interpolation"
-            )
-        if return_sumweights:
-            return res, bins, var, sumweights
-        else:
-            return res, bins, var
-    else:
-        if return_sumweights:
-            return res, bins, sumweights
-        else:
-            return res, bins
+    var = None
+    if get_variance and interpolation_method is None:
+        var = _field_variance(indx, field, res, weights, sumweights)
+
+    return res, bins, var, sumweights
 
 
 def _magnitude_grid(x, dim=None):
@@ -249,12 +243,12 @@ def _magnitude_grid(x, dim=None):
 
 
 def _get_binweights(
-    coord_mags,
-    weights,
-    bins,
-    average=True,
-    bin_ave=True,
-    log_bins=False,
+    coord_mags: np.ndarray,
+    weights: np.ndarray,
+    bins: np.ndarray | int,
+    average: bool = True,
+    bin_ave: bool = True,
+    log_bins: bool = False,
     bins_upto_boxlen: bool | None = None,
 ):
     # Get a vector of bin edges
@@ -262,38 +256,34 @@ def _get_binweights(
 
     indx = np.digitize(coord_mags.flatten(), bins)
 
-    if average or bin_ave:
-        if not np.isscalar(weights):
-            if coord_mags.shape != weights.shape:
-                raise ValueError(
-                    "coords and weights must have the same shape!",
-                    coord_mags.shape,
-                    weights.shape,
-                )
-            sumweights = np.bincount(
-                indx, weights=weights.flatten(), minlength=len(bins) + 1
-            )[1:-1]
-        else:
-            sumweights = np.bincount(indx, minlength=len(bins) + 1)[1:-1]
+    if np.isscalar(weights):
+        sumweights = np.bincount(indx, minlength=len(bins) + 1)[1:-1]
 
-        if average:
-            binweight = sumweights
-        else:
-            binweight = 1 * sumweights
-            sumweights = np.ones_like(binweight)
-
-        if bin_ave:
-            bins = (
-                np.bincount(
-                    indx,
-                    weights=(weights * coord_mags).flatten(),
-                    minlength=len(bins) + 1,
-                )[1:-1]
-                / binweight
-            )
-
+    elif coord_mags.shape != weights.shape:
+        raise ValueError(
+            "coords and weights must have the same shape!",
+            coord_mags.shape,
+            weights.shape,
+        )
     else:
-        sumweights = np.ones(len(bins) - 1)
+        sumweights = np.bincount(
+            indx, weights=weights.flatten(), minlength=len(bins) + 1
+        )[1:-1]
+    if average:
+        binweight = sumweights
+    else:
+        binweight = 1 * sumweights
+        sumweights = np.ones_like(binweight)
+
+    if bin_ave:
+        bins = (
+            np.bincount(
+                indx,
+                weights=(weights * coord_mags).flatten(),
+                minlength=len(bins) + 1,
+            )[1:-1]
+            / binweight
+        )
 
     return indx, bins, sumweights
 
@@ -461,7 +451,6 @@ def _sample_coords_interpolate(coords, bins, weights, interp_points_generator=No
     mask2 = np.all(
         sample_coords <= np.array([c.max() for c in coords])[..., np.newaxis], axis=0
     )
-
     mask = mask1 & mask2
     sample_coords = sample_coords[:, mask]
     r_n = r_n[mask]
@@ -504,6 +493,7 @@ def _field_average_interpolate(coords, field, bins, weights, sample_coords, r_n)
     interped_field = fnc(sample_coords.T) * std + mean
     if np.all(np.isnan(interped_field)):
         warnings.warn("Interpolator returned all NaNs.", RuntimeWarning, stacklevel=2)
+    final_sumweights = []
     # Average over the spherical shells for each radius / bin value
     if not ((weights == 0) | (weights == 1)).all():
         fnc = RegularGridInterpolator(
@@ -516,7 +506,6 @@ def _field_average_interpolate(coords, field, bins, weights, sample_coords, r_n)
 
         avged_field = []
 
-        final_sumweights = []
         for b in bins:
             mbin = np.logical_and(r_n == b, ~np.isnan(interped_field))
             avged_field.append(np.sum(interped_field[mbin] * interped_weights[mbin]))
@@ -528,7 +517,6 @@ def _field_average_interpolate(coords, field, bins, weights, sample_coords, r_n)
             r_n[~np.isnan(interped_field)],
             return_counts=True,
         )
-        final_sumweights = []
         for b in bins:
             if b in unique_rn:
                 final_sumweights.append(sumweights[unique_rn == b][0])
@@ -596,229 +584,171 @@ def _field_variance(indx, field, average, weights, V1):
 
 
 def angular_average_nd(  # noqa: C901
-    field,
-    coords,
-    bins,
-    n=None,
-    weights=1,
-    average=True,
-    bin_ave=True,
-    get_variance=False,
-    log_bins=False,
-    interpolation_method=None,
-    interp_points_generator=None,
-    return_sumweights=False,
-    bins_upto_boxlen: bool | None = None,
+    *,
+    field: np.ndarray,
+    coords: list[np.ndarray],
+    weights: np.ndarray | float = 1.0,
+    interpolation_method: str | None = None,
+    **kwargs,
 ):
     """
     Average the first n dimensions of a given field within radial bins.
 
-    This function be used to take "hyper-cylindrical" averages of fields. For a 3D field, with `n=2`, this is exactly
-    a cylindrical average. This function can be used in fields of arbitrary dimension (memory permitting), and the field
-    need not be centred at the origin. The averaging assumes that the grid cells fall completely into the bin which
-    encompasses the co-ordinate point for the cell (i.e. there is no weighted splitting of cells if they intersect a bin
-    edge).
+    This function be used to take "hyper-cylindrical" averages of fields. For a
+    3D field, with `n=2`, this is exactly a cylindrical average. This function can be
+    used in fields of arbitrary dimension (memory permitting), and the field need not be
+    centred at the origin. The averaging assumes that the grid cells fall completely
+    into the bin which encompasses the co-ordinate point for the cell (i.e. there is no
+    weighted splitting of cells if they intersect a bin edge).
 
-    It is optimized for applying a set of weights, and obtaining the variance of the mean, at the same time as
-    averaging.
+    It is optimized for applying a set of weights, and obtaining the variance of the
+    mean, at the same time as averaging.
 
     Parameters
     ----------
-    field : md-array
+    field
         An array of arbitrary dimension specifying the field to be angularly averaged.
+    coords
+        A list of 1D arrays specifying the co-ordinates in each dimension
+        *to be averaged*, or an array with a number of dimensions equal to the number
+        to be averaged, specifying the *magnitude* of the (averaged) coordinates at each
+        point in the field.
+    weights
+        An array that either has the same shape as the first `n` dimensions of `field`,
+        or the same shape as the full field, giving a weight for each entry.
+    interpolation_method
+        By default, grid points are included in a bin as they are if their centre
+        falls within the radial bin. If `interpolation_method` is set, the grid values
+        will be interpolated to a set of points on a hypersphere instead (and then
+        these interpolated values will be averaged). Currently only 'linear' is
+        supported. See `interp_points_generator`.
 
-    coords : list of n arrays
-        A list of 1D arrays specifying the co-ordinates in each dimension *to be averaged*.
-
-    bins : int or array.
-        Specifies the radial bins for the averaged dimensions. Can be an int or array specifying radial bin edges.
-
-    n : int, optional
-        The number of dimensions to be averaged. By default, all dimensions are averaged. Always uses
-        the first `n` dimensions.
-
-    weights : array, optional
-        An array of the same shape as the first `n` dimensions of `field`, giving a weight for each entry.
-
-    average : bool, optional
-        Whether to take the (weighted) average. If False, returns the (unweighted) sum.
-
-    bin_ave : bool, optional
-        Whether to return the bin co-ordinates as the (weighted) average of cells within the bin (if True), or
-        the linearly spaced edges of the bins
-
-    get_variance : bool, optional
-        Whether to also return an estimate of the variance of the power in each bin.
-
-    log_bins : bool, optional
-        Whether to create bins in log-space.
-
-    interpolation_method : str, optional
-        If None, does not interpolate. Currently only 'linear' is supported.
-
-    interp_points_generator : callable, optional
-        A function that generates the sample points for the interpolation.
-        If None, defaults to regular_angular_generator with resolution = 0.05.
-        If callable, a function that takes as input an angular resolution for the sampling
-        and returns a 1D array of radii and 2D array of angles
-        (see documentation on the inputs of _sphere2cartesian for more details on the outputs).
-        This function can be used to obtain an angular average over a certain region of the field by
-        limiting where the samples are taken for the interpolation. See function `above_mu_min_generator`
-        for an example of such a function.
-
-    return_sumweights : bool, optional
-        Whether to return the number of modes in each bin.
-        Note that for the linear interpolation case,
-        this corresponds to the number of samples averaged over
-        (which can be adjusted by supplying a different interp_points_generator
-        function with a different angular resolution).
-
-    bins_upto_boxlen : bool, optional
-        If set to True and the bins are determined automatically, calculate bins only
-        up to the maximum k along any dimension. Otherwise, calculate bins up to the
-        maximum magnitude of k (i.e. a factor of sqrt(ndim) higher). Default is False
-        for backwards compatibility.
+    Other Parameters
+    ----------------
+    All other parameters are passed to :func:`angular_average`.
 
     Returns
     -------
-    field : (m-n+1)-array
-        The angularly-averaged field. The first dimension corresponds to `bins`, while the rest correspond to the
-        unaveraged dimensions.
-
-    bins : 1D-array
-        The radial co-ordinates of the bins. Either the mean co-ordinate from the input data, or the regularly spaced
-        bins, dependent on `bin_ave`.
-
-    var : (m-n+1)-array, optional
-        The variance of the averaged field (same shape as `field`), estimated from the mean standard error.
-        Only returned if `get_variance` is True.
+    fieldavg
+        An array where the first dimension has size "bins", and the rest is of the
+        same shape as the unaveraged dimensions of the input field. The angularly
+        averaged field
+    bins
+        An array with the same shape as `fieldavg`, specifying the radial bins.
+    variance
+        An array with the same shape as `fieldavg`, specifying the variance in each
+        bin (if `get_variance` is True, otherwise None).
+    sumweights
+        An array with the same shape as `fieldavg`, specifying the sum of weights in
+        each bin.
 
     Examples
     --------
-    Create a 3D radial function, and average over radial bins. Equivalent to calling :func:`angular_average`:
+    Create a 3D cylindrical function, and average over radial bins:
 
     >>> import numpy as np
     >>> import matplotlib.pyplot as plt
+
     >>> x = np.linspace(-5,5,128)   # Setup a grid
-    >>> X,Y,Z = np.meshgrid(x,x,x)  # ""
-    >>> r = np.sqrt(X**2+Y**2+Z**2) # Get the radial co-ordinate of grid
-    >>> field = np.exp(-r**2)       # Generate a radial field
-    >>> avgfunc, bins, _ = angular_average_nd(field,[x,x,x],bins=100)   # Call angular_average
-    >>> plt.plot(bins, np.exp(-bins**2), label="Input Function")   # Plot input function versus ang. avg.
-    >>> plt.plot(bins, avgfunc, label="Averaged Function")
+    >>> X,Y,Z = np.meshgrid(x,x,x)
+    >>> r = np.sqrt(X**2+Y**2)      # Get the cylindrical co-ordinate of grid
+    >>> field = np.exp(-r**2)       # Generate a cylindrical field
 
-    Create a 2D radial function, extended to 3D, and average over first 2 dimensions (cylindrical average):
+    >>> # Average over the first two dimensions
+    >>> avgfunc, bins, _ = angular_average_nd(field=field,coords=[x,x],bins=100)
 
-    >>> r = np.sqrt(X**2+Y**2)
-    >>> field = np.exp(-r**2)    # 2D field
-    >>> field = np.repeat(field,len(x)).reshape((len(x),)*3)   # Extended to 3D
-    >>> avgfunc, avbins, coords = angular_average_nd(field, [x,x,x], bins=50, n=2)
-    >>> plt.plot(avbins, np.exp(-avbins**2), label="Input Function")
-    >>> plt.plot(avbins, avgfunc[:,0], label="Averaged Function")
+    >>> # Make a plot of the cylindrical average for the first slice
+    >>> plt.plot(bins[:, 0], np.exp(-bins[:, 0]**2), label="Input Function")
+    >>> plt.plot(bins[:, 0], avgfunc[:, 0], label="Averaged Function")
     """
-    if n is None:
-        n = len(coords)
-
-    if len(coords) != len(field.shape):
-        raise ValueError("coords should be a list of arrays, one for each dimension.")
-
-    if interpolation_method is not None and interp_points_generator is None:
-        interp_points_generator = regular_angular_generator()
-
-    if interpolation_method is not None and interpolation_method != "linear":
-        raise ValueError("Only linear interpolation is supported.")
-
-    if n == len(coords):
-        return angular_average(
-            field,
-            coords,
-            bins,
-            weights,
-            average,
-            bin_ave,
-            get_variance,
-            log_bins=log_bins,
-            interpolation_method=interpolation_method,
-            interp_points_generator=interp_points_generator,
-            return_sumweights=return_sumweights,
-            bins_upto_boxlen=bins_upto_boxlen,
-        )
-
-    if len(coords) == len(field.shape):
-        # coords are a segmented list of dimensional co-ordinates
-        coord_mags = _magnitude_grid([c for i, c in enumerate(coords) if i < n])
-    elif interpolation_method is not None:
-        raise ValueError(
-            "Must supply a list of len(field.shape) of 1D coordinate arrays for coords when interpolating!"
-        )
+    if isinstance(coords, list | tuple):
+        # coords is a list/tuple of arrays, one for each dimension to be averaged
+        ndims_to_avg = len(coords)
     else:
-        # coords are the magnitude of the co-ordinates
-        # since we are not interpolating, then we can just use the magnitude of the co-ordinates
+        ndims_to_avg = coords.ndim
         coord_mags = coords
 
-    coord_mags = _magnitude_grid([c for i, c in enumerate(coords) if i < n])
-    n1 = np.prod(field.shape[:n])
-    n2 = np.prod(field.shape[n:])
-    if interpolation_method is None:
-        indx, bins, sumweights = _get_binweights(
-            coord_mags,
-            weights,
-            bins,
-            average,
-            bin_ave=bin_ave,
-            log_bins=log_bins,
-            bins_upto_boxlen=bins_upto_boxlen,
+    if ndims_to_avg < 1:
+        raise ValueError(
+            f"coords given imply ndim_to_avg of {ndims_to_avg}. Must be >0"
         )
-        res = np.zeros((len(sumweights), n2), dtype=field.dtype)
-    if interpolation_method is not None:
-        bins = _getbins(bins, coord_mags, log_bins, bins_upto_boxlen)
-        if bin_ave:
-            if log_bins:
-                bins = np.exp((np.log(bins[1:]) + np.log(bins[:-1])) / 2)
-            else:
-                bins = (bins[1:] + bins[:-1]) / 2
-        res = np.zeros((len(bins), n2), dtype=field.dtype)
+    elif ndims_to_avg > field.ndim:
+        raise ValueError(
+            f"coords given imply ndim_to_avg of {ndims_to_avg}, >{field.ndim}"
+        )
 
-    if get_variance:
-        var = np.zeros_like(res)
+    if not np.isscalar(weights) and weights.shape not in (
+        field.shape,
+        field.shape[:ndims_to_avg],
+    ):
+        raise ValueError(
+            f"weights must have shape {field.shape} or {field.shape[:ndims_to_avg]}"
+        )
 
-    for i, fld in enumerate(field.reshape((n1, n2)).T):
-        try:
-            w = weights.flatten()
-        except AttributeError:
+    if ndims_to_avg == field.ndim:
+        # Easiest case: we're averaging all dimensions, just pass through to
+        # angular_aveage directly.
+        return angular_average(
+            field=field,
+            coords=coords,
+            weights=weights,
+            interpolation_method=interpolation_method,
+            **kwargs,
+        )
+
+    if interpolation_method is None and isinstance(coords, list | tuple):
+        coord_mags = _magnitude_grid(coords[:ndims_to_avg])
+
+    # Move the front axes to the back so its easier to iterate through the non-averaged
+    # axes.
+    field = np.moveaxis(
+        field,
+        list(range(ndims_to_avg)),
+        [-ndims_to_avg + i for i in range(ndims_to_avg)],
+    )
+    if not np.isscalar(weights) and weights.shape == field.shape:
+        # If the weights shape is only the averaged dimensions, no need to move axis.
+        weights = np.moveaxis(
+            weights,
+            list(range(ndims_to_avg)),
+            [-ndims_to_avg + i for i in range(ndims_to_avg)],
+        )
+
+    out = None
+    outvar = None
+    outwght = None
+    outbins = None
+    outshape = field.shape[: (field.ndim - ndims_to_avg)]
+    for idx in np.ndindex(outshape):
+        if np.isscalar(weights) or weights.ndim == ndims_to_avg:
             w = weights
-        if interpolation_method is None:
-            res[:, i] = _field_average(indx, fld, w, sumweights)
-            if get_variance:
-                var[:, i] = _field_variance(indx, fld, res[:, i], w, sumweights)
-        elif interpolation_method == "linear":
-            sample_coords, r_n = _sample_coords_interpolate(
-                coords[:n], bins, weights, interp_points_generator
-            )
-            res[:, i], sumweights = _field_average_interpolate(
-                coords[:n], fld.reshape(field.shape[:n]), bins, w, sample_coords, r_n
-            )
-            if get_variance:
-                # TODO: Implement variance calculation for interpolation
-                raise NotImplementedError(
-                    "Variance calculation not implemented for interpolation"
-                )
+        else:
+            w = weights[*idx]
 
-    if not get_variance:
-        if return_sumweights:
-            return res.reshape((len(sumweights),) + field.shape[n:]), bins, sumweights
-        else:
-            return res.reshape((len(sumweights),) + field.shape[n:]), bins
-    else:
-        if return_sumweights:
-            return (
-                res.reshape((len(sumweights),) + field.shape[n:]),
-                bins,
-                var,
-                sumweights,
-            )
-        else:
-            return res.reshape((len(sumweights),) + field.shape[n:]), bins, var
+        avg, _bins, variance, sumwght = angular_average(
+            field=field[*idx],
+            coords=coords if interpolation_method is not None else coord_mags,
+            weights=w,
+            interpolation_method=interpolation_method,
+            **kwargs,
+        )
+
+        if out is None:
+            # First time through, set up the arrays (we need the output bins before
+            # we can do this).
+            out = np.zeros((len(avg), *outshape), dtype=avg.dtype)
+            outwght = np.zeros(out.shape)
+            outbins = np.zeros(out.shape)
+            if variance is not None:
+                outvar = np.zeros(out.shape)
+
+        out[:, *idx] = avg
+        outwght[:, *idx] = sumwght
+        outbins[:, *idx] = _bins
+        if variance is not None:
+            outvar[:, *idx] = variance
+
+    return out, outbins, outvar, outwght
 
 
 def power2delta(freq: list):
@@ -1036,7 +966,7 @@ def get_power(
     get_variance=False,
     log_bins=False,
     ignore_zero_mode=False,
-    k_weights=1,
+    k_weights: callable | np.ndarray | float = 1,
     nthreads=None,
     prefactor_fnc=None,
     interpolation_method=None,
@@ -1185,7 +1115,6 @@ def get_power(
             weights2=weights2,
             dimensionless=dimensionless,
         )
-
     else:
         # If input data is already a density field, just get the dimensions.
         dim = len(deltax.shape)
@@ -1243,17 +1172,15 @@ def get_power(
 
     # res is (P, k, <var>, <sumweights>)
     res = angular_average_nd(
-        P,
-        freq,
-        bins,
-        n=res_ndim,
+        field=P,
+        coords=freq[:res_ndim],
+        bins=bins,
         bin_ave=bin_ave,
         get_variance=get_variance,
         log_bins=log_bins,
         weights=k_weights,
         interpolation_method=interpolation_method,
         interp_points_generator=interp_points_generator,
-        return_sumweights=return_sumweights,
         bins_upto_boxlen=bins_upto_boxlen,
     )
     res = list(res)

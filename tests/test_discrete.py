@@ -20,7 +20,7 @@ def test_discrete_power_gaussian():
     box = pb.delta_x()
 
     sample = pb.create_discrete_sample(nbar=1000.0, delta_x=box)
-    power, bins = get_power(sample, pb.boxlength, N=pb.N)
+    power, bins, _, _ = get_power(sample, pb.boxlength, N=pb.N)
 
     res = np.mean(np.abs(power[50:-50] / (0.1 * bins[50:-50] ** -1.5) - 1))
 
@@ -34,8 +34,8 @@ def test_discrete_power_gaussian():
     delta_samp = np.histogramdd(sample, bins=edges, weights=None)[0].astype("float")
 
     # Check cross spectrum and assert a strong correlation
-    cross, bins = get_power(delta_samp, pb.boxlength, deltax2=box)
-    p2, bins = get_power(box, pb.boxlength)
+    cross, bins, _, _ = get_power(delta_samp, pb.boxlength, deltax2=box)
+    p2, bins, _, _ = get_power(box, pb.boxlength)
     mask = (power > 0) & (p2 > 0)
     corr = cross[mask] / np.sqrt(power[mask]) / np.sqrt(p2[mask])
     corr_bar = np.mean(corr[np.isfinite(corr)])
@@ -53,20 +53,20 @@ def test_discrete_power_lognormal():
     )
 
     sample = pb.create_discrete_sample(nbar=1000.0)
-    power, bins = get_power(sample, pb.boxlength, N=pb.N)
+    power, bins, _, _ = get_power(sample, pb.boxlength, N=pb.N)
 
     res = np.mean(np.abs(power[50:-50] / (0.1 * bins[50:-50] ** -1.5) - 1))
 
     assert res < 1e-1
 
     with pytest.raises(ValueError):
-        power, bins = get_power(sample.T, pb.boxlength, N=pb.N)
+        power, bins, _, _ = get_power(sample.T, pb.boxlength, N=pb.N)
 
     with pytest.raises(ValueError):
-        power, bins = get_power(sample.T, pb.boxlength, N=pb.N, deltax2=sample.T)
+        power, bins, _, _ = get_power(sample.T, pb.boxlength, N=pb.N, deltax2=sample.T)
 
     with pytest.raises(ValueError):
-        power, bins = get_power(sample, pb.boxlength, N=pb.N, deltax2=sample.T)
+        power, bins, _, _ = get_power(sample, pb.boxlength, N=pb.N, deltax2=sample.T)
 
     get_power(sample, pb.boxlength, N=pb.N, deltax2=sample, dimensionless=False)
 

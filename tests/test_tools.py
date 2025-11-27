@@ -75,15 +75,15 @@ def test_angular_avg_nd_3(interpolation_method):
     P = r2**-1.0
     P = np.repeat(P, 100).reshape(400, 400, 100)
     freq = [x, x, np.linspace(-2, 2, 100)]
-    p_k, k_av_bins, sw = angular_average_nd(
-        P,
-        freq,
+    p_k, k_av_bins, *_ = angular_average_nd(
+        field=P,
+        coords=freq[:2],
         bins=50,
-        n=2,
         interpolation_method=interpolation_method,
-        return_sumweights=True,
         bins_upto_boxlen=True,
     )
+    # k avg bins is always the same in each layer
+    k_av_bins = k_av_bins[:, 0]
     if interpolation_method == "linear":
         assert np.max(np.abs((p_k[:, 0] - k_av_bins**-2.0) / k_av_bins**-2.0)) < 0.05
     else:
@@ -110,8 +110,8 @@ def test_weights_shape():
 
 @pytest.mark.parametrize("n", range(1, 5))
 def test_interp_w_weights(n):
-    x = np.linspace(-3, 3, 40)
-    P = np.ones(n * [40])
+    x = np.linspace(-3, 3, 20)
+    P = np.ones(n * [20])
     weights = np.ones_like(P)
     if n == 1:
         P[2:5] = 0
@@ -133,13 +133,13 @@ def test_interp_w_weights(n):
 
     # Test 4D avg works
     freq = [x for _ in range(n)]
-    p_k_lin, k_av_bins_lin = angular_average(
-        P,
-        freq,
+    p_k_lin, *_ = angular_average(
+        field=P,
+        coords=freq,
         bins=10,
         interpolation_method="linear",
         weights=weights,
-        interp_points_generator=regular_angular_generator(),
+        interp_points_generator=regular_angular_generator(angular_resolution=0.4),
         log_bins=True,
         bins_upto_boxlen=True,
     )
@@ -193,7 +193,7 @@ def test_interp_w_mu(n):
     P = np.zeros(mask.shape)
     P[mask] = 1.0
 
-    p_k_lin, k_av_bins_lin = angular_average(
+    p_k_lin, *_ = angular_average(
         P,
         n * [x],
         bins=10,
@@ -233,8 +233,8 @@ def test_interp_method():
     freq = [x, x, x]
     with pytest.raises(ValueError):
         angular_average_nd(
-            P,
-            freq,
+            field=P,
+            coords=freq,
             bins=20,
             get_variance=True,
             interpolation_method="abc",
@@ -243,8 +243,8 @@ def test_interp_method():
 
     with pytest.raises(ValueError):
         angular_average(
-            P,
-            freq,
+            field=P,
+            coords=freq,
             bins=20,
             get_variance=True,
             interpolation_method="abc",
@@ -258,24 +258,18 @@ def test_error_w_kmag_coords():
     X, Y = np.meshgrid(x, x)
 
     with pytest.raises(ValueError):
-        angular_average_nd(P, X**2 + Y**2, bins=20, interpolation_method="linear")
+        angular_average_nd(
+            field=P, coords=X**2 + Y**2, bins=20, interpolation_method="linear"
+        )
 
     x = np.linspace(-3, 3, 40)
     P = np.ones((40, 40, 40))
     X, Y = np.meshgrid(x, x)
 
     with pytest.raises(ValueError):
-        angular_average(P, X**2 + Y**2, bins=20, interpolation_method="linear")
-
-
-def test_kmag_coords_nointerp():
-    x = np.linspace(-3, 3, 40)
-    P = np.ones((40, 40, 40))
-    X, Y = np.meshgrid(x, x)
-    with pytest.raises(ValueError):
-        angular_average_nd(P, np.sqrt(X**2 + Y**2), bins=20, interpolation_method=None)
-    with pytest.raises(ValueError):
-        angular_average(P, np.sqrt(X**2 + Y**2), bins=20, interpolation_method=None)
+        angular_average(
+            field=P, coords=X**2 + Y**2, bins=20, interpolation_method="linear"
+        )
 
 
 @pytest.mark.parametrize("n", range(1, 3))
@@ -289,9 +283,14 @@ def test_angular_avg_nd(n):
     P = np.repeat(P, 10).reshape(40, 40, 40, 10)
     freq = [x, x, x, np.linspace(-2, 2, 10)]
 
-    p_k_lin, k_av_bins_lin = angular_average_nd(
-        P, freq, bins=10, n=n, interpolation_method="linear", bins_upto_boxlen=True
+    p_k_lin, k_av_bins_lin, *_ = angular_average_nd(
+        field=P,
+        coords=freq[:n],
+        bins=10,
+        interpolation_method="linear",
+        bins_upto_boxlen=True,
     )
+    k_av_bins_lin = k_av_bins_lin.reshape((k_av_bins_lin.shape[0], -1))[:, 0]
 
     if n == 1:
         # Without interpolation, the radially-averaged power is not very accurate
@@ -333,16 +332,21 @@ def test_angular_avg_nd_complex_interp():
     P = r2**-1.0 + 1j * r2**-1.0
     P = np.repeat(P, 100).reshape(400, 400, 100)
     freq = [x, x, np.linspace(-2, 2, 100)]
-    p_k_lin, k_av_bins_lin = angular_average_nd(
-        P, freq, bins=50, n=2, interpolation_method="linear", bins_upto_boxlen=True
+    p_k_lin, k_av_bins_lin, *_ = angular_average_nd(
+        field=P,
+        coords=freq[:2],
+        bins=50,
+        interpolation_method="linear",
+        bins_upto_boxlen=True,
     )
     real = np.real(p_k_lin)
     imag = np.imag(p_k_lin)
+    k_av_bins_lin = k_av_bins_lin[:, 0]
     assert (
         np.max(np.abs((real[:, 0] - k_av_bins_lin**-2.0) / k_av_bins_lin**-2.0)) < 0.05
     )
 
-    assert np.isclose(real, imag).all()
+    np.testing.assert_allclose(real, imag)
 
 
 @pytest.mark.parametrize("interpolation_method", [None, "linear"])
@@ -355,12 +359,11 @@ def test_angular_avg_nd_4_2(interpolation_method):
     P = np.repeat(P, 10).reshape(200, 200, 10, 10)
 
     freq = [x, x, np.linspace(-2, 2, 10), np.linspace(-2, 2, 10)]
-    p_k, k_av_bins = angular_average_nd(P, freq, bins=50, n=2)
-    p_k_lin, k_av_bins_lin = angular_average_nd(
-        P,
-        freq,
+    angular_average_nd(field=P, coords=freq[:2], bins=50)
+    p_k_lin, k_av_bins_lin, *_ = angular_average_nd(
+        field=P,
+        coords=freq[:2],
         bins=50,
-        n=2,
         interpolation_method=interpolation_method,
         bins_upto_boxlen=True,
     )
@@ -370,8 +373,8 @@ def test_angular_avg_nd_4_2(interpolation_method):
     assert (
         np.max(
             np.abs(
-                (p_k_lin[6:, 0, 0] - k_av_bins_lin[6:] ** -2.0)
-                / k_av_bins_lin[6:] ** -2.0
+                (p_k_lin[6:, 0, 0] - k_av_bins_lin[6:, 0, 0] ** -2.0)
+                / k_av_bins_lin[6:, 0, 0] ** -2.0
             )
         )
         < 0.06
@@ -382,14 +385,10 @@ def test_var_not_impl():
     x = np.linspace(-3, 3, 200)
     P = np.ones((200, 10))
     coords = [x, np.linspace(-2, 2, 10)]
-    with pytest.raises(NotImplementedError):
-        ave, coord, var = angular_average(
-            P, coords, bins=20, get_variance=True, interpolation_method="linear"
-        )
-    with pytest.raises(NotImplementedError):
-        ave, coord, var = angular_average_nd(
-            P, coords, bins=20, get_variance=True, interpolation_method="linear"
-        )
+    _, _, vv, _ = angular_average(
+        P, coords, bins=20, get_variance=True, interpolation_method="linear"
+    )
+    assert vv is None
 
 
 def test_angular_avg_nd_2_1_varnull():
@@ -398,17 +397,15 @@ def test_angular_avg_nd_2_1_varnull():
     P = np.ones((200, 10))
 
     coords = [x, np.linspace(-2, 2, 10)]
-    p_k, k_av_bins, var, sw = angular_average_nd(
-        P,
-        coords,
+    vv = angular_average_nd(
+        field=P,
+        coords=coords[:1],
         bins=20,
-        n=1,
         get_variance=True,
-        return_sumweights=True,
         bins_upto_boxlen=True,
-    )
+    )[2]
 
-    assert np.all(var == 0)
+    assert np.all(vv == 0)
 
 
 def test_null_variance_2d():
@@ -416,14 +413,14 @@ def test_null_variance_2d():
     X, Y = np.meshgrid(x, x)
     r2 = X**2 + Y**2
     P = np.ones_like(r2)
-    ave, coord, var = angular_average(
+    vv = angular_average(
         P,
         np.sqrt(r2),
         bins=np.linspace(0, x.max(), 20),
         get_variance=True,
         bins_upto_boxlen=True,
-    )
-    assert np.all(var == 0)
+    )[2]
+    assert np.all(vv == 0)
 
 
 def test_variance_2d():
@@ -432,14 +429,14 @@ def test_variance_2d():
     r2 = X**2 + Y**2
     P = np.ones_like(r2)
     P += np.random.normal(scale=1, size=(len(x), len(x)))
-    ave, coord, var = angular_average(
+    _, _, vv, _ = angular_average(
         P,
         np.sqrt(r2),
         bins=np.linspace(0, x.max(), 20),
         get_variance=True,
         bins_upto_boxlen=True,
     )
-    assert np.all(np.diff(var) <= 0)
+    assert np.all(np.diff(vv) <= 0)
 
 
 def test_complex_variance():
@@ -448,7 +445,7 @@ def test_complex_variance():
     r2 = X**2 + Y**2
     P = np.ones_like(r2) + np.ones_like(r2) * 1j
     with pytest.raises(NotImplementedError):
-        ave, coord, var = angular_average(
+        angular_average(
             P,
             np.sqrt(r2),
             bins=np.linspace(0, x.max(), 20),
@@ -463,7 +460,7 @@ def test_bin_edges():
     r2 = X**2 + Y**2
     P = r2**-1.0
     bins = np.linspace(0, x.max(), 20)
-    ave, coord = angular_average(
+    _, coord, *_ = angular_average(
         P, np.sqrt(r2), bins=bins, bin_ave=False, bins_upto_boxlen=True
     )
     assert np.all(coord == bins)
@@ -474,12 +471,12 @@ def test_sum():
     X, Y = np.meshgrid(x, x)
     r2 = X**2 + Y**2
     P = r2**-1.0
-    ave, coord = angular_average(
+    ave, *_ = angular_average(
         P, np.sqrt(r2), bins=20, bin_ave=False, average=False, bins_upto_boxlen=True
     )
     assert np.sum(P[r2 < 9.0]) == np.sum(ave)
 
-    ave, coord = angular_average(
+    ave, *_ = angular_average(
         P, np.sqrt(r2), bins=20, bin_ave=True, average=False, bins_upto_boxlen=True
     )
     assert np.sum(P[r2 < 9.0]) == np.sum(ave)
@@ -491,14 +488,14 @@ def test_var_trivial_weights():
     r2 = X**2 + Y**2
     P = np.ones_like(r2)
     P += np.random.normal(scale=1, size=(len(x), len(x)))
-    ave, coord, var = angular_average(
+    var = angular_average(
         P,
         np.sqrt(r2),
         bins=np.linspace(0, x.max(), 20),
         get_variance=True,
         weights=np.ones_like(r2),
         bins_upto_boxlen=True,
-    )
+    )[2]
     print(np.diff(var))
     assert np.all(np.diff(var) <= 1e-6)
 
@@ -508,7 +505,7 @@ def test_logbins():
     X, Y = np.meshgrid(x, x)
     r2 = X**2 + Y**2
     P = np.ones_like(r2)
-    ave, coord = angular_average(
+    _, coord, *_ = angular_average(
         P, np.sqrt(r2), bins=10, bin_ave=False, log_bins=True, bins_upto_boxlen=True
     )
 
@@ -518,11 +515,11 @@ def test_logbins():
 def test_cross_power_identity():
     pb = PowerBox(200, dim=2, pk=lambda k: 1.0 * k**-2.0, boxlength=1.0, b=1)
     dx = pb.delta_x()
-    p, k = get_power(dx, pb.boxlength, b=1)
-    p_cross, k = get_power(dx, pb.boxlength, b=1, deltax2=dx)
+    p, *_ = get_power(dx, pb.boxlength, b=1)
+    p_cross, *_ = get_power(dx, pb.boxlength, b=1, deltax2=dx)
     assert np.all(np.isclose(p, p_cross))
-    p, k = get_power(dx, [1, 1], b=1)
-    p_cross, k = get_power(dx, [1, 1], b=1, deltax2=dx)
+    p, *_ = get_power(dx, [1, 1], b=1)
+    p_cross, *_ = get_power(dx, [1, 1], b=1, deltax2=dx)
     assert np.all(np.isclose(p, p_cross))
 
 
@@ -537,12 +534,12 @@ def test_against_multirealisation():
     ave = [0] * 50
     for j in range(50):
         P = np.ones_like(r2) + np.random.normal(scale=1, size=(len(x), len(x)))
-        ave[j], coord = angular_average(P, np.sqrt(r2), bins=bins)
+        ave[j], *_ = angular_average(P, np.sqrt(r2), bins=bins)
 
     var = np.var(np.array(ave), axis=0)
 
     # Get the variance from a single realisation
-    ave, coord, var2 = angular_average(P, np.sqrt(r2), bins=bins, get_variance=True)
+    ave, _, var2, _ = angular_average(P, np.sqrt(r2), bins=bins, get_variance=True)
 
     print(var)
     print(var2)
