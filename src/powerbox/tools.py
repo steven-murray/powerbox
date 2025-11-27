@@ -10,7 +10,8 @@ import numpy as np
 import warnings
 from scipy.interpolate import RegularGridInterpolator
 from scipy.special import gamma
-from typing import Literal, Sequence
+from typing import Literal
+from collections.abc import Sequence
 
 from . import dft
 
@@ -478,8 +479,9 @@ def _field_average_interpolate(coords, field, bins, weights, sample_coords, r_n)
     # Set 0 weights to NaNs
     field[weights == 0] = np.nan
     # Rescale the field (see scipy documentation for RegularGridInterpolator)
-    mean, std = np.nanmean(field), np.max(
-        [np.nanstd(field), 1.0]
+    mean, std = (
+        np.nanmean(field),
+        np.max([np.nanstd(field), 1.0]),
     )  # Avoid division by 0
     rescaled_field = (field - mean) / std
     fnc = RegularGridInterpolator(
