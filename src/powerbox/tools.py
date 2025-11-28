@@ -708,7 +708,7 @@ def angular_average_nd(  # noqa: C901
         list(range(ndims_to_avg)),
         [-ndims_to_avg + i for i in range(ndims_to_avg)],
     )
-    if not np.isscalar(weights) and weights.shape == field.shape:
+    if not np.isscalar(weights) and weights.ndim == field.ndim:
         # If the weights shape is only the averaged dimensions, no need to move axis.
         weights = np.moveaxis(
             weights,
