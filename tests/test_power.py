@@ -110,20 +110,25 @@ def test_k_weights():
     assert np.all(k1 == k0)
     assert not np.allclose(p1, p0)
 
-    k_space_field = dx + 0j
+    k_space_field = dx + dx * 1j
     # large scale modes removed
     k_space_field[15:35, 15:35, 15:35] = 0
     real_space_field = np.fft.ifftn(np.fft.fftshift(k_space_field)).real
     p3, k3, *_ = get_power(real_space_field, pb.boxlength, bin_ave=False)
-    k_space_field = dx + 0j
+    k_space_field = dx + dx * 1j
     real_space_field = np.fft.ifftn(np.fft.fftshift(k_space_field)).real
     # mask out the low-k modes
     k_weights = np.ones_like(dx)
     k_weights[15:35, 15:35, 15:35] = 0
     # set the masked region to zero in the full box
-    p2, k2, *_ = get_power(
-        real_space_field, pb.boxlength, bin_ave=False, k_weights=k_weights, bins=k3
-    )
+    with warnings.catch_warnings():
+        warnings.filterwarnings("ignore", message="invalid value encountered in divide")
+        warnings.filterwarnings(
+            "ignore", message="One or more radial bins had no cells within it"
+        )
+        p2, k2, *_ = get_power(
+            real_space_field, pb.boxlength, bin_ave=False, k_weights=k_weights, bins=k3
+        )
     # we expect that the PS of the small box is similar to the PS
     # of the big box with the low-k modes removed
 
