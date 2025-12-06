@@ -420,7 +420,7 @@ def test_null_variance_2d():
         get_variance=True,
         bins_upto_boxlen=True,
     )[2]
-    assert np.all(vv == 0)
+    np.testing.assert_allclose(vv, 0)
 
 
 def test_variance_2d():
@@ -463,7 +463,7 @@ def test_bin_edges():
     _, coord, *_ = angular_average(
         P, np.sqrt(r2), bins=bins, bin_ave=False, bins_upto_boxlen=True
     )
-    assert np.all(coord == bins)
+    np.testing.assert_allclose(coord, bins)
 
 
 def test_sum():
@@ -509,7 +509,7 @@ def test_logbins():
         P, np.sqrt(r2), bins=10, bin_ave=False, log_bins=True, bins_upto_boxlen=True
     )
 
-    assert np.all(np.isclose(np.diff(coord[1:] / coord[:-1]), 0))
+    np.testing.assert_allclose(np.diff(coord[1:] / coord[:-1]), 0, atol=3e-15)
 
 
 def test_cross_power_identity():
@@ -517,10 +517,10 @@ def test_cross_power_identity():
     dx = pb.delta_x()
     p, *_ = get_power(dx, pb.boxlength, b=1)
     p_cross, *_ = get_power(dx, pb.boxlength, b=1, deltax2=dx)
-    assert np.all(np.isclose(p, p_cross))
+    np.testing.assert_allclose(p, p_cross)
     p, *_ = get_power(dx, [1, 1], b=1)
     p_cross, *_ = get_power(dx, [1, 1], b=1, deltax2=dx)
-    assert np.all(np.isclose(p, p_cross))
+    np.testing.assert_allclose(p, p_cross)
 
 
 @pytest.mark.skip()
@@ -543,4 +543,45 @@ def test_against_multirealisation():
 
     print(var)
     print(var2)
-    assert np.all(np.isclose(var, var2, 1e-2))
+    np.testing.assert_allclose(var, var2, 1e-2)
+
+
+def test_angular_average_shape_exceptions():
+    """Test passing incorrect coordinate shapes to angular_average"""
+    x = np.linspace(-3, 3, 20)
+    X, Y = np.meshgrid(x, x)
+    r2 = X**2 + Y**2
+    P = r2**-1.0
+
+    with pytest.raises(
+        ValueError, match=r"list of coords must be same length as field.ndim"
+    ):
+        angular_average(field=P, coords=[x], bins=4)
+
+    with pytest.raises(
+        ValueError,
+        match="coords must be a list of 1D coordinate arrays when interpolating",
+    ):
+        angular_average(field=P, coords=r2, bins=20, interpolation_method="linear")
+
+    with pytest.raises(
+        ValueError, match="coords must have the same shape as the field"
+    ):
+        angular_average(field=P, coords=x, bins=4)
+
+
+def test_angular_averaged_nd_shape_exceptions():
+    """Test passing incorrect coordinate shapes to angular_average_nd"""
+    x = np.linspace(-3, 3, 20)
+    X, Y, Z = np.meshgrid(x, x, x)
+    r2 = X**2 + Y**2 + Z**2
+    P = r2**-1.0
+
+    with pytest.raises(ValueError, match="coords given imply ndim_to_avg of 0"):
+        angular_average_nd(field=P, coords=[], bins=4)
+
+    with pytest.raises(ValueError, match="coords given imply ndim_to_avg of 4"):
+        angular_average_nd(field=P, coords=[x] * 4, bins=4)
+
+    with pytest.raises(ValueError, match="weights must have shape"):
+        angular_average_nd(field=P, coords=r2, weights=P[1:], bins=4)
