@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import numpy as np
 import warnings
-from abc import ABC, abstractmethod
+from abc import ABC
 from functools import cache
 from multiprocessing import cpu_count
 

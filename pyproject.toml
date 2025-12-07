@@ -14,7 +14,7 @@ authors=[
 ]
 description="Create arbitrary boxes with isotropic power spectra"
 license= {text= "MIT"}
-requires-python = ">=3.9"
+requires-python = ">=3.11"
 keywords=["power-spectrum", "signal processing"]
 dependencies = [
     "numpy>1.6.2"
