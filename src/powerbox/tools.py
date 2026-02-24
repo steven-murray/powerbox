@@ -215,20 +215,31 @@ def angular_average(
             )
         res = _field_average(indx, field, weights, sumweights)
     else:
-        bins = _getbins(bins, coord_mags, log_bins, bins_upto_boxlen)
+        bin_edges = _getbins(bins, coord_mags, log_bins, bins_upto_boxlen)
 
         if bin_ave:
             if log_bins:
-                bins = np.exp((np.log(bins[1:]) + np.log(bins[:-1])) / 2)
+                bins = np.exp((np.log(bin_edges[1:]) + np.log(bin_edges[:-1])) / 2)
             else:
-                bins = (bins[1:] + bins[:-1]) / 2
+                bins = (bin_edges[1:] + bin_edges[:-1]) / 2
+        else:
+            bins = bin_edges
 
         sample_coords, r_n = _sample_coords_interpolate(
             coords, bins, weights, interp_points_generator
         )
-        res, sumweights = _field_average_interpolate(
+        res = _field_average_interpolate(
             coords, field, bins, weights, sample_coords, r_n
         )
+
+        # Compute sumweights from the grid (not from interpolated samples)
+        indx = np.digitize(coord_mags.flatten(), bin_edges)
+        if np.isscalar(weights):
+            sumweights = np.bincount(indx, minlength=len(bin_edges) + 1)[1:-1]
+        else:
+            sumweights = np.bincount(
+                indx, weights=weights.flatten(), minlength=len(bin_edges) + 1
+            )[1:-1]
     var = None
     if get_variance and interpolation_method is None:
         var = _field_variance(indx, field, res, weights, sumweights)
@@ -534,30 +545,21 @@ def _field_average_interpolate(coords, field, bins, weights, sample_coords, r_n)
 
     if np.all(np.isnan(interped_field)):
         warnings.warn("Interpolator returned all NaNs.", RuntimeWarning, stacklevel=2)
-    final_sumweights = []
+
     # Average over the spherical shells for each radius / bin value
     if not ((weights == 0) | (weights == 1)).all():
         interped_weights = _nan_aware_interp(coords, weights, sample_coords.T)
 
         avged_field = []
-
         for b in bins:
             mbin = np.logical_and(r_n == b, ~np.isnan(interped_field))
-            avged_field.append(np.sum(interped_field[mbin] * interped_weights[mbin]))
-            final_sumweights.append(np.sum(interped_weights[mbin]))
-        avged_field = np.array(avged_field) / final_sumweights
+            w_sum = np.sum(interped_weights[mbin])
+            avged_field.append(np.sum(interped_field[mbin] * interped_weights[mbin]) / w_sum if w_sum > 0 else np.nan)
+        avged_field = np.array(avged_field)
     else:
         avged_field = np.array([np.nanmean(interped_field[r_n == b]) for b in bins])
-        unique_rn, sumweights = np.unique(
-            r_n[~np.isnan(interped_field)],
-            return_counts=True,
-        )
-        for b in bins:
-            if b in unique_rn:
-                final_sumweights.append(sumweights[unique_rn == b][0])
-            else:
-                final_sumweights.append(0)
-    return avged_field, np.array(final_sumweights)
+
+    return avged_field
 
 
 def _field_average(indx, field, weights, sumweights):
@@ -771,7 +773,7 @@ def angular_average_nd(  # noqa: C901
         if out is None:
             # First time through, set up the arrays (we need the output bins before
             # we can do this).
-            out = np.zeros((len(avg),) + outshape, dtype=avg.dtype)
+            out = np.zeros((len(avg), *outshape), dtype=avg.dtype)
             outwght = np.zeros(out.shape)
             outbins = np.zeros(out.shape)
             if variance is not None:
@@ -1218,9 +1220,18 @@ def get_power(
         interp_points_generator=interp_points_generator,
         bins_upto_boxlen=bins_upto_boxlen,
     )
-    res = list(res)
+    res = list(res)  # [P, k, var, sumweights]
     # Remove shot-noise
     if remove_shotnoise and Npart1:
         res[0] -= np.sqrt(V**2 / Npart1 / Npart2)
 
-    return res + [freq[res_ndim:]] if res_ndim < dim else res
+    # Build return: (P, k, [var], [sumweights], [extra_freq])
+    ret = [res[0], res[1]]
+    if get_variance:
+        ret.append(res[2])
+    if return_sumweights:
+        ret.append(res[3])
+    if res_ndim < dim:
+        ret.append(freq[res_ndim:])
+
+    return tuple(ret) if len(ret) > 1 else ret[0]
