@@ -76,6 +76,28 @@ class NumpyFFT(FFTBackend):
         self.nthreads = 1
 
 
+class JAXFFT(FFTBackend):
+    """FFT backend using jax.fft."""
+
+    def __init__(self):
+        try:
+            import jax
+        except ImportError:
+            raise ImportError("jax could not be imported...")
+
+        self.fftn = jax.numpy.fft.fftn
+
+        self.ifftn = jax.numpy.fft.ifftn
+
+        self._fftshift = jax.numpy.fft.fftshift
+        self._ifftshift = jax.numpy.fft.ifftshift
+        self._fftfreq = jax.numpy.fft.fftfreq
+
+        self.empty = jax.numpy.empty
+        self.have_fftw = False
+        self.nthreads = 1
+
+
 class FFTW(FFTBackend):
     """FFT backend using pyfftw."""
 

@@ -4,7 +4,7 @@ import contextlib
 import numpy as np
 
 from powerbox.dft import fft, fftfreq, fftshift, ifft, ifftshift
-from powerbox.dft_backend import FFTW, NumpyFFT
+from powerbox.dft_backend import FFTW, JAXFFT, NumpyFFT
 
 ABCOMBOS = [
     (0, 2 * np.pi, 0, 1),
