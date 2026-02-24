@@ -1225,6 +1225,16 @@ def get_power(
     if remove_shotnoise and Npart1:
         res[0] -= np.sqrt(V**2 / Npart1 / Npart2)
 
+    # When averaging over fewer than all dimensions, the bins and sumweights
+    # arrays from angular_average_nd have shape (n_bins, *remaining_dims).
+    # Since the bins (and typically the sumweights) are identical across the
+    # remaining dimensions, collapse them to 1D.
+    if res_ndim < dim:
+        for idx in (1, 3):  # bins and sumweights
+            arr = res[idx]
+            if arr is not None and arr.ndim > 1:
+                res[idx] = arr[(slice(None),) + (0,) * (arr.ndim - 1)]
+
     # Build return: (P, k, [var], [sumweights], [extra_freq])
     ret = [res[0], res[1]]
     if get_variance:
