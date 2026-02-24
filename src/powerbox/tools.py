@@ -462,6 +462,49 @@ def _sample_coords_interpolate(coords, bins, weights, interp_points_generator=No
     return sample_coords, r_n
 
 
+def _nan_aware_interp(coords, field, sample_points):
+    """Linearly interpolate *field* on a regular grid, ignoring NaN cells.
+
+    Uses normalised convolution: NaN corners of the interpolation stencil are
+    excluded from the weighted average instead of poisoning the result (which
+    is what ``RegularGridInterpolator`` does).
+
+    Parameters
+    ----------
+    coords : tuple of 1-D arrays
+        Coordinate vectors along each axis of *field* (same convention as
+        ``RegularGridInterpolator``).
+    field : ndarray
+        The data array, possibly containing NaN at masked grid points.
+    sample_points : ndarray, shape (N, ndim)
+        Points at which to evaluate the interpolation.
+
+    Returns
+    -------
+    result : ndarray, shape (N,)
+        Interpolated values.  A point is NaN only when **all** corners of its
+        interpolation cell are NaN.
+    """
+    valid = np.isfinite(field)
+
+    # Numerator: interpolate field with NaN -> 0
+    field_filled = np.where(valid, field, 0.0)
+    interp_num = RegularGridInterpolator(
+        coords, field_filled, bounds_error=False, fill_value=np.nan
+    )
+
+    # Denominator: interpolate validity mask to get sum of valid weights
+    interp_den = RegularGridInterpolator(
+        coords, valid.astype(float), bounds_error=False, fill_value=0.0
+    )
+
+    numerator = interp_num(sample_points)
+    denominator = interp_den(sample_points)
+
+    result = np.where(denominator > 0, numerator / denominator, np.nan)
+    return result
+
+
 def _field_average_interpolate(coords, field, bins, weights, sample_coords, r_n):
     # Grid is regular + can be ordered only in Cartesian coords.
     if isinstance(weights, np.ndarray):
@@ -484,27 +527,17 @@ def _field_average_interpolate(coords, field, bins, weights, sample_coords, r_n)
         np.max([np.nanstd(field), 1.0]),
     )  # Avoid division by 0
     rescaled_field = (field - mean) / std
-    fnc = RegularGridInterpolator(
-        coords,
-        rescaled_field,  # Complex data is accepted.
-        bounds_error=False,
-        fill_value=np.nan,
-    )  # To extrapolate at the edges if needed.
-    # Evaluate it on points in angular coords that we then convert to Cartesian.
 
-    interped_field = fnc(sample_coords.T) * std + mean
+    # Use NaN-aware interpolation so that NaN cells (from k_weights=0) do not
+    # propagate through the trilinear stencil to neighbouring sample points.
+    interped_field = _nan_aware_interp(coords, rescaled_field, sample_coords.T) * std + mean
+
     if np.all(np.isnan(interped_field)):
         warnings.warn("Interpolator returned all NaNs.", RuntimeWarning, stacklevel=2)
     final_sumweights = []
     # Average over the spherical shells for each radius / bin value
     if not ((weights == 0) | (weights == 1)).all():
-        fnc = RegularGridInterpolator(
-            coords,
-            weights,  # Complex data is accepted.
-            bounds_error=False,
-            fill_value=np.nan,
-        )
-        interped_weights = fnc(sample_coords.T)
+        interped_weights = _nan_aware_interp(coords, weights, sample_coords.T)
 
         avged_field = []
 
@@ -725,10 +758,10 @@ def angular_average_nd(  # noqa: C901
         if np.isscalar(weights) or weights.ndim == ndims_to_avg:
             w = weights
         else:
-            w = weights[*idx]
+            w = weights[idx]
 
         avg, _bins, variance, sumwght = angular_average(
-            field=field[*idx],
+            field=field[idx],
             coords=coords if interpolation_method is not None else coord_mags,
             weights=w,
             interpolation_method=interpolation_method,
@@ -738,17 +771,17 @@ def angular_average_nd(  # noqa: C901
         if out is None:
             # First time through, set up the arrays (we need the output bins before
             # we can do this).
-            out = np.zeros((len(avg), *outshape), dtype=avg.dtype)
+            out = np.zeros((len(avg),) + outshape, dtype=avg.dtype)
             outwght = np.zeros(out.shape)
             outbins = np.zeros(out.shape)
             if variance is not None:
                 outvar = np.zeros(out.shape)
 
-        out[:, *idx] = avg
-        outwght[:, *idx] = sumwght
-        outbins[:, *idx] = _bins
+        out[(slice(None),) + idx] = avg
+        outwght[(slice(None),) + idx] = sumwght
+        outbins[(slice(None),) + idx] = _bins
         if variance is not None:
-            outvar[:, *idx] = variance
+            outvar[(slice(None),) + idx] = variance
 
     return out, outbins, outvar, outwght
 
