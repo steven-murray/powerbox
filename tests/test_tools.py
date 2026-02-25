@@ -38,14 +38,20 @@ def test_warn_interp_weights():
             interp_points_generator=regular_angular_generator(),
         )
     with pytest.warns(RuntimeWarning):
-        angular_average(
-            P,
-            freq,
-            bins=10,
-            interpolation_method="nan-aware",
-            weights=weights,
-            interp_points_generator=regular_angular_generator(),
-        )
+        with warnings.catch_warnings():
+            warnings.filterwarnings(
+                "ignore",
+                message="'nan-aware' interpolation uses two",
+                category=UserWarning,
+            )
+            angular_average(
+                P,
+                freq,
+                bins=10,
+                interpolation_method="nan-aware",
+                weights=weights,
+                interp_points_generator=regular_angular_generator(),
+            )
 
 
 def test_bins_upto_boxlen_warning():
@@ -84,13 +90,19 @@ def test_angular_avg_nd_3(interpolation_method):
     P = r2**-1.0
     P = np.repeat(P, 100).reshape(400, 400, 100)
     freq = [x, x, np.linspace(-2, 2, 100)]
-    p_k, k_av_bins, *_ = angular_average_nd(
-        field=P,
-        coords=freq[:2],
-        bins=50,
-        interpolation_method=interpolation_method,
-        bins_upto_boxlen=True,
-    )
+    with warnings.catch_warnings():
+        warnings.filterwarnings(
+            "ignore",
+            message="'nan-aware' interpolation uses two",
+            category=UserWarning,
+        )
+        p_k, k_av_bins, *_ = angular_average_nd(
+            field=P,
+            coords=freq[:2],
+            bins=50,
+            interpolation_method=interpolation_method,
+            bins_upto_boxlen=True,
+        )
     # k avg bins is always the same in each layer
     k_av_bins = k_av_bins[:, 0]
     if interpolation_method is not None:
@@ -155,18 +167,24 @@ def test_interp_w_weights(n):
 
     assert np.all(p_k_lin == 1.0)
 
-    # Test 4D avg works
+    # Test 4D avg works (nan-aware)
     freq = [x for _ in range(n)]
-    p_k_lin, *_ = angular_average(
-        field=P,
-        coords=freq,
-        bins=10,
-        interpolation_method="nan-aware",
-        weights=weights,
-        interp_points_generator=regular_angular_generator(angular_resolution=0.4),
-        log_bins=True,
-        bins_upto_boxlen=True,
-    )
+    with warnings.catch_warnings():
+        warnings.filterwarnings(
+            "ignore",
+            message="'nan-aware' interpolation uses two",
+            category=UserWarning,
+        )
+        p_k_lin, *_ = angular_average(
+            field=P,
+            coords=freq,
+            bins=10,
+            interpolation_method="nan-aware",
+            weights=weights,
+            interp_points_generator=regular_angular_generator(angular_resolution=0.4),
+            log_bins=True,
+            bins_upto_boxlen=True,
+        )
 
     assert np.all(p_k_lin == 1.0)
 
@@ -626,9 +644,15 @@ class TestInterpSimilarToNoInterp:
         avg_none, k_none, _, sw_none = angular_average(
             P, [x, x], bins=bins, interpolation_method=None
         )
-        avg_interp, k_interp, _, sw_interp = angular_average(
-            P, [x, x], bins=bins, interpolation_method=interpolation_method
-        )
+        with warnings.catch_warnings():
+            warnings.filterwarnings(
+                "ignore",
+                message="'nan-aware' interpolation uses two",
+                category=UserWarning,
+            )
+            avg_interp, k_interp, _, sw_interp = angular_average(
+                P, [x, x], bins=bins, interpolation_method=interpolation_method
+            )
 
         # Skip first few bins where cell counts are very low
         start = 3
@@ -653,9 +677,15 @@ class TestInterpSimilarToNoInterp:
         avg_none, k_none, _, sw_none = angular_average(
             P, [x, x, x], bins=bins, interpolation_method=None
         )
-        avg_interp, k_interp, _, sw_interp = angular_average(
-            P, [x, x, x], bins=bins, interpolation_method=interpolation_method
-        )
+        with warnings.catch_warnings():
+            warnings.filterwarnings(
+                "ignore",
+                message="'nan-aware' interpolation uses two",
+                category=UserWarning,
+            )
+            avg_interp, k_interp, _, sw_interp = angular_average(
+                P, [x, x, x], bins=bins, interpolation_method=interpolation_method
+            )
 
         start = 3
         valid = np.isfinite(avg_none[start:]) & np.isfinite(avg_interp[start:])
@@ -681,9 +711,15 @@ class TestInterpSimilarToNoInterp:
         avg_none, k_none, *_ = angular_average_nd(
             field=P, coords=freq[:2], bins=30, interpolation_method=None
         )
-        avg_interp, k_interp, *_ = angular_average_nd(
-            field=P, coords=freq[:2], bins=30, interpolation_method=interpolation_method
-        )
+        with warnings.catch_warnings():
+            warnings.filterwarnings(
+                "ignore",
+                message="'nan-aware' interpolation uses two",
+                category=UserWarning,
+            )
+            avg_interp, k_interp, *_ = angular_average_nd(
+                field=P, coords=freq[:2], bins=30, interpolation_method=interpolation_method
+            )
 
         # Compare at a representative slice (middle of extra dim)
         mid = avg_none.shape[1] // 2
