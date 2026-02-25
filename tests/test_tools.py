@@ -37,6 +37,15 @@ def test_warn_interp_weights():
             weights=weights,
             interp_points_generator=regular_angular_generator(),
         )
+    with pytest.warns(RuntimeWarning):
+        angular_average(
+            P,
+            freq,
+            bins=10,
+            interpolation_method="nan-aware",
+            weights=weights,
+            interp_points_generator=regular_angular_generator(),
+        )
 
 
 def test_bins_upto_boxlen_warning():
@@ -67,7 +76,7 @@ def test_bins_upto_maxmag(xmax, ndim):
     assert np.isclose(bins.max(), xmax * np.sqrt(ndim))
 
 
-@pytest.mark.parametrize("interpolation_method", [None, "linear"])
+@pytest.mark.parametrize("interpolation_method", [None, "linear","nan-aware"])
 def test_angular_avg_nd_3(interpolation_method):
     x = np.linspace(-3, 3, 400)
     X, Y = np.meshgrid(x, x)
@@ -84,7 +93,7 @@ def test_angular_avg_nd_3(interpolation_method):
     )
     # k avg bins is always the same in each layer
     k_av_bins = k_av_bins[:, 0]
-    if interpolation_method == "linear":
+    if interpolation_method is not None:
         assert np.max(np.abs((p_k[:, 0] - k_av_bins**-2.0) / k_av_bins**-2.0)) < 0.05
     else:
         # Without interpolation, the radially-averaged power is not very accurate
@@ -138,6 +147,21 @@ def test_interp_w_weights(n):
         coords=freq,
         bins=10,
         interpolation_method="linear",
+        weights=weights,
+        interp_points_generator=regular_angular_generator(angular_resolution=0.4),
+        log_bins=True,
+        bins_upto_boxlen=True,
+    )
+
+    assert np.all(p_k_lin == 1.0)
+
+    # Test 4D avg works
+    freq = [x for _ in range(n)]
+    p_k_lin, *_ = angular_average(
+        field=P,
+        coords=freq,
+        bins=10,
+        interpolation_method="nan-aware",
         weights=weights,
         interp_points_generator=regular_angular_generator(angular_resolution=0.4),
         log_bins=True,
@@ -585,3 +609,90 @@ def test_angular_averaged_nd_shape_exceptions():
 
     with pytest.raises(ValueError, match="weights must have shape"):
         angular_average_nd(field=P, coords=r2, weights=P[1:], bins=4)
+
+
+@pytest.mark.parametrize("interpolation_method", ["linear", "nan-aware"])
+class TestInterpSimilarToNoInterp:
+    """Check that interpolated angular averages are close to non-interpolated ones."""
+
+    def test_angular_average_2d(self, interpolation_method):
+        """2D field averaged to 1D with angular_average."""
+        x = np.linspace(-3, 3, 200)
+        X, Y = np.meshgrid(x, x)
+        r2 = X**2 + Y**2
+        P = r2**-1.0
+        bins = np.linspace(0, x.max(), 30)
+
+        avg_none, k_none, _, sw_none = angular_average(
+            P, [x, x], bins=bins, interpolation_method=None
+        )
+        avg_interp, k_interp, _, sw_interp = angular_average(
+            P, [x, x], bins=bins, interpolation_method=interpolation_method
+        )
+
+        # Skip first few bins where cell counts are very low
+        start = 3
+        valid = np.isfinite(avg_none[start:]) & np.isfinite(avg_interp[start:])
+        rel_err = np.abs(
+            (avg_interp[start:][valid] - avg_none[start:][valid])
+            / avg_none[start:][valid]
+        )
+        assert np.max(rel_err) < 0.10, (
+            f"Max relative error {np.max(rel_err):.4f} exceeds 10% "
+            f"for {interpolation_method}"
+        )
+
+    def test_angular_average_3d(self, interpolation_method):
+        """3D field averaged to 1D with angular_average."""
+        x = np.linspace(-3, 3, 60)
+        X, Y, Z = np.meshgrid(x, x, x, indexing="ij")
+        r2 = X**2 + Y**2 + Z**2
+        P = r2**-1.0
+        bins = np.linspace(0, x.max(), 20)
+
+        avg_none, k_none, _, sw_none = angular_average(
+            P, [x, x, x], bins=bins, interpolation_method=None
+        )
+        avg_interp, k_interp, _, sw_interp = angular_average(
+            P, [x, x, x], bins=bins, interpolation_method=interpolation_method
+        )
+
+        start = 3
+        valid = np.isfinite(avg_none[start:]) & np.isfinite(avg_interp[start:])
+        rel_err = np.abs(
+            (avg_interp[start:][valid] - avg_none[start:][valid])
+            / avg_none[start:][valid]
+        )
+        assert np.max(rel_err) < 0.10, (
+            f"Max relative error {np.max(rel_err):.4f} exceeds 10% "
+            f"for {interpolation_method}"
+        )
+
+    def test_angular_average_nd_2d_field(self, interpolation_method):
+        """3D field with angular_average_nd averaging over 2 dims."""
+        x = np.linspace(-3, 3, 200)
+        X, Y = np.meshgrid(x, x)
+        r2 = X**2 + Y**2
+        P = r2**-1.0
+        # Add an extra dimension so angular_average_nd averages 2D → 1D+extra
+        P = np.repeat(P, 10).reshape(200, 200, 10)
+        freq = [x, x, np.linspace(-2, 2, 10)]
+
+        avg_none, k_none, *_ = angular_average_nd(
+            field=P, coords=freq[:2], bins=30, interpolation_method=None
+        )
+        avg_interp, k_interp, *_ = angular_average_nd(
+            field=P, coords=freq[:2], bins=30, interpolation_method=interpolation_method
+        )
+
+        # Compare at a representative slice (middle of extra dim)
+        mid = avg_none.shape[1] // 2
+        start = 5
+        a_none = avg_none[start:, mid]
+        a_interp = avg_interp[start:, mid]
+        valid = np.isfinite(a_none) & np.isfinite(a_interp) & (a_none != 0)
+        rel_err = np.abs((a_interp[valid] - a_none[valid]) / a_none[valid])
+        assert np.max(rel_err) < 0.10, (
+            f"Max relative error {np.max(rel_err):.4f} exceeds 10% "
+            f"for angular_average_nd with {interpolation_method}"
+        )
