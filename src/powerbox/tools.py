@@ -1327,12 +1327,8 @@ def get_power(
             if arr is not None and arr.ndim > 1:
                 res[idx] = arr[(slice(None),) + (0,) * (arr.ndim - 1)]
 
-    # Build return: (P, k, [var], [sumweights], [extra_freq])
-    ret = [res[0], res[1]]
-    if get_variance:
-        ret.append(res[2])
-    if return_sumweights:
-        ret.append(res[3])
+    # Build return: (P, k, var, sumweights, [extra_freq])
+    ret = [res[0], res[1], res[2], res[3]]
     if res_ndim < dim:
         ret.append(freq[res_ndim:])
 
