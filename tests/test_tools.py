@@ -283,7 +283,7 @@ def test_interp_method():
             interpolation_method="abc",
             bins_upto_boxlen=True,
         )
-    
+
     with pytest.raises(ValueError):
         angular_average_nd(
             field=P,
