@@ -268,7 +268,12 @@ def angular_average(
             coords, bins, weights, interp_points_generator
         )
         res = _field_average_interpolate(
-            coords, field, bins, weights, sample_coords, r_n,
+            coords,
+            field,
+            bins,
+            weights,
+            sample_coords,
+            r_n,
             interp_fn=interpolation_method,
         )
 
@@ -585,7 +590,9 @@ def nan_aware_interp(coords, field, sample_points):
     return result
 
 
-def _field_average_interpolate(coords, field, bins, weights, sample_coords, r_n, interp_fn=None):
+def _field_average_interpolate(
+    coords, field, bins, weights, sample_coords, r_n, interp_fn=None
+):
     # Grid is regular + can be ordered only in Cartesian coords.
     if interp_fn is None:
         interp_fn = linear_interp
@@ -624,7 +631,11 @@ def _field_average_interpolate(coords, field, bins, weights, sample_coords, r_n,
         for b in bins:
             mbin = np.logical_and(r_n == b, ~np.isnan(interped_field))
             w_sum = np.sum(interped_weights[mbin])
-            avged_field.append(np.sum(interped_field[mbin] * interped_weights[mbin]) / w_sum if w_sum > 0 else np.nan)
+            avged_field.append(
+                np.sum(interped_field[mbin] * interped_weights[mbin]) / w_sum
+                if w_sum > 0
+                else np.nan
+            )
         avged_field = np.array(avged_field)
     else:
         avged_field = np.array([np.nanmean(interped_field[r_n == b]) for b in bins])

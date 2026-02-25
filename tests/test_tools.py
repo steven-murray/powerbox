@@ -82,7 +82,7 @@ def test_bins_upto_maxmag(xmax, ndim):
     assert np.isclose(bins.max(), xmax * np.sqrt(ndim))
 
 
-@pytest.mark.parametrize("interpolation_method", [None, "linear","nan-aware"])
+@pytest.mark.parametrize("interpolation_method", [None, "linear", "nan-aware"])
 def test_angular_avg_nd_3(interpolation_method):
     x = np.linspace(-3, 3, 400)
     X, Y = np.meshgrid(x, x)
@@ -718,7 +718,10 @@ class TestInterpSimilarToNoInterp:
                 category=UserWarning,
             )
             avg_interp, k_interp, *_ = angular_average_nd(
-                field=P, coords=freq[:2], bins=30, interpolation_method=interpolation_method
+                field=P,
+                coords=freq[:2],
+                bins=30,
+                interpolation_method=interpolation_method,
             )
 
         # Compare at a representative slice (middle of extra dim)
