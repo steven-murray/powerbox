@@ -50,6 +50,7 @@ def test_warn_interp_weights():
                 bins=10,
                 interpolation_method="nan-aware",
                 weights=weights,
+                bin_ave=False,
                 interp_points_generator=regular_angular_generator(),
             )
 
@@ -280,6 +281,16 @@ def test_interp_method():
             bins=20,
             get_variance=True,
             interpolation_method="abc",
+            bins_upto_boxlen=True,
+        )
+    
+    with pytest.raises(ValueError):
+        angular_average_nd(
+            field=P,
+            coords=freq,
+            bins=20,
+            get_variance=True,
+            interpolation_method=True,
             bins_upto_boxlen=True,
         )
 
@@ -735,3 +746,18 @@ class TestInterpSimilarToNoInterp:
             f"Max relative error {np.max(rel_err):.4f} exceeds 10% "
             f"for angular_average_nd with {interpolation_method}"
         )
+
+
+def test_get_power_2d_sumweights_is_1d():
+    """When res_ndim < dim, sumweights should be collapsed to 1D."""
+    pb = PowerBox(64, dim=3, pk=lambda k: k**-2.0, boxlength=1.0, b=1)
+    dx = pb.delta_x()
+
+    p, k, var, sumweights, extra_freq = get_power(dx, pb.boxlength, b=1, res_ndim=2)
+
+    # p has shape (n_bins, n_remaining) but sumweights should be 1D
+    assert sumweights.ndim == 1, (
+        f"Expected sumweights to be 1D, got shape {sumweights.shape}"
+    )
+    assert k.ndim == 1, f"Expected k to be 1D, got shape {k.shape}"
+    assert sumweights.shape[0] == p.shape[0]
