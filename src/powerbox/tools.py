@@ -118,7 +118,7 @@ def angular_average(
 
         * ``'linear'`` — resolved to :func:`linear_interp`, which wraps
           :class:`~scipy.interpolate.RegularGridInterpolator`.
-        * ``'nan-aware'`` — resolved to :func:`_nan_aware_interp`, which
+        * ``'nan-aware'`` — resolved to :func:`nan_aware_interp`, which
           uses normalised convolution (two ``RegularGridInterpolator``
           calls) so that NaN grid cells do not poison neighbouring
           sample points.  This is mainly useful when the requested k
@@ -579,7 +579,9 @@ def nan_aware_interp(coords, field, sample_points):
     numerator = interp_num(sample_points)
     denominator = interp_den(sample_points)
 
-    result = np.where(denominator > 0, numerator / denominator, np.nan)
+    result = np.full_like(numerator, np.nan)
+    mask = denominator > 0
+    result[mask] = numerator[mask] / denominator[mask]
     return result
 
 
@@ -732,7 +734,7 @@ def angular_average_nd(  # noqa: C901
         * ``'linear'`` — standard trilinear interpolation via
           :func:`linear_interp`.
         * ``'nan-aware'`` — NaN-tolerant interpolation via
-          :func:`_nan_aware_interp` (slower, uses two interpolator
+          :func:`nan_aware_interp` (slower, uses two interpolator
           calls).  Most useful when the k range reaches very low values
           near masked k_i = 0 planes; for higher k ranges ``'linear'``
           is sufficient and faster.
@@ -1171,7 +1173,7 @@ def get_power(
         * ``'linear'`` — standard trilinear interpolation via
           :func:`linear_interp`.
         * ``'nan-aware'`` — NaN-tolerant interpolation via
-          :func:`_nan_aware_interp` (slower, uses two interpolator
+          :func:`nan_aware_interp` (slower, uses two interpolator
           calls).  Most useful when
           the requested k range extends to very low values (edge bins
           near masked k_i = 0 planes) where standard trilinear

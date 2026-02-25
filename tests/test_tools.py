@@ -175,11 +175,6 @@ def test_interp_w_weights(n):
             message="'nan-aware' interpolation uses two",
             category=UserWarning,
         )
-        warnings.filterwarnings(
-            "ignore",
-            message="invalid value encountered in divide",
-            category=RuntimeWarning,
-        )
         p_k_lin, *_ = angular_average(
             field=P,
             coords=freq,
