@@ -10,7 +10,6 @@ import numpy as np
 import warnings
 from scipy.interpolate import RegularGridInterpolator
 from scipy.special import gamma
-from typing import Literal
 from collections.abc import Sequence
 
 from . import dft
@@ -69,7 +68,7 @@ def angular_average(
     bin_ave: bool = True,
     get_variance: bool = False,
     log_bins: bool = False,
-    interpolation_method: Literal["linear"] | None = None,
+    interpolation_method: callable | str | None = None,
     interp_points_generator: callable[
         [float], callable[[np.ndarray, int], tuple[np.ndarray, np.ndarray]]
     ] = None,
@@ -108,21 +107,42 @@ def angular_average(
         Whether to also return an estimate of the variance of the field in each bin.
     log_bins
         Whether to create bins in log-space (default linear).
-    interpolation_method
-        By default, grid points are included in a bin as they are if their centre
-        falls within the radial bin. If `interpolation_method` is set, the grid values
-        will be interpolated to a set of points on a hypersphere instead (and then
-        these interpolated values will be averaged). Currently only 'linear' is
-        supported. See `interp_points_generator`.
+    interpolation_method : callable, str, or None, optional
+        Controls how grid values are mapped into radial bins. If ``None``
+        (default), each grid cell is assigned to the bin that contains its
+        centre coordinate — no interpolation is performed.
+
+        If not ``None``, grid values are first interpolated onto sample
+        points on a hypersphere (see *interp_points_generator*) and those
+        interpolated values are then averaged.  Accepted values:
+
+        * ``'linear'`` — resolved to :func:`linear_interp`, which wraps
+          :class:`~scipy.interpolate.RegularGridInterpolator`.
+        * ``'nan-aware'`` — resolved to :func:`nan_aware_interp`, which
+          uses normalised convolution (two ``RegularGridInterpolator``
+          calls) so that NaN grid cells do not poison neighbouring
+          sample points.  This is mainly useful when the requested k
+          range extends to very low values (edge bins close to masked
+          k_i = 0 planes), where the standard trilinear stencil would
+          produce NaN because some of its corners lie on those planes.
+          If the k range starts at higher values, ``'linear'`` is
+          sufficient to fill in bins between valid grid points and will
+          be faster.
+        * A **callable** with signature
+          ``(coords, field, sample_points) -> result``, where *coords*
+          is a tuple of 1-D coordinate arrays, *field* is the N-D data
+          array (may contain NaN), *sample_points* has shape ``(M, ndim)``
+          and the return is a 1-D array of length ``M``.  This lets users
+          plug in a custom interpolation scheme.
     interp_points_generator
         If `interpolation_method` is not None, this parameter specifies a function
         to generate the sample points on a hypersphere to which to interpolate.
         The default is :func:`regular_angular_generator(angular_resolution=0.05)`.
         This should be specified as a callable that takes two arguments: an array of
         radial coordinates to which we are to interpolate, and an integer specifying the
-        number of dimensions over which we are averaging. The rerturned callable should
+        number of dimensions over which we are averaging. The returned callable should
         itself return a 1D array of radii and a 2D array of azimuthal angles with shape
-        (ndim-1,N), where N is the number of interpolation points. The azimual angles
+        (ndim-1,N), where N is the number of interpolation points. The azimuthal angles
         are expected to have their first  coordinate in the range 0-2pi and the rest of
         the coordinates in 0-pi. See the functions :func:`regular_angular_generator` and
         :func:`above_mu_min_angular_generator` for examples.
@@ -177,8 +197,27 @@ def angular_average(
     angular_average_nd : Perform an angular average in a subset of the total dimensions.
 
     """
-    if interpolation_method not in (None, "linear"):
-        raise ValueError("Only linear interpolation is supported.")
+    # Resolve string shortcuts to interpolation callables
+    if isinstance(interpolation_method, str):
+        if interpolation_method == "linear":
+            interpolation_method = linear_interp
+        elif interpolation_method == "nan-aware":
+            warnings.warn(
+                "'nan-aware' interpolation uses two RegularGridInterpolator calls "
+                "per field and may be slower than 'linear'.",
+                stacklevel=2,
+            )
+            interpolation_method = nan_aware_interp
+        else:
+            raise ValueError(
+                f"Unknown interpolation method: {interpolation_method!r}. "
+                "Use 'linear', 'nan-aware', a callable, or None."
+            )
+    elif interpolation_method is not None and not callable(interpolation_method):
+        raise ValueError(
+            "interpolation_method must be None, a string ('linear'/'nan-aware'), "
+            "or a callable with signature (coords, field, sample_points)."
+        )
 
     ndim = field.ndim
     if isinstance(coords, list | tuple):
@@ -215,20 +254,37 @@ def angular_average(
             )
         res = _field_average(indx, field, weights, sumweights)
     else:
-        bins = _getbins(bins, coord_mags, log_bins, bins_upto_boxlen)
+        bin_edges = _getbins(bins, coord_mags, log_bins, bins_upto_boxlen)
 
         if bin_ave:
             if log_bins:
-                bins = np.exp((np.log(bins[1:]) + np.log(bins[:-1])) / 2)
+                bins = np.exp((np.log(bin_edges[1:]) + np.log(bin_edges[:-1])) / 2)
             else:
-                bins = (bins[1:] + bins[:-1]) / 2
+                bins = (bin_edges[1:] + bin_edges[:-1]) / 2
+        else:
+            bins = bin_edges
 
         sample_coords, r_n = _sample_coords_interpolate(
             coords, bins, weights, interp_points_generator
         )
-        res, sumweights = _field_average_interpolate(
-            coords, field, bins, weights, sample_coords, r_n
+        res = _field_average_interpolate(
+            coords,
+            field,
+            bins,
+            weights,
+            sample_coords,
+            r_n,
+            interp_fn=interpolation_method,
         )
+
+        # Compute sumweights from the grid (not from interpolated samples)
+        indx = np.digitize(coord_mags.flatten(), bin_edges)
+        if np.isscalar(weights):
+            sumweights = np.bincount(indx, minlength=len(bin_edges) + 1)[1:-1]
+        else:
+            sumweights = np.bincount(
+                indx, weights=weights.flatten(), minlength=len(bin_edges) + 1
+            )[1:-1]
     var = None
     if get_variance and interpolation_method is None:
         var = _field_variance(indx, field, res, weights, sumweights)
@@ -462,8 +518,85 @@ def _sample_coords_interpolate(coords, bins, weights, interp_points_generator=No
     return sample_coords, r_n
 
 
-def _field_average_interpolate(coords, field, bins, weights, sample_coords, r_n):
+def linear_interp(coords, field, sample_points):
+    """Standard trilinear interpolation via ``RegularGridInterpolator``.
+
+    This is the default interpolation callable used by
+    :func:`angular_average` and :func:`get_power` when interpolation is
+    enabled.  Users may pass their own callable with the same signature.
+
+    Parameters
+    ----------
+    coords : tuple of 1-D arrays
+        Coordinate vectors along each axis of *field*.
+    field : ndarray
+        The data array on a regular grid.
+    sample_points : ndarray, shape (N, ndim)
+        Points at which to evaluate the interpolation.
+
+    Returns
+    -------
+    result : ndarray, shape (N,)
+        Interpolated values.
+    """
+    interp_fnc = RegularGridInterpolator(
+        coords, field, bounds_error=False, fill_value=np.nan
+    )
+    return interp_fnc(sample_points)
+
+
+def nan_aware_interp(coords, field, sample_points):
+    """Linearly interpolate *field* on a regular grid, ignoring NaN cells.
+
+    Uses normalised convolution: NaN corners of the interpolation stencil are
+    excluded from the weighted average instead of poisoning the result (which
+    is what ``RegularGridInterpolator`` does).
+
+    Parameters
+    ----------
+    coords : tuple of 1-D arrays
+        Coordinate vectors along each axis of *field* (same convention as
+        ``RegularGridInterpolator``).
+    field : ndarray
+        The data array, possibly containing NaN at masked grid points.
+    sample_points : ndarray, shape (N, ndim)
+        Points at which to evaluate the interpolation.
+
+    Returns
+    -------
+    result : ndarray, shape (N,)
+        Interpolated values.  A point is NaN only when **all** corners of its
+        interpolation cell are NaN.
+    """
+    valid = np.isfinite(field)
+
+    # Numerator: interpolate field with NaN -> 0
+    field_filled = np.where(valid, field, 0.0)
+    interp_num = RegularGridInterpolator(
+        coords, field_filled, bounds_error=False, fill_value=np.nan
+    )
+
+    # Denominator: interpolate validity mask to get sum of valid weights
+    interp_den = RegularGridInterpolator(
+        coords, valid.astype(float), bounds_error=False, fill_value=0.0
+    )
+
+    numerator = interp_num(sample_points)
+    denominator = interp_den(sample_points)
+
+    result = np.full_like(numerator, np.nan)
+    mask = denominator > 0
+    result[mask] = numerator[mask] / denominator[mask]
+    return result
+
+
+def _field_average_interpolate(
+    coords, field, bins, weights, sample_coords, r_n, interp_fn=None
+):
     # Grid is regular + can be ordered only in Cartesian coords.
+    if interp_fn is None:
+        interp_fn = linear_interp
+
     if isinstance(weights, np.ndarray):
         weights = weights.reshape(field.shape)
         if not ((weights == 0) | (weights == 1)).all():
@@ -484,47 +617,30 @@ def _field_average_interpolate(coords, field, bins, weights, sample_coords, r_n)
         np.max([np.nanstd(field), 1.0]),
     )  # Avoid division by 0
     rescaled_field = (field - mean) / std
-    fnc = RegularGridInterpolator(
-        coords,
-        rescaled_field,  # Complex data is accepted.
-        bounds_error=False,
-        fill_value=np.nan,
-    )  # To extrapolate at the edges if needed.
-    # Evaluate it on points in angular coords that we then convert to Cartesian.
 
-    interped_field = fnc(sample_coords.T) * std + mean
+    interped_field = interp_fn(coords, rescaled_field, sample_coords.T) * std + mean
+
     if np.all(np.isnan(interped_field)):
         warnings.warn("Interpolator returned all NaNs.", RuntimeWarning, stacklevel=2)
-    final_sumweights = []
+
     # Average over the spherical shells for each radius / bin value
     if not ((weights == 0) | (weights == 1)).all():
-        fnc = RegularGridInterpolator(
-            coords,
-            weights,  # Complex data is accepted.
-            bounds_error=False,
-            fill_value=np.nan,
-        )
-        interped_weights = fnc(sample_coords.T)
+        interped_weights = interp_fn(coords, weights, sample_coords.T)
 
         avged_field = []
-
         for b in bins:
             mbin = np.logical_and(r_n == b, ~np.isnan(interped_field))
-            avged_field.append(np.sum(interped_field[mbin] * interped_weights[mbin]))
-            final_sumweights.append(np.sum(interped_weights[mbin]))
-        avged_field = np.array(avged_field) / final_sumweights
+            w_sum = np.sum(interped_weights[mbin])
+            avged_field.append(
+                np.sum(interped_field[mbin] * interped_weights[mbin]) / w_sum
+                if w_sum > 0
+                else np.nan
+            )
+        avged_field = np.array(avged_field)
     else:
         avged_field = np.array([np.nanmean(interped_field[r_n == b]) for b in bins])
-        unique_rn, sumweights = np.unique(
-            r_n[~np.isnan(interped_field)],
-            return_counts=True,
-        )
-        for b in bins:
-            if b in unique_rn:
-                final_sumweights.append(sumweights[unique_rn == b][0])
-            else:
-                final_sumweights.append(0)
-    return avged_field, np.array(final_sumweights)
+
+    return avged_field
 
 
 def _field_average(indx, field, weights, sumweights):
@@ -590,7 +706,7 @@ def angular_average_nd(  # noqa: C901
     field: np.ndarray,
     coords: list[np.ndarray],
     weights: np.ndarray | float = 1.0,
-    interpolation_method: str | None = None,
+    interpolation_method: callable | str | None = None,
     **kwargs,
 ):
     """
@@ -618,12 +734,23 @@ def angular_average_nd(  # noqa: C901
     weights
         An array that either has the same shape as the first `n` dimensions of `field`,
         or the same shape as the full field, giving a weight for each entry.
-    interpolation_method
-        By default, grid points are included in a bin as they are if their centre
-        falls within the radial bin. If `interpolation_method` is set, the grid values
-        will be interpolated to a set of points on a hypersphere instead (and then
-        these interpolated values will be averaged). Currently only 'linear' is
-        supported. See `interp_points_generator`.
+    interpolation_method : callable, str, or None, optional
+        Controls how grid values are mapped into radial bins. If ``None``
+        (default), each grid cell is assigned to the bin that contains its
+        centre coordinate — no interpolation is performed.
+
+        If not ``None``, grid values are first interpolated onto sample
+        points on a hypersphere and then averaged.  Accepted values:
+
+        * ``'linear'`` — standard trilinear interpolation via
+          :func:`linear_interp`.
+        * ``'nan-aware'`` — NaN-tolerant interpolation via
+          :func:`nan_aware_interp` (slower, uses two interpolator
+          calls).  Most useful when the k range reaches very low values
+          near masked k_i = 0 planes; for higher k ranges ``'linear'``
+          is sufficient and faster.
+        * A **callable** ``(coords, field, sample_points) -> result``
+          for custom interpolation.
 
     Other Parameters
     ----------------
@@ -725,10 +852,10 @@ def angular_average_nd(  # noqa: C901
         if np.isscalar(weights) or weights.ndim == ndims_to_avg:
             w = weights
         else:
-            w = weights[*idx]
+            w = weights[idx]
 
         avg, _bins, variance, sumwght = angular_average(
-            field=field[*idx],
+            field=field[idx],
             coords=coords if interpolation_method is not None else coord_mags,
             weights=w,
             interpolation_method=interpolation_method,
@@ -744,11 +871,11 @@ def angular_average_nd(  # noqa: C901
             if variance is not None:
                 outvar = np.zeros(out.shape)
 
-        out[:, *idx] = avg
-        outwght[:, *idx] = sumwght
-        outbins[:, *idx] = _bins
+        out[(slice(None),) + idx] = avg
+        outwght[(slice(None),) + idx] = sumwght
+        outbins[(slice(None),) + idx] = _bins
         if variance is not None:
-            outvar[:, *idx] = variance
+            outvar[(slice(None),) + idx] = variance
 
     return out, outbins, outvar, outwght
 
@@ -1047,22 +1174,35 @@ def get_power(
         and returns an array of the same size. This function is applied on the FT before
         the angular averaging. It can be used, for example, to convert linearly-binned
         power into power-per-logarithmic k ($\Delta^2$).
-    interpolation_method : str, optional
-        If None, does not interpolate. Currently only 'linear' is supported.
+    interpolation_method : callable, str, or None, optional
+        Controls how grid values are mapped into radial bins when computing
+        the angular average of the power spectrum.  If ``None`` (default),
+        no interpolation is performed.
+
+        Accepted values:
+
+        * ``'linear'`` — standard trilinear interpolation via
+          :func:`linear_interp`.
+        * ``'nan-aware'`` — NaN-tolerant interpolation via
+          :func:`nan_aware_interp` (slower, uses two interpolator
+          calls).  Most useful when
+          the requested k range extends to very low values (edge bins
+          near masked k_i = 0 planes) where standard trilinear
+          interpolation would return NaN.  If the k range starts at
+          higher values, ``'linear'`` is sufficient and faster.
+        * A **callable** with signature
+          ``(coords, field, sample_points) -> result`` for custom
+          interpolation.
     interp_points_generator : callable, optional
         A function that generates the sample points for the interpolation.
-        If None, defaults regular_angular_generator with resolution = 0.05.
-        If callable, a function that takes as input an angular resolution for the sampling
-        and returns a 1D array of radii and 2D array of angles
-        (see documentation on the inputs of _sphere2cartesian for more details on the outputs).
-        This function can be used to obtain an angular average over a certain region of the field by
-        limiting where the samples are taken for the interpolation. See function `above_mu_min_generator`
-        for an example of such a function.
+        If None, defaults to :func:`regular_angular_generator` with
+        resolution = 0.05.  The callable receives an array of radial bin
+        centres and the number of dimensions to average, and returns a
+        1D array of radii and a 2D array of angles.  This can be used to
+        restrict the angular average to a certain region of the field.
+        See :func:`above_mu_min_angular_generator` for an example.
     return_sumweights : bool, optional
         Whether to return the number of modes in each bin.
-        Note that for the linear interpolation case,
-        this corresponds to the number of samples averaged over
-        (which can be adjusted with the angular_resolution parameter).
     bins_upto_boxlen : bool, optional
         If set to True and the bins are determined automatically, calculate bins only
         up to the maximum k along any dimension. Otherwise, calculate bins up to the
@@ -1185,9 +1325,24 @@ def get_power(
         interp_points_generator=interp_points_generator,
         bins_upto_boxlen=bins_upto_boxlen,
     )
-    res = list(res)
+    res = list(res)  # [P, k, var, sumweights]
     # Remove shot-noise
     if remove_shotnoise and Npart1:
         res[0] -= np.sqrt(V**2 / Npart1 / Npart2)
 
-    return res + [freq[res_ndim:]] if res_ndim < dim else res
+    # When averaging over fewer than all dimensions, the bins and sumweights
+    # arrays from angular_average_nd have shape (n_bins, *remaining_dims).
+    # Since the bins (and typically the sumweights) are identical across the
+    # remaining dimensions, collapse them to 1D.
+    if res_ndim < dim:
+        for idx in (1, 3):  # bins and sumweights
+            arr = res[idx]
+            if arr is not None and arr.ndim > 1:
+                res[idx] = arr[(slice(None),) + (0,) * (arr.ndim - 1)]
+
+    # Build return: (P, k, var, sumweights, [extra_freq])
+    ret = [res[0], res[1], res[2], res[3]]
+    if res_ndim < dim:
+        ret.append(freq[res_ndim:])
+
+    return tuple(ret) if len(ret) > 1 else ret[0]
