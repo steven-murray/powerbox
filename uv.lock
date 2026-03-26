@@ -1670,6 +1670,11 @@ tests = [
     { name = "wheel" },
 ]
 
+[package.dev-dependencies]
+dev = [
+    { name = "pre-commit" },
+]
+
 [package.metadata]
 requires-dist = [
     { name = "flake8", marker = "extra == 'tests'" },
@@ -1694,6 +1699,9 @@ requires-dist = [
     { name = "wheel", marker = "extra == 'tests'" },
 ]
 provides-extras = ["tests", "docs", "dev", "fftw", "all"]
+
+[package.metadata.requires-dev]
+dev = [{ name = "pre-commit", specifier = ">=4.5.1" }]
 
 [[package]]
 name = "pre-commit"

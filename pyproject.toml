@@ -61,3 +61,8 @@ fftw = [
 all = [
     "powerbox[dev]"
 ]
+
+[dependency-groups]
+dev = [
+    "pre-commit>=4.5.1",
+]

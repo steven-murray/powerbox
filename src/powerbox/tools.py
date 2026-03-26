@@ -1159,7 +1159,7 @@ def get_power(
 
     if res_ndim == 0:
         return P, freq, None, np.ones_like(P)
-    
+
     # Determine a nice number of bins.
     if bins is None:
         bins = int(np.prod(N[:res_ndim]) ** (1.0 / res_ndim) / 2.2)
