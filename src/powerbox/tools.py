@@ -245,7 +245,7 @@ def _magnitude_grid(x, dim=None):
 
 def _get_binweights(
     coord_mags: np.ndarray,
-    weights: np.ndarray,
+    weights: np.ndarray | float,
     bins: np.ndarray | int,
     average: bool = True,
     bin_ave: bool = True,
