@@ -32,12 +32,18 @@ documentation="https://powerbox.readthedocs.io"
 readme = {file = ["README.rst"]}
 
 [project.optional-dependencies]
+fftw = [
+    'pyfftw'
+]
+
+[dependency-groups]
 tests = [
     "wheel",
     "flake8",
     "pytest",
     "pytest-cov",
     "scipy",
+    "pyfftw",
 ]
 docs = [
     "sphinx",
@@ -52,17 +58,7 @@ docs = [
     "packaging",  # required for camb
 ]
 dev = [
-    "powerbox[tests,docs,fftw]",
-    "pre-commit"
-]
-fftw = [
-    'pyfftw'
-]
-all = [
-    "powerbox[dev]"
-]
-
-[dependency-groups]
-dev = [
-    "pre-commit>=4.5.1",
+    {include-group = "tests"},
+    {include-group = "docs"},
+    "pre-commit>=4.5.1"
 ]

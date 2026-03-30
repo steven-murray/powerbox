@@ -158,3 +158,10 @@ def test_k_weights_fnc():
     p, *_ = get_power(pb.delta_x(), pb.boxlength, k_weights=ignore_zero_absk)
 
     assert not np.allclose(p, p_ki0)
+
+
+def test_res_ndim_zero():
+    pb = PowerBox(50, dim=3, pk=lambda k: 1.0 * k**-2.0, boxlength=1.0, b=1)
+    p, k, *_ = get_power(pb.delta_x(), pb.boxlength, res_ndim=0)
+
+    assert p.ndim == 3

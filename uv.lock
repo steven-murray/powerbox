@@ -1606,26 +1606,11 @@ dependencies = [
 ]
 
 [package.optional-dependencies]
-all = [
-    { name = "flake8" },
-    { name = "hmf" },
-    { name = "ipykernel" },
-    { name = "matplotlib" },
-    { name = "nbsphinx" },
-    { name = "numpydoc" },
-    { name = "packaging" },
-    { name = "pandoc" },
-    { name = "pre-commit" },
+fftw = [
     { name = "pyfftw" },
-    { name = "pytest" },
-    { name = "pytest-cov" },
-    { name = "scipy" },
-    { name = "sphinx", version = "9.0.4", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
-    { name = "sphinx", version = "9.1.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
-    { name = "sphinx-automodapi" },
-    { name = "sphinx-rtd-theme" },
-    { name = "wheel" },
 ]
+
+[package.dev-dependencies]
 dev = [
     { name = "flake8" },
     { name = "hmf" },
@@ -1659,49 +1644,62 @@ docs = [
     { name = "sphinx-automodapi" },
     { name = "sphinx-rtd-theme" },
 ]
-fftw = [
-    { name = "pyfftw" },
-]
 tests = [
     { name = "flake8" },
+    { name = "pyfftw" },
     { name = "pytest" },
     { name = "pytest-cov" },
     { name = "scipy" },
     { name = "wheel" },
 ]
 
-[package.dev-dependencies]
-dev = [
-    { name = "pre-commit" },
-]
-
 [package.metadata]
 requires-dist = [
-    { name = "flake8", marker = "extra == 'tests'" },
-    { name = "hmf", marker = "extra == 'docs'" },
-    { name = "ipykernel", marker = "extra == 'docs'" },
-    { name = "matplotlib", marker = "extra == 'docs'" },
-    { name = "nbsphinx", marker = "extra == 'docs'" },
     { name = "numpy", specifier = ">1.6.2" },
-    { name = "numpydoc", marker = "extra == 'docs'" },
-    { name = "packaging", marker = "extra == 'docs'" },
-    { name = "pandoc", marker = "extra == 'docs'" },
-    { name = "powerbox", extras = ["dev"], marker = "extra == 'all'" },
-    { name = "powerbox", extras = ["docs", "fftw", "tests"], marker = "extra == 'dev'" },
-    { name = "pre-commit", marker = "extra == 'dev'" },
     { name = "pyfftw", marker = "extra == 'fftw'" },
-    { name = "pytest", marker = "extra == 'tests'" },
-    { name = "pytest-cov", marker = "extra == 'tests'" },
-    { name = "scipy", marker = "extra == 'tests'" },
-    { name = "sphinx", marker = "extra == 'docs'" },
-    { name = "sphinx-automodapi", marker = "extra == 'docs'", specifier = "==0.7" },
-    { name = "sphinx-rtd-theme", marker = "extra == 'docs'" },
-    { name = "wheel", marker = "extra == 'tests'" },
 ]
-provides-extras = ["tests", "docs", "dev", "fftw", "all"]
+provides-extras = ["fftw"]
 
 [package.metadata.requires-dev]
-dev = [{ name = "pre-commit", specifier = ">=4.5.1" }]
+dev = [
+    { name = "flake8" },
+    { name = "hmf" },
+    { name = "ipykernel" },
+    { name = "matplotlib" },
+    { name = "nbsphinx" },
+    { name = "numpydoc" },
+    { name = "packaging" },
+    { name = "pandoc" },
+    { name = "pre-commit", specifier = ">=4.5.1" },
+    { name = "pyfftw" },
+    { name = "pytest" },
+    { name = "pytest-cov" },
+    { name = "scipy" },
+    { name = "sphinx" },
+    { name = "sphinx-automodapi", specifier = "==0.7" },
+    { name = "sphinx-rtd-theme" },
+    { name = "wheel" },
+]
+docs = [
+    { name = "hmf" },
+    { name = "ipykernel" },
+    { name = "matplotlib" },
+    { name = "nbsphinx" },
+    { name = "numpydoc" },
+    { name = "packaging" },
+    { name = "pandoc" },
+    { name = "sphinx" },
+    { name = "sphinx-automodapi", specifier = "==0.7" },
+    { name = "sphinx-rtd-theme" },
+]
+tests = [
+    { name = "flake8" },
+    { name = "pyfftw" },
+    { name = "pytest" },
+    { name = "pytest-cov" },
+    { name = "scipy" },
+    { name = "wheel" },
+]
 
 [[package]]
 name = "pre-commit"
