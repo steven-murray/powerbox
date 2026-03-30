@@ -22,7 +22,7 @@ jobs:
 
       - name: Install Deps
         run: |
-          pip install .[dev]
+          pip install . --group dev
           pip install papermill ipykernel
 
       - name: Install ipykernel
