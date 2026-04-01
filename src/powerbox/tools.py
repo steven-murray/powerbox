@@ -1157,8 +1157,11 @@ def get_power(
     if res_ndim is None:
         res_ndim = dim
 
+    if not (0 <= res_ndim <= dim):
+        raise ValueError(f"res_ndim must be between 0 and {dim}, got {res_ndim}")
+
     if res_ndim == 0:
-        return P, freq, None, np.ones_like(P)
+        return [P, None, None, None, freq]
 
     # Determine a nice number of bins.
     if bins is None:
