@@ -247,8 +247,11 @@ def test_interp_method():
     x = np.linspace(-3, 3, 40)
     P = np.ones((40, 40, 40))
     freq = [x, x, x]
-    with pytest.raises(ValueError, match = f"Unknown interpolation method: abc. "
-                "Use 'linear', 'nan-aware', a callable, or None."):
+    with pytest.raises(
+        ValueError,
+        match="Unknown interpolation method: abc. "
+        "Use 'linear', 'nan-aware', a callable, or None.",
+    ):
         angular_average_nd(
             field=P,
             coords=freq,
@@ -258,8 +261,11 @@ def test_interp_method():
             bins_upto_boxlen=True,
         )
 
-    with pytest.raises(ValueError, match = "interpolation_method must be None, a string ('linear'/'nan-aware'), "
-            "or a callable with signature (coords, field, sample_points)."):
+    with pytest.raises(
+        ValueError,
+        match="interpolation_method must be None, a string ('linear'/'nan-aware'), "
+        "or a callable with signature (coords, field, sample_points).",
+    ):
         angular_average_nd(
             field=P,
             coords=freq,
@@ -268,7 +274,6 @@ def test_interp_method():
             interpolation_method=True,
             bins_upto_boxlen=True,
         )
-
 
 
 def test_error_w_kmag_coords():

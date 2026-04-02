@@ -513,7 +513,9 @@ def _sample_coords_interpolate(coords, bins, weights, interp_points_generator=No
     return sample_coords, r_n
 
 
-def linear_interp(coords: tuple[np.ndarray,...], field: np.ndarray, sample_points: np.ndarray) -> np.ndarray:
+def linear_interp(
+    coords: tuple[np.ndarray, ...], field: np.ndarray, sample_points: np.ndarray
+) -> np.ndarray:
     """Standard n-linear interpolation via ``RegularGridInterpolator``.
 
     This is the default interpolation callable used by
@@ -540,7 +542,9 @@ def linear_interp(coords: tuple[np.ndarray,...], field: np.ndarray, sample_point
     return interp_fnc(sample_points)
 
 
-def nan_aware_interp(coords: tuple[np.ndarray,...], field: np.ndarray, sample_points: np.ndarray) -> np.ndarray:
+def nan_aware_interp(
+    coords: tuple[np.ndarray, ...], field: np.ndarray, sample_points: np.ndarray
+) -> np.ndarray:
     """Linearly interpolate *field* on a regular grid, ignoring NaN cells.
 
     Uses normalised convolution: NaN corners of the interpolation stencil are
