@@ -263,8 +263,8 @@ def test_interp_method():
 
     with pytest.raises(
         ValueError,
-        match="interpolation_method must be None, a string ('linear'/'nan-aware'), "
-        "or a callable with signature (coords, field, sample_points).",
+        match=r"interpolation_method must be None, a string \('linear'/'nan-aware'\), "
+        r"or a callable with signature \(coords, field, sample_points\)\.",
     ):
         angular_average_nd(
             field=P,
