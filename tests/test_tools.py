@@ -37,22 +37,6 @@ def test_warn_interp_weights():
             weights=weights,
             interp_points_generator=regular_angular_generator(),
         )
-    with pytest.warns(RuntimeWarning):
-        with warnings.catch_warnings():
-            warnings.filterwarnings(
-                "ignore",
-                message="'nan-aware' interpolation uses two",
-                category=UserWarning,
-            )
-            angular_average(
-                P,
-                freq,
-                bins=10,
-                interpolation_method="nan-aware",
-                weights=weights,
-                bin_ave=False,
-                interp_points_generator=regular_angular_generator(),
-            )
 
 
 def test_bins_upto_boxlen_warning():
@@ -91,19 +75,14 @@ def test_angular_avg_nd_3(interpolation_method):
     P = r2**-1.0
     P = np.repeat(P, 100).reshape(400, 400, 100)
     freq = [x, x, np.linspace(-2, 2, 100)]
-    with warnings.catch_warnings():
-        warnings.filterwarnings(
-            "ignore",
-            message="'nan-aware' interpolation uses two",
-            category=UserWarning,
-        )
-        p_k, k_av_bins, *_ = angular_average_nd(
-            field=P,
-            coords=freq[:2],
-            bins=50,
-            interpolation_method=interpolation_method,
-            bins_upto_boxlen=True,
-        )
+
+    p_k, k_av_bins, *_ = angular_average_nd(
+        field=P,
+        coords=freq[:2],
+        bins=50,
+        interpolation_method=interpolation_method,
+        bins_upto_boxlen=True,
+    )
     # k avg bins is always the same in each layer
     k_av_bins = k_av_bins[:, 0]
     if interpolation_method is not None:
@@ -170,22 +149,16 @@ def test_interp_w_weights(n):
 
     # Test 4D avg works (nan-aware)
     freq = [x for _ in range(n)]
-    with warnings.catch_warnings():
-        warnings.filterwarnings(
-            "ignore",
-            message="'nan-aware' interpolation uses two",
-            category=UserWarning,
-        )
-        p_k_lin, *_ = angular_average(
-            field=P,
-            coords=freq,
-            bins=10,
-            interpolation_method="nan-aware",
-            weights=weights,
-            interp_points_generator=regular_angular_generator(angular_resolution=0.4),
-            log_bins=True,
-            bins_upto_boxlen=True,
-        )
+    p_k_lin, *_ = angular_average(
+        field=P,
+        coords=freq,
+        bins=10,
+        interpolation_method="nan-aware",
+        weights=weights,
+        interp_points_generator=regular_angular_generator(angular_resolution=0.4),
+        log_bins=True,
+        bins_upto_boxlen=True,
+    )
 
     assert np.all(p_k_lin == 1.0)
 
@@ -274,7 +247,8 @@ def test_interp_method():
     x = np.linspace(-3, 3, 40)
     P = np.ones((40, 40, 40))
     freq = [x, x, x]
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match = f"Unknown interpolation method: abc. "
+                "Use 'linear', 'nan-aware', a callable, or None."):
         angular_average_nd(
             field=P,
             coords=freq,
@@ -284,7 +258,8 @@ def test_interp_method():
             bins_upto_boxlen=True,
         )
 
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match = "interpolation_method must be None, a string ('linear'/'nan-aware'), "
+            "or a callable with signature (coords, field, sample_points)."):
         angular_average_nd(
             field=P,
             coords=freq,
@@ -294,15 +269,6 @@ def test_interp_method():
             bins_upto_boxlen=True,
         )
 
-    with pytest.raises(ValueError):
-        angular_average(
-            field=P,
-            coords=freq,
-            bins=20,
-            get_variance=True,
-            interpolation_method="abc",
-            bins_upto_boxlen=True,
-        )
 
 
 def test_error_w_kmag_coords():

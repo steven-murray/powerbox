@@ -202,11 +202,6 @@ def angular_average(
         if interpolation_method == "linear":
             interpolation_method = linear_interp
         elif interpolation_method == "nan-aware":
-            warnings.warn(
-                "'nan-aware' interpolation uses two RegularGridInterpolator calls "
-                "per field and may be slower than 'linear'.",
-                stacklevel=2,
-            )
             interpolation_method = nan_aware_interp
         else:
             raise ValueError(
@@ -518,8 +513,8 @@ def _sample_coords_interpolate(coords, bins, weights, interp_points_generator=No
     return sample_coords, r_n
 
 
-def linear_interp(coords, field, sample_points):
-    """Standard trilinear interpolation via ``RegularGridInterpolator``.
+def linear_interp(coords: tuple[np.ndarray,...], field: np.ndarray, sample_points: np.ndarray) -> np.ndarray:
+    """Standard n-linear interpolation via ``RegularGridInterpolator``.
 
     This is the default interpolation callable used by
     :func:`angular_average` and :func:`get_power` when interpolation is
@@ -545,7 +540,7 @@ def linear_interp(coords, field, sample_points):
     return interp_fnc(sample_points)
 
 
-def nan_aware_interp(coords, field, sample_points):
+def nan_aware_interp(coords: tuple[np.ndarray,...], field: np.ndarray, sample_points: np.ndarray) -> np.ndarray:
     """Linearly interpolate *field* on a regular grid, ignoring NaN cells.
 
     Uses normalised convolution: NaN corners of the interpolation stencil are
@@ -742,7 +737,7 @@ def angular_average_nd(  # noqa: C901
         If not ``None``, grid values are first interpolated onto sample
         points on a hypersphere and then averaged.  Accepted values:
 
-        * ``'linear'`` — standard trilinear interpolation via
+        * ``'linear'`` — standard n-linear interpolation via
           :func:`linear_interp`.
         * ``'nan-aware'`` — NaN-tolerant interpolation via
           :func:`nan_aware_interp` (slower, uses two interpolator
