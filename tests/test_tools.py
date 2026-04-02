@@ -249,7 +249,7 @@ def test_interp_method():
     freq = [x, x, x]
     with pytest.raises(
         ValueError,
-        match="Unknown interpolation method: abc. "
+        match="Unknown interpolation method: 'abc'. "
         "Use 'linear', 'nan-aware', a callable, or None.",
     ):
         angular_average_nd(
