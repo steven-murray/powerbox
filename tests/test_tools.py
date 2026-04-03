@@ -231,7 +231,9 @@ def test_error_coords_and_mask():
     mask = mu_mesh >= 0.97
     P = np.zeros(mask.shape)
     P[mask] = 1.0
-    with pytest.raises(ValueError, match="Generated sample points are outside of the coordinate box"):
+    with pytest.raises(
+        ValueError, match="Generated sample points are outside of the coordinate box"
+    ):
         p_k_lin, k_av_bins_lin = angular_average(
             P,
             [x, x],
@@ -281,7 +283,10 @@ def test_error_w_kmag_coords():
     P = np.ones((40, 40, 40))
     X, Y = np.meshgrid(x, x)
 
-    with pytest.raises(ValueError, match="coords must be a list of 1D coordinate arrays when interpolating"):
+    with pytest.raises(
+        ValueError,
+        match="coords must be a list of 1D coordinate arrays when interpolating",
+    ):
         angular_average_nd(
             field=P, coords=X**2 + Y**2, bins=20, interpolation_method="linear"
         )
@@ -290,7 +295,10 @@ def test_error_w_kmag_coords():
     P = np.ones((40, 40, 40))
     X, Y = np.meshgrid(x, x)
 
-    with pytest.raises(ValueError, match="coords must be a list of 1D coordinate arrays when interpolating"):
+    with pytest.raises(
+        ValueError,
+        match="coords must be a list of 1D coordinate arrays when interpolating",
+    ):
         angular_average(
             field=P, coords=X**2 + Y**2, bins=20, interpolation_method="linear"
         )
@@ -468,7 +476,9 @@ def test_complex_variance():
     X, Y = np.meshgrid(x, x)
     r2 = X**2 + Y**2
     P = np.ones_like(r2) + np.ones_like(r2) * 1j
-    with pytest.raises(NotImplementedError, match="Cannot use a complex field when computing variance"):
+    with pytest.raises(
+        NotImplementedError, match="Cannot use a complex field when computing variance"
+    ):
         angular_average(
             P,
             np.sqrt(r2),
