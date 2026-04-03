@@ -67,7 +67,7 @@ def test_bins_upto_maxmag(xmax, ndim):
     assert np.isclose(bins.max(), xmax * np.sqrt(ndim))
 
 
-@pytest.mark.parametrize("interpolation_method", [None, "linear"])
+@pytest.mark.parametrize("interpolation_method", [None, "linear", "nan-aware"])
 def test_angular_avg_nd_3(interpolation_method):
     x = np.linspace(-3, 3, 400)
     X, Y = np.meshgrid(x, x)
@@ -75,6 +75,7 @@ def test_angular_avg_nd_3(interpolation_method):
     P = r2**-1.0
     P = np.repeat(P, 100).reshape(400, 400, 100)
     freq = [x, x, np.linspace(-2, 2, 100)]
+
     p_k, k_av_bins, *_ = angular_average_nd(
         field=P,
         coords=freq[:2],
@@ -84,7 +85,7 @@ def test_angular_avg_nd_3(interpolation_method):
     )
     # k avg bins is always the same in each layer
     k_av_bins = k_av_bins[:, 0]
-    if interpolation_method == "linear":
+    if interpolation_method is not None:
         assert np.max(np.abs((p_k[:, 0] - k_av_bins**-2.0) / k_av_bins**-2.0)) < 0.05
     else:
         # Without interpolation, the radially-averaged power is not very accurate
@@ -102,7 +103,7 @@ def test_weights_shape():
     weights = np.ones(3 * [20])
     freq = [x for _ in range(3)]
 
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="coords and weights must have the same shape"):
         p_k_lin, k_av_bins_lin = angular_average(
             P, freq, bins=10, weights=weights, bins_upto_boxlen=True
         )
@@ -138,6 +139,21 @@ def test_interp_w_weights(n):
         coords=freq,
         bins=10,
         interpolation_method="linear",
+        weights=weights,
+        interp_points_generator=regular_angular_generator(angular_resolution=0.4),
+        log_bins=True,
+        bins_upto_boxlen=True,
+    )
+
+    assert np.all(p_k_lin == 1.0)
+
+    # Test 4D avg works (nan-aware)
+    freq = [x for _ in range(n)]
+    p_k_lin, *_ = angular_average(
+        field=P,
+        coords=freq,
+        bins=10,
+        interpolation_method="nan-aware",
         weights=weights,
         interp_points_generator=regular_angular_generator(angular_resolution=0.4),
         log_bins=True,
@@ -215,7 +231,9 @@ def test_error_coords_and_mask():
     mask = mu_mesh >= 0.97
     P = np.zeros(mask.shape)
     P[mask] = 1.0
-    with pytest.raises(ValueError):
+    with pytest.raises(
+        ValueError, match="Generated sample points are outside of the coordinate box"
+    ):
         p_k_lin, k_av_bins_lin = angular_average(
             P,
             [x, x],
@@ -231,7 +249,11 @@ def test_interp_method():
     x = np.linspace(-3, 3, 40)
     P = np.ones((40, 40, 40))
     freq = [x, x, x]
-    with pytest.raises(ValueError):
+    with pytest.raises(
+        ValueError,
+        match="Unknown interpolation method: 'abc'. "
+        "Use 'linear', 'nan-aware', a callable, or None.",
+    ):
         angular_average_nd(
             field=P,
             coords=freq,
@@ -241,13 +263,17 @@ def test_interp_method():
             bins_upto_boxlen=True,
         )
 
-    with pytest.raises(ValueError):
-        angular_average(
+    with pytest.raises(
+        ValueError,
+        match=r"interpolation_method must be None, a string \('linear'/'nan-aware'\), "
+        r"or a callable with signature \(coords, field, sample_points\)\.",
+    ):
+        angular_average_nd(
             field=P,
             coords=freq,
             bins=20,
             get_variance=True,
-            interpolation_method="abc",
+            interpolation_method=True,
             bins_upto_boxlen=True,
         )
 
@@ -257,7 +283,10 @@ def test_error_w_kmag_coords():
     P = np.ones((40, 40, 40))
     X, Y = np.meshgrid(x, x)
 
-    with pytest.raises(ValueError):
+    with pytest.raises(
+        ValueError,
+        match="coords must be a list of 1D coordinate arrays when interpolating",
+    ):
         angular_average_nd(
             field=P, coords=X**2 + Y**2, bins=20, interpolation_method="linear"
         )
@@ -266,7 +295,10 @@ def test_error_w_kmag_coords():
     P = np.ones((40, 40, 40))
     X, Y = np.meshgrid(x, x)
 
-    with pytest.raises(ValueError):
+    with pytest.raises(
+        ValueError,
+        match="coords must be a list of 1D coordinate arrays when interpolating",
+    ):
         angular_average(
             field=P, coords=X**2 + Y**2, bins=20, interpolation_method="linear"
         )
@@ -444,7 +476,9 @@ def test_complex_variance():
     X, Y = np.meshgrid(x, x)
     r2 = X**2 + Y**2
     P = np.ones_like(r2) + np.ones_like(r2) * 1j
-    with pytest.raises(NotImplementedError):
+    with pytest.raises(
+        NotImplementedError, match="Cannot use a complex field when computing variance"
+    ):
         angular_average(
             P,
             np.sqrt(r2),
@@ -585,3 +619,126 @@ def test_angular_averaged_nd_shape_exceptions():
 
     with pytest.raises(ValueError, match="weights must have shape"):
         angular_average_nd(field=P, coords=r2, weights=P[1:], bins=4)
+
+
+@pytest.mark.parametrize("interpolation_method", ["linear", "nan-aware"])
+class TestInterpSimilarToNoInterp:
+    """Check that interpolated angular averages are close to non-interpolated ones."""
+
+    def test_angular_average_2d(self, interpolation_method):
+        """2D field averaged to 1D with angular_average."""
+        x = np.linspace(-3, 3, 200)
+        X, Y = np.meshgrid(x, x)
+        r2 = X**2 + Y**2
+        P = r2**-1.0
+        bins = np.linspace(0, x.max(), 30)
+
+        avg_none, k_none, _, sw_none = angular_average(
+            P, [x, x], bins=bins, interpolation_method=None
+        )
+        with warnings.catch_warnings():
+            warnings.filterwarnings(
+                "ignore",
+                message="'nan-aware' interpolation uses two",
+                category=UserWarning,
+            )
+            avg_interp, k_interp, _, sw_interp = angular_average(
+                P, [x, x], bins=bins, interpolation_method=interpolation_method
+            )
+
+        # Skip first few bins where cell counts are very low
+        start = 3
+        valid = np.isfinite(avg_none[start:]) & np.isfinite(avg_interp[start:])
+        rel_err = np.abs(
+            (avg_interp[start:][valid] - avg_none[start:][valid])
+            / avg_none[start:][valid]
+        )
+        assert np.max(rel_err) < 0.10, (
+            f"Max relative error {np.max(rel_err):.4f} exceeds 10% "
+            f"for {interpolation_method}"
+        )
+
+    def test_angular_average_3d(self, interpolation_method):
+        """3D field averaged to 1D with angular_average."""
+        x = np.linspace(-3, 3, 60)
+        X, Y, Z = np.meshgrid(x, x, x, indexing="ij")
+        r2 = X**2 + Y**2 + Z**2
+        P = r2**-1.0
+        bins = np.linspace(0, x.max(), 20)
+
+        avg_none, k_none, _, sw_none = angular_average(
+            P, [x, x, x], bins=bins, interpolation_method=None
+        )
+        with warnings.catch_warnings():
+            warnings.filterwarnings(
+                "ignore",
+                message="'nan-aware' interpolation uses two",
+                category=UserWarning,
+            )
+            avg_interp, k_interp, _, sw_interp = angular_average(
+                P, [x, x, x], bins=bins, interpolation_method=interpolation_method
+            )
+
+        start = 3
+        valid = np.isfinite(avg_none[start:]) & np.isfinite(avg_interp[start:])
+        rel_err = np.abs(
+            (avg_interp[start:][valid] - avg_none[start:][valid])
+            / avg_none[start:][valid]
+        )
+        assert np.max(rel_err) < 0.10, (
+            f"Max relative error {np.max(rel_err):.4f} exceeds 10% "
+            f"for {interpolation_method}"
+        )
+
+    def test_angular_average_nd_2d_field(self, interpolation_method):
+        """3D field with angular_average_nd averaging over 2 dims."""
+        x = np.linspace(-3, 3, 200)
+        X, Y = np.meshgrid(x, x)
+        r2 = X**2 + Y**2
+        P = r2**-1.0
+        # Add an extra dimension so angular_average_nd averages 2D → 1D+extra
+        P = np.repeat(P, 10).reshape(200, 200, 10)
+        freq = [x, x, np.linspace(-2, 2, 10)]
+
+        avg_none, k_none, *_ = angular_average_nd(
+            field=P, coords=freq[:2], bins=30, interpolation_method=None
+        )
+        with warnings.catch_warnings():
+            warnings.filterwarnings(
+                "ignore",
+                message="'nan-aware' interpolation uses two",
+                category=UserWarning,
+            )
+            avg_interp, k_interp, *_ = angular_average_nd(
+                field=P,
+                coords=freq[:2],
+                bins=30,
+                interpolation_method=interpolation_method,
+            )
+
+        # Compare at a representative slice (middle of extra dim)
+        mid = avg_none.shape[1] // 2
+        start = 5
+        a_none = avg_none[start:, mid]
+        a_interp = avg_interp[start:, mid]
+        valid = np.isfinite(a_none) & np.isfinite(a_interp) & (a_none != 0)
+        rel_err = np.abs((a_interp[valid] - a_none[valid]) / a_none[valid])
+        assert np.max(rel_err) < 0.10, (
+            f"Max relative error {np.max(rel_err):.4f} exceeds 10% "
+            f"for angular_average_nd with {interpolation_method}"
+        )
+
+
+def test_get_power_2d_sumweights_is_1d():
+    """When res_ndim < dim, sumweights should be collapsed to 1D."""
+    pb = PowerBox(64, dim=3, pk=lambda k: k**-2.0, boxlength=1.0, b=1)
+    dx = pb.delta_x()
+
+    p, k, var, sumweights, extra_freq = get_power(dx, pb.boxlength, b=1, res_ndim=2)
+
+    # p has shape (n_bins, n_remaining) but sumweights should be 1D
+    assert sumweights.ndim == 1, (
+        f"Expected sumweights to be 1D, got shape {sumweights.shape}"
+    )
+    assert k.ndim == 1, f"Expected k to be 1D, got shape {k.shape}"
+    assert sumweights.shape[0] == p.shape[0]
