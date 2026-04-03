@@ -30,7 +30,7 @@ jobs:
         run: |
           which pip
           python --version
-          pip install .[tests,fftw]
+          pip install . --group tests
 
       - name: Run Tests
         shell: bash -el {0}

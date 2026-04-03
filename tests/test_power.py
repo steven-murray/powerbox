@@ -1,3 +1,4 @@
+import pytest
 import numpy as np
 import warnings
 from functools import partial
@@ -158,3 +159,24 @@ def test_k_weights_fnc():
     p, *_ = get_power(pb.delta_x(), pb.boxlength, k_weights=ignore_zero_absk)
 
     assert not np.allclose(p, p_ki0)
+
+
+def test_res_ndim_zero():
+    pb = PowerBox(50, dim=3, pk=lambda k: 1.0 * k**-2.0, boxlength=1.0, b=1)
+    p, k, var, sumweights, remaining_freq = get_power(
+        pb.delta_x(), pb.boxlength, res_ndim=0
+    )
+
+    assert p.ndim == 3
+    assert k is None
+    assert var is None
+    assert sumweights is None
+    assert len(remaining_freq) == 3
+
+
+def test_res_ndim_invalid():
+    pb = PowerBox(50, dim=3, pk=lambda k: 1.0 * k**-2.0, boxlength=1.0, b=1)
+    with pytest.raises(ValueError, match="res_ndim must be between"):
+        get_power(pb.delta_x(), pb.boxlength, res_ndim=-1)
+    with pytest.raises(ValueError, match="res_ndim must be between"):
+        get_power(pb.delta_x(), pb.boxlength, res_ndim=4)
