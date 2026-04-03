@@ -296,7 +296,7 @@ def _magnitude_grid(x, dim=None):
 
 def _get_binweights(
     coord_mags: np.ndarray,
-    weights: np.ndarray,
+    weights: np.ndarray | float,
     bins: np.ndarray | int,
     average: bool = True,
     bin_ave: bool = True,
@@ -810,7 +810,8 @@ def angular_average_nd(  # noqa: C901
         field.shape[:ndims_to_avg],
     ):
         raise ValueError(
-            f"weights must have shape {field.shape} or {field.shape[:ndims_to_avg]}"
+            f"weights must have shape {field.shape} or {field.shape[:ndims_to_avg]}."
+            f" Got {weights.shape} instead."
         )
 
     if ndims_to_avg == field.ndim:
@@ -1294,6 +1295,12 @@ def get_power(
 
     if res_ndim is None:
         res_ndim = dim
+
+    if not (0 <= res_ndim <= dim):
+        raise ValueError(f"res_ndim must be between 0 and {dim}, got {res_ndim}")
+
+    if res_ndim == 0:
+        return [P, None, None, None, freq]
 
     # Determine a nice number of bins.
     if bins is None:
