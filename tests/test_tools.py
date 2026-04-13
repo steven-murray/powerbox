@@ -549,11 +549,11 @@ def test_logbins():
 def test_cross_power_identity():
     pb = PowerBox(200, dim=2, pk=lambda k: 1.0 * k**-2.0, boxlength=1.0, b=1)
     dx = pb.delta_x()
-    p, *_ = get_power(dx, pb.boxlength, b=1)
-    p_cross, *_ = get_power(dx, pb.boxlength, b=1, deltax2=dx)
+    p = get_power(dx, pb.boxlength, b=1).power
+    p_cross = get_power(dx, pb.boxlength, b=1, deltax2=dx).power
     np.testing.assert_allclose(p, p_cross)
-    p, *_ = get_power(dx, [1, 1], b=1)
-    p_cross, *_ = get_power(dx, [1, 1], b=1, deltax2=dx)
+    p = get_power(dx, [1, 1], b=1).power
+    p_cross = get_power(dx, [1, 1], b=1, deltax2=dx).power
     np.testing.assert_allclose(p, p_cross)
 
 
@@ -734,11 +734,11 @@ def test_get_power_2d_sumweights_is_1d():
     pb = PowerBox(64, dim=3, pk=lambda k: k**-2.0, boxlength=1.0, b=1)
     dx = pb.delta_x()
 
-    p, k, var, sumweights, extra_freq = get_power(dx, pb.boxlength, b=1, res_ndim=2)
+    result = get_power(dx, pb.boxlength, b=1, res_ndim=2)
 
-    # p has shape (n_bins, n_remaining) but sumweights should be 1D
-    assert sumweights.ndim == 1, (
-        f"Expected sumweights to be 1D, got shape {sumweights.shape}"
+    # p has shape (n_bins, n_remaining) but nsamples should be 1D
+    assert result.nsamples.ndim == 1, (
+        f"Expected nsamples to be 1D, got shape {result.nsamples.shape}"
     )
-    assert k.ndim == 1, f"Expected k to be 1D, got shape {k.shape}"
-    assert sumweights.shape[0] == p.shape[0]
+    assert result.bin_avg.ndim == 1, f"Expected bin_avg to be 1D, got shape {result.bin_avg.shape}"
+    assert result.nsamples.shape[0] == result.power.shape[0]

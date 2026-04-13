@@ -8,11 +8,125 @@ from __future__ import annotations
 
 import numpy as np
 import warnings
+from dataclasses import dataclass
 from scipy.interpolate import RegularGridInterpolator
 from scipy.special import gamma
 from collections.abc import Sequence
 
 from . import dft
+
+
+@dataclass
+class PowerSpectrum:
+    """The result of :func:`get_power`.
+
+    This object stores the angularly-averaged power spectrum together with all
+    relevant bin information and optional diagnostics.
+
+    Parameters
+    ----------
+    power : np.ndarray
+        The power spectrum averaged over radial bins.  When angular averaging
+        is performed over all dimensions this is a 1-D array of length
+        ``n_bins``.  When only a subset of dimensions are averaged
+        (``res_ndim < ndim``) it has shape ``(n_bins, *remaining_dims)``.
+        When no averaging is performed (``res_ndim=0``) it is the full
+        n-dimensional power array.
+    bin_edges : np.ndarray or None
+        The edges of the radial k-bins with shape ``(n_bins + 1,)``.
+        ``None`` when no angular averaging was performed (``res_ndim=0``).
+    bin_centres : np.ndarray or None
+        The centres of the radial k-bins computed as the (linear or
+        log-space) midpoint of each pair of adjacent edges, with shape
+        ``(n_bins,)``.  ``None`` when no angular averaging was performed.
+    bin_avg : np.ndarray or None
+        The (weighted) average k-mode within each radial bin, with shape
+        ``(n_bins,)``.  This is what was previously returned by
+        :func:`get_power` when ``bin_ave=True``.  ``None`` when no angular
+        averaging was performed.
+    nsamples : np.ndarray or None
+        The sum of k-mode weights (effectively the number of modes) in each
+        radial bin, with shape ``(n_bins,)``.  ``None`` when no angular
+        averaging was performed.
+    variance : np.ndarray or None, optional
+        Estimated variance of the power spectrum in each bin.  Has the same
+        shape as ``bin_centres`` (or ``power`` for partial averages).
+        ``None`` when ``get_variance=False`` was passed to :func:`get_power`.
+    k_unbinned : tuple of np.ndarray or None, optional
+        The k-mode coordinate arrays for dimensions that were *not*
+        angularly averaged.  Set when ``res_ndim < ndim``; ``None``
+        otherwise.
+
+    Notes
+    -----
+    Validation is performed in :meth:`__post_init__` to ensure that all
+    array shapes are mutually consistent.
+
+    Examples
+    --------
+    >>> from powerbox import PowerBox, get_power
+    >>> pb = PowerBox(50, dim=2, pk=lambda k: k**-2., boxlength=1.0, b=1)
+    >>> result = get_power(pb.delta_x(), pb.boxlength, b=1,
+    ...                    bins_upto_boxlen=True)
+    >>> result.power.shape  # 1-D power spectrum
+    (22,)
+    >>> result.bin_avg.shape  # weighted-average k in each bin
+    (22,)
+    >>> result.bin_edges.shape  # bin edges (one more than centres)
+    (23,)
+    """
+
+    power: np.ndarray
+    bin_edges: np.ndarray | None
+    bin_centres: np.ndarray | None
+    bin_avg: np.ndarray | None
+    nsamples: np.ndarray | None
+    variance: np.ndarray | None = None
+    k_unbinned: tuple[np.ndarray, ...] | None = None
+
+    def __post_init__(self):
+        self.power = np.asarray(self.power)
+        for attr in ("bin_edges", "bin_centres", "bin_avg", "nsamples", "variance"):
+            val = getattr(self, attr)
+            if val is not None:
+                setattr(self, attr, np.asarray(val))
+
+        if self.bin_edges is not None:
+            if (
+                self.bin_centres is None
+                or self.bin_avg is None
+                or self.nsamples is None
+            ):
+                raise ValueError(
+                    "bin_centres, bin_avg, and nsamples must all be provided "
+                    "when bin_edges is not None."
+                )
+            n_bins = len(self.bin_centres)
+            if len(self.bin_edges) != n_bins + 1:
+                raise ValueError(
+                    f"bin_edges must have length n_bins + 1 = {n_bins + 1}, "
+                    f"got {len(self.bin_edges)}."
+                )
+            if len(self.bin_avg) != n_bins:
+                raise ValueError(
+                    f"bin_avg must have length n_bins = {n_bins}, "
+                    f"got {len(self.bin_avg)}."
+                )
+            if len(self.nsamples) != n_bins:
+                raise ValueError(
+                    f"nsamples must have length n_bins = {n_bins}, "
+                    f"got {len(self.nsamples)}."
+                )
+            if self.power.shape[0] != n_bins:
+                raise ValueError(
+                    f"power must have first dimension n_bins = {n_bins}, "
+                    f"got {self.power.shape[0]}."
+                )
+            if self.variance is not None and self.variance.shape[0] != n_bins:
+                raise ValueError(
+                    f"variance must have first dimension n_bins = {n_bins}, "
+                    f"got {self.variance.shape[0]}."
+                )
 
 
 def _getbins(
@@ -1091,7 +1205,6 @@ def get_power(
     weights=None,
     weights2=None,
     dimensionless=True,
-    bin_ave=True,
     get_variance=False,
     log_bins=False,
     ignore_zero_mode=False,
@@ -1100,9 +1213,8 @@ def get_power(
     prefactor_fnc=None,
     interpolation_method=None,
     interp_points_generator=None,
-    return_sumweights=False,
     bins_upto_boxlen: bool | None = None,
-):
+) -> PowerSpectrum:
     r"""
     Calculate isotropic power spectrum of a field, or cross-power of two similar fields.
 
@@ -1151,11 +1263,9 @@ def get_power(
         If deltax is a discrete sample, these are weights for each point.
     dimensionless: bool, optional
         Whether to normalise the cube by its mean prior to taking the power.
-    bin_ave : bool, optional
-        Whether to return the bin co-ordinates as the (weighted) average of cells within
-        the bin (if True), or the linearly spaced edges of the bins
     get_variance : bool, optional
-        Whether to also return an estimate of the variance of the power in each bin.
+        Whether to also compute an estimate of the variance of the power in each bin.
+        The result is stored in :attr:`PowerSpectrum.variance`.
     log_bins : bool, optional
         Whether to create bins in log-space.
     ignore_zero_mode : bool, optional
@@ -1201,8 +1311,6 @@ def get_power(
         1D array of radii and a 2D array of angles.  This can be used to
         restrict the angular average to a certain region of the field.
         See :func:`above_mu_min_angular_generator` for an example.
-    return_sumweights : bool, optional
-        Whether to return the number of modes in each bin.
     bins_upto_boxlen : bool, optional
         If set to True and the bins are determined automatically, calculate bins only
         up to the maximum k along any dimension. Otherwise, calculate bins up to the
@@ -1211,40 +1319,39 @@ def get_power(
 
     Returns
     -------
-    p_k : array
-        The power spectrum averaged over bins of equal :math:`|k|`.
-    meank : array
-        The bin-centres for the p_k array (in k). This is the mean k-value for cells in
-        that bin.
-    var : array
-        The variance of the power spectrum, estimated from the mean standard error. Only
-        returned if `get_variance` is True.
+    PowerSpectrum
+        A :class:`PowerSpectrum` instance with the following attributes:
+
+        * ``power`` — the angularly-averaged power spectrum.
+        * ``bin_edges`` — edges of the radial k-bins (shape ``n_bins + 1``).
+        * ``bin_centres`` — linear or log midpoints of the bin edges
+          (shape ``n_bins``).
+        * ``bin_avg`` — weighted-average k in each bin (shape ``n_bins``).
+        * ``nsamples`` — sum of k-mode weights per bin (shape ``n_bins``).
+        * ``variance`` — estimated variance per bin, or ``None`` when
+          ``get_variance=False``.
+        * ``k_unbinned`` — tuple of k-arrays for unaveraged dimensions
+          when ``res_ndim < ndim``, otherwise ``None``.
 
     Examples
     --------
     One can use this function to check whether a box created with :class:`PowerBox`
     has the correct power spectrum:
 
-    >>> from powerbox import PowerBox
+    >>> from powerbox import PowerBox, get_power
     >>> import matplotlib.pyplot as plt
-    >>> pb = PowerBox(250,lambda k : k**-2.)
-    >>> p,k = get_power(pb.delta_x,pb.boxlength)
-    >>> plt.plot(k,p)
-    >>> plt.plot(k,k**-2.)
+    >>> pb = PowerBox(250, lambda k: k**-2., bins_upto_boxlen=True)
+    >>> result = get_power(pb.delta_x(), pb.boxlength, bins_upto_boxlen=True)
+    >>> plt.plot(result.bin_avg, result.power)
+    >>> plt.plot(result.bin_avg, result.bin_avg**-2.)
     >>> plt.xscale('log')
     >>> plt.yscale('log')
 
     An example of a prefactor_fnc applied to the box in the above example:
 
-    >>> from powerbox import get_power
-    >>> import numpy as np
-    >>> def power2delta(freq):
-    >>>     kx = freq[0]
-    >>>     ky = freq[1]
-    >>>     kz = freq[2]
-    >>>     absk = np.sqrt(np.add.outer(np.add.outer(kx**2,ky**2), kz**2))
-    >>>     return absk ** 3 / (2 * np.pi ** 2)
-    >>> p, k = get_power(pb.delta_x, pb.boxlength, prefactor_fnc=power2delta)
+    >>> from powerbox import get_power, power2delta
+    >>> result = get_power(pb.delta_x(), pb.boxlength, prefactor_fnc=power2delta,
+    ...                    bins_upto_boxlen=True)
     """
     # Check if the input data is in sampled particle format
     if N is not None:
@@ -1300,7 +1407,14 @@ def get_power(
         raise ValueError(f"res_ndim must be between 0 and {dim}, got {res_ndim}")
 
     if res_ndim == 0:
-        return [P, None, None, None, freq]
+        return PowerSpectrum(
+            power=P,
+            bin_edges=None,
+            bin_centres=None,
+            bin_avg=None,
+            nsamples=None,
+            k_unbinned=tuple(freq),
+        )
 
     # Determine a nice number of bins.
     if bins is None:
@@ -1318,12 +1432,39 @@ def get_power(
     if ignore_zero_mode:
         k_weights = np.logical_and(k_weights, ignore_zero_absk(freq, kmag))
 
-    # res is (P, k, <var>, <sumweights>)
+    # Resolve bins_upto_boxlen once here so it is consistent between
+    # _getbins (for computing edges) and angular_average_nd below.
+    if not np.iterable(bins) and bins_upto_boxlen is None:
+        warnings.warn(
+            (
+                "In the future, bins will be generated by default up to the smallest "
+                "length over any dimension, instead of the largest magnitude for the box."
+                "Set bins_upto_boxlen to silence this warning."
+            ),
+            stacklevel=2,
+            category=FutureWarning,
+        )
+        bins_upto_boxlen = False
+
+    # Compute the actual bin edges once (avoids duplicate work and warnings).
+    bin_edges = _getbins(bins, kmag, log_bins, bins_upto_boxlen)
+
+    # Compute bin centres as linear or log midpoints of adjacent edges.
+    if log_bins:
+        bin_centres = np.exp(
+            (np.log(bin_edges[1:]) + np.log(bin_edges[:-1])) / 2
+        )
+    else:
+        bin_centres = (bin_edges[1:] + bin_edges[:-1]) / 2
+
+    # Always pass the pre-computed edges so that angular_average_nd does not
+    # recompute them (and never issues the bins_upto_boxlen FutureWarning).
+    # bin_ave=True gives us the weighted-average k per bin (bin_avg).
     res = angular_average_nd(
         field=P,
         coords=freq[:res_ndim],
-        bins=bins,
-        bin_ave=bin_ave,
+        bins=bin_edges,
+        bin_ave=True,
         get_variance=get_variance,
         log_bins=log_bins,
         weights=k_weights,
@@ -1331,7 +1472,8 @@ def get_power(
         interp_points_generator=interp_points_generator,
         bins_upto_boxlen=bins_upto_boxlen,
     )
-    res = list(res)  # [P, k, var, sumweights]
+    res = list(res)  # [P, bin_avg, var, sumweights]
+
     # Remove shot-noise
     if remove_shotnoise and Npart1:
         res[0] -= np.sqrt(V**2 / Npart1 / Npart2)
@@ -1341,14 +1483,17 @@ def get_power(
     # Since the bins (and typically the sumweights) are identical across the
     # remaining dimensions, collapse them to 1D.
     if res_ndim < dim:
-        for idx in (1, 3):  # bins and sumweights
+        for idx in (1, 3):  # bin_avg and sumweights
             arr = res[idx]
             if arr is not None and arr.ndim > 1:
                 res[idx] = arr[(slice(None),) + (0,) * (arr.ndim - 1)]
 
-    # Build return: (P, k, var, sumweights, [extra_freq])
-    ret = [res[0], res[1], res[2], res[3]]
-    if res_ndim < dim:
-        ret.append(freq[res_ndim:])
-
-    return tuple(ret) if len(ret) > 1 else ret[0]
+    return PowerSpectrum(
+        power=res[0],
+        bin_edges=bin_edges,
+        bin_centres=bin_centres,
+        bin_avg=res[1],
+        nsamples=res[3],
+        variance=res[2],
+        k_unbinned=tuple(freq[res_ndim:]) if res_ndim < dim else None,
+    )

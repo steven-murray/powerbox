@@ -20,6 +20,7 @@ __all__ = [
     "get_fft_backend",
     "LogNormalPowerBox",
     "PowerBox",
+    "PowerSpectrum",
     "angular_average",
     "angular_average_nd",
     "get_power",
@@ -30,6 +31,7 @@ __all__ = [
 from .dft_backend import FFTW, NumpyFFT, get_fft_backend
 from .powerbox import LogNormalPowerBox, PowerBox
 from .tools import (
+    PowerSpectrum,
     angular_average,
     angular_average_nd,
     get_power,
