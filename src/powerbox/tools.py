@@ -1157,7 +1157,7 @@ def get_power(
     get_variance : bool, optional
         Whether to also return an estimate of the variance of the power in each bin.
     log_bins : bool, optional
-        Whether to create bins in log-space.
+        Whether to create bins in log-space. Ignored if ``bins`` is an array.
     ignore_zero_mode : bool, optional
         Whether to ignore the k=0 mode (or DC term).
     k_weights : nd-array or callable optional
