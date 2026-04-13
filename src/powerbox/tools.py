@@ -1147,9 +1147,8 @@ def get_power(
 
         When ``bins`` is an integer, the bin edges are determined as follows:
 
-        * If ``log_bins=False``: ``bins + 1`` edges are spaced linearly from the
-          minimum k-magnitude present in the box (which may be 0) to the maximum
-          k-magnitude.
+        * If ``log_bins=False``: ``bins + 1`` edges are spaced linearly from zero
+          to the Nyquist frequency (:math:`\pi N / L`).
         * If ``log_bins=True``: ``bins + 1`` edges are spaced logarithmically from
           the smallest *non-zero* k-magnitude (the fundamental mode,
           :math:`2\pi / L`) to the maximum k-magnitude (approximately the Nyquist
