@@ -433,14 +433,15 @@ def _get_binweights(
         sumweights = np.ones_like(binweight)
 
     if bin_ave:
-        bins = (
-            np.bincount(
-                indx,
-                weights=(weights * coord_mags).flatten(),
-                minlength=len(bins) + 1,
-            )[1:-1]
-            / binweight
-        )
+        with np.errstate(invalid="ignore"):
+            bins = (
+                np.bincount(
+                    indx,
+                    weights=(weights * coord_mags).flatten(),
+                    minlength=len(bins) + 1,
+                )[1:-1]
+                / binweight
+            )
 
     return indx, bins, sumweights
 
@@ -757,22 +758,23 @@ def _field_average(indx, field, weights, sumweights):
 
     field = field * weights  # Leave like this because field is mutable
 
-    rl = (
-        np.bincount(
-            indx, weights=np.real(field.flatten()), minlength=len(sumweights) + 2
-        )[1:-1]
-        / sumweights
-    )
-    if field.dtype.kind == "c":
-        im = (
-            1j
-            * np.bincount(
-                indx, weights=np.imag(field.flatten()), minlength=len(sumweights) + 2
+    with np.errstate(invalid="ignore"):
+        rl = (
+            np.bincount(
+                indx, weights=np.real(field.flatten()), minlength=len(sumweights) + 2
             )[1:-1]
             / sumweights
         )
-    else:
-        im = 0
+        if field.dtype.kind == "c":
+            im = (
+                1j
+                * np.bincount(
+                    indx, weights=np.imag(field.flatten()), minlength=len(sumweights) + 2
+                )[1:-1]
+                / sumweights
+            )
+        else:
+            im = 0
 
     return rl + im
 

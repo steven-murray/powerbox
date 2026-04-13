@@ -243,7 +243,9 @@ def test_power_spectrum_bin_centres_in_edges():
 def test_power_spectrum_log_bins():
     """log_bins=True produces log-spaced bin_edges and geometric bin_centres."""
     pb = PowerBox(50, dim=2, pk=lambda k: k**-2.0, boxlength=1.0, b=1)
-    result = get_power(pb.delta_x(), pb.boxlength, b=1, log_bins=True)
+    with warnings.catch_warnings():
+        warnings.filterwarnings("ignore", message="One or more radial bins had no cells within it")
+        result = get_power(pb.delta_x(), pb.boxlength, b=1, log_bins=True)
 
     # bin_centres should be geometric means of adjacent edges
     expected_centres = np.exp(
