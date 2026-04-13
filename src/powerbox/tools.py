@@ -32,22 +32,20 @@ class PowerSpectrum:
         (``res_ndim < ndim``) it has shape ``(n_bins, *remaining_dims)``.
         When no averaging is performed (``res_ndim=0``) it is the full
         n-dimensional power array.
-    bin_edges : np.ndarray or None
+    bin_edges : np.ndarray
         The edges of the radial k-bins with shape ``(n_bins + 1,)``.
-        ``None`` when no angular averaging was performed (``res_ndim=0``).
-    bin_centres : np.ndarray or None
+        An empty array when no angular averaging was performed (``res_ndim=0``).
+    bin_centres : np.ndarray
         The centres of the radial k-bins computed as the (linear or
         log-space) midpoint of each pair of adjacent edges, with shape
-        ``(n_bins,)``.  ``None`` when no angular averaging was performed.
-    bin_avg : np.ndarray or None
+        ``(n_bins,)``.  An empty array when no angular averaging was performed.
+    bin_avg : np.ndarray or None, optional
         The (weighted) average k-mode within each radial bin, with shape
         ``(n_bins,)``.  This is what was previously returned by
-        :func:`get_power` when ``bin_ave=True``.  ``None`` when no angular
-        averaging was performed.
-    nsamples : np.ndarray or None
+        :func:`get_power` when ``bin_ave=True``.  ``None`` when not computed.
+    nsamples : np.ndarray or None, optional
         The sum of k-mode weights (effectively the number of modes) in each
-        radial bin, with shape ``(n_bins,)``.  ``None`` when no angular
-        averaging was performed.
+        radial bin, with shape ``(n_bins,)``.  ``None`` when not computed.
     variance : np.ndarray or None, optional
         Estimated variance of the power spectrum in each bin.  Has the same
         shape as ``bin_centres`` (or ``power`` for partial averages).
@@ -77,56 +75,49 @@ class PowerSpectrum:
     """
 
     power: np.ndarray
-    bin_edges: np.ndarray | None
-    bin_centres: np.ndarray | None
-    bin_avg: np.ndarray | None
-    nsamples: np.ndarray | None
+    bin_edges: np.ndarray
+    bin_centres: np.ndarray
+    bin_avg: np.ndarray | None = None
+    nsamples: np.ndarray | None = None
     variance: np.ndarray | None = None
     k_unbinned: tuple[np.ndarray, ...] | None = None
 
     def __post_init__(self):
         self.power = np.asarray(self.power)
-        for attr in ("bin_edges", "bin_centres", "bin_avg", "nsamples", "variance"):
+        self.bin_edges = np.asarray(self.bin_edges)
+        self.bin_centres = np.asarray(self.bin_centres)
+        for attr in ("bin_avg", "nsamples", "variance"):
             val = getattr(self, attr)
             if val is not None:
                 setattr(self, attr, np.asarray(val))
 
-        if self.bin_edges is not None:
-            if (
-                self.bin_centres is None
-                or self.bin_avg is None
-                or self.nsamples is None
-            ):
-                raise ValueError(
-                    "bin_centres, bin_avg, and nsamples must all be provided "
-                    "when bin_edges is not None."
-                )
-            n_bins = len(self.bin_centres)
+        n_bins = len(self.bin_centres)
+        if n_bins > 0:
             if len(self.bin_edges) != n_bins + 1:
                 raise ValueError(
                     f"bin_edges must have length n_bins + 1 = {n_bins + 1}, "
                     f"got {len(self.bin_edges)}."
-                )
-            if len(self.bin_avg) != n_bins:
-                raise ValueError(
-                    f"bin_avg must have length n_bins = {n_bins}, "
-                    f"got {len(self.bin_avg)}."
-                )
-            if len(self.nsamples) != n_bins:
-                raise ValueError(
-                    f"nsamples must have length n_bins = {n_bins}, "
-                    f"got {len(self.nsamples)}."
                 )
             if self.power.shape[0] != n_bins:
                 raise ValueError(
                     f"power must have first dimension n_bins = {n_bins}, "
                     f"got {self.power.shape[0]}."
                 )
-            if self.variance is not None and self.variance.shape[0] != n_bins:
-                raise ValueError(
-                    f"variance must have first dimension n_bins = {n_bins}, "
-                    f"got {self.variance.shape[0]}."
-                )
+        if self.bin_avg is not None and len(self.bin_avg) != n_bins:
+            raise ValueError(
+                f"bin_avg must have length n_bins = {n_bins}, "
+                f"got {len(self.bin_avg)}."
+            )
+        if self.nsamples is not None and len(self.nsamples) != n_bins:
+            raise ValueError(
+                f"nsamples must have length n_bins = {n_bins}, "
+                f"got {len(self.nsamples)}."
+            )
+        if self.variance is not None and self.variance.shape[0] != n_bins:
+            raise ValueError(
+                f"variance must have first dimension n_bins = {n_bins}, "
+                f"got {self.variance.shape[0]}."
+            )
 
 
 def _getbins(
@@ -1409,10 +1400,8 @@ def get_power(
     if res_ndim == 0:
         return PowerSpectrum(
             power=P,
-            bin_edges=None,
-            bin_centres=None,
-            bin_avg=None,
-            nsamples=None,
+            bin_edges=np.array([]),
+            bin_centres=np.array([]),
             k_unbinned=tuple(freq),
         )
 
@@ -1465,7 +1454,7 @@ def get_power(
     # Always pass the pre-computed edges so that angular_average_nd does not
     # recompute them (and never issues the bins_upto_boxlen FutureWarning).
     # bin_ave=True gives us the weighted-average k per bin (bin_avg).
-    res = angular_average_nd(
+    power, bin_avg, variance, nsamples = angular_average_nd(
         field=P,
         coords=freq[:res_ndim],
         bins=bin_edges,
@@ -1477,28 +1466,27 @@ def get_power(
         interp_points_generator=interp_points_generator,
         bins_upto_boxlen=bins_upto_boxlen,
     )
-    res = list(res)  # [P, bin_avg, var, sumweights]
 
     # Remove shot-noise
     if remove_shotnoise and Npart1:
-        res[0] -= np.sqrt(V**2 / Npart1 / Npart2)
+        power -= np.sqrt(V**2 / Npart1 / Npart2)
 
-    # When averaging over fewer than all dimensions, the bins and sumweights
+    # When averaging over fewer than all dimensions, the bin_avg and nsamples
     # arrays from angular_average_nd have shape (n_bins, *remaining_dims).
-    # Since the bins (and typically the sumweights) are identical across the
+    # Since the bins (and typically the nsamples) are identical across the
     # remaining dimensions, collapse them to 1D.
     if res_ndim < dim:
-        for idx in (1, 3):  # bin_avg and sumweights
-            arr = res[idx]
-            if arr is not None and arr.ndim > 1:
-                res[idx] = arr[(slice(None),) + (0,) * (arr.ndim - 1)]
+        if bin_avg is not None and bin_avg.ndim > 1:
+            bin_avg = bin_avg[(slice(None),) + (0,) * (bin_avg.ndim - 1)]
+        if nsamples is not None and nsamples.ndim > 1:
+            nsamples = nsamples[(slice(None),) + (0,) * (nsamples.ndim - 1)]
 
     return PowerSpectrum(
-        power=res[0],
+        power=power,
         bin_edges=bin_edges,
         bin_centres=bin_centres,
-        bin_avg=res[1],
-        nsamples=res[3],
-        variance=res[2],
+        bin_avg=bin_avg,
+        nsamples=nsamples,
+        variance=variance,
         k_unbinned=tuple(freq[res_ndim:]) if res_ndim < dim else None,
     )

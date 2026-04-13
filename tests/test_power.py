@@ -179,8 +179,8 @@ def test_res_ndim_zero():
     result = get_power(pb.delta_x(), pb.boxlength, res_ndim=0)
 
     assert result.power.ndim == 3
-    assert result.bin_edges is None
-    assert result.bin_centres is None
+    assert len(result.bin_edges) == 0
+    assert len(result.bin_centres) == 0
     assert result.bin_avg is None
     assert result.nsamples is None
     assert result.variance is None
@@ -282,18 +282,33 @@ def test_powerspectrum_validation_mismatch():
         )
 
 
-def test_powerspectrum_validation_missing_centres():
-    """PowerSpectrum raises ValueError when bin_edges is given without bin_centres."""
+def test_powerspectrum_validation_bin_avg_shape():
+    """PowerSpectrum raises ValueError when bin_avg has wrong length."""
     power = np.ones(10)
     edges = np.linspace(0, 1, 11)
+    centres = (edges[1:] + edges[:-1]) / 2
 
-    with pytest.raises(ValueError, match="bin_centres, bin_avg, and nsamples must all be provided"):
+    with pytest.raises(ValueError, match="bin_avg must have length"):
         PowerSpectrum(
             power=power,
             bin_edges=edges,
-            bin_centres=None,
-            bin_avg=np.linspace(0, 1, 10),
-            nsamples=np.ones(10),
+            bin_centres=centres,
+            bin_avg=np.ones(5),  # wrong length
+        )
+
+
+def test_powerspectrum_validation_nsamples_shape():
+    """PowerSpectrum raises ValueError when nsamples has wrong length."""
+    power = np.ones(10)
+    edges = np.linspace(0, 1, 11)
+    centres = (edges[1:] + edges[:-1]) / 2
+
+    with pytest.raises(ValueError, match="nsamples must have length"):
+        PowerSpectrum(
+            power=power,
+            bin_edges=edges,
+            bin_centres=centres,
+            nsamples=np.ones(5),  # wrong length
         )
 
 
