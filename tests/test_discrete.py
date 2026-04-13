@@ -22,9 +22,9 @@ def test_discrete_power_gaussian():
     sample = pb.create_discrete_sample(nbar=1000.0, delta_x=box)
     result = get_power(sample, pb.boxlength, N=pb.N)
     power = result.power
-    bins = result.bin_avg
+    k_avg = result.bin_avg
 
-    res = np.mean(np.abs(power[50:-50] / (0.1 * bins[50:-50] ** -1.5) - 1))
+    res = np.mean(np.abs(power[50:-50] / (0.1 * k_avg[50:-50] ** -1.5) - 1))
 
     assert res < 1e-1
 
@@ -59,9 +59,9 @@ def test_discrete_power_lognormal():
     sample = pb.create_discrete_sample(nbar=1000.0)
     result = get_power(sample, pb.boxlength, N=pb.N)
     power = result.power
-    bins = result.bin_avg
+    k_avg = result.bin_avg
 
-    res = np.mean(np.abs(power[50:-50] / (0.1 * bins[50:-50] ** -1.5) - 1))
+    res = np.mean(np.abs(power[50:-50] / (0.1 * k_avg[50:-50] ** -1.5) - 1))
 
     assert res < 1e-1
 

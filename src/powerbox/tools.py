@@ -1451,6 +1451,11 @@ def get_power(
 
     # Compute bin centres as linear or log midpoints of adjacent edges.
     if log_bins:
+        if np.any(bin_edges <= 0):
+            raise ValueError(
+                "log_bins=True requires all bin edges to be strictly positive. "
+                f"Got bin_edges with minimum value {bin_edges.min()}."
+            )
         bin_centres = np.exp(
             (np.log(bin_edges[1:]) + np.log(bin_edges[:-1])) / 2
         )
