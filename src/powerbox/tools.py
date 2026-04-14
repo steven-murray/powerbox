@@ -1145,7 +1145,10 @@ def get_power(
         resolution of the box (approximately ``N/2.2`` bins). Otherwise, if int, this
         defines the number of k-bins, or if an array, it defines the exact bin edges.
 
-        When ``bins`` is an integer, the bin edges are determined as follows:
+        When ``bins`` is an integer, the bin edges are determined as follows
+        (where :math:`N` is the number of grid cells per side, i.e. the
+        ``N`` parameter, and :math:`L` is the box side length, i.e.
+        ``boxlength``):
 
         * If ``log_bins=False``: ``bins + 1`` edges are spaced linearly from zero
           to the Nyquist frequency (:math:`\pi N / L`).
