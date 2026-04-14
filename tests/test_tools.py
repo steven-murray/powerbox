@@ -740,5 +740,7 @@ def test_get_power_2d_sumweights_is_1d():
     assert result.nsamples.ndim == 1, (
         f"Expected nsamples to be 1D, got shape {result.nsamples.shape}"
     )
-    assert result.bin_avg.ndim == 1, f"Expected bin_avg to be 1D, got shape {result.bin_avg.shape}"
+    assert result.bin_avg.ndim == 1, (
+        f"Expected bin_avg to be 1D, got shape {result.bin_avg.shape}"
+    )
     assert result.nsamples.shape[0] == result.power.shape[0]

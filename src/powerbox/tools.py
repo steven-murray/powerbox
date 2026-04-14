@@ -105,8 +105,7 @@ class PowerSpectrum:
                 )
         if self.bin_avg is not None and len(self.bin_avg) != n_bins:
             raise ValueError(
-                f"bin_avg must have length n_bins = {n_bins}, "
-                f"got {len(self.bin_avg)}."
+                f"bin_avg must have length n_bins = {n_bins}, got {len(self.bin_avg)}."
             )
         if self.nsamples is not None and len(self.nsamples) != n_bins:
             raise ValueError(
@@ -769,7 +768,9 @@ def _field_average(indx, field, weights, sumweights):
             im = (
                 1j
                 * np.bincount(
-                    indx, weights=np.imag(field.flatten()), minlength=len(sumweights) + 2
+                    indx,
+                    weights=np.imag(field.flatten()),
+                    minlength=len(sumweights) + 2,
                 )[1:-1]
                 / sumweights
             )
@@ -1447,9 +1448,7 @@ def get_power(
                 "log_bins=True requires all bin edges to be strictly positive. "
                 f"Got bin_edges with minimum value {bin_edges.min()}."
             )
-        bin_centres = np.exp(
-            (np.log(bin_edges[1:]) + np.log(bin_edges[:-1])) / 2
-        )
+        bin_centres = np.exp((np.log(bin_edges[1:]) + np.log(bin_edges[:-1])) / 2)
     else:
         bin_centres = (bin_edges[1:] + bin_edges[:-1]) / 2
 

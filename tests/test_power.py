@@ -3,7 +3,14 @@ import numpy as np
 import warnings
 from functools import partial
 
-from powerbox import PowerBox, PowerSpectrum, get_power, ignore_zero_absk, ignore_zero_ki, power2delta
+from powerbox import (
+    PowerBox,
+    PowerSpectrum,
+    get_power,
+    ignore_zero_absk,
+    ignore_zero_ki,
+    power2delta,
+)
 
 get_power = partial(get_power, bins_upto_boxlen=True)
 
@@ -149,7 +156,9 @@ def test_k_weights():
     # of the big box with the low-k modes removed
 
     assert np.all(res3.bin_edges == res2.bin_edges)
-    assert np.allclose(res2.power[~np.isnan(res2.power)], res3.power[~np.isnan(res2.power)])
+    assert np.allclose(
+        res2.power[~np.isnan(res2.power)], res3.power[~np.isnan(res2.power)]
+    )
 
 
 def test_prefactor_fnc():
@@ -244,7 +253,9 @@ def test_power_spectrum_log_bins():
     """log_bins=True produces log-spaced bin_edges and geometric bin_centres."""
     pb = PowerBox(50, dim=2, pk=lambda k: k**-2.0, boxlength=1.0, b=1)
     with warnings.catch_warnings():
-        warnings.filterwarnings("ignore", message="One or more radial bins had no cells within it")
+        warnings.filterwarnings(
+            "ignore", message="One or more radial bins had no cells within it"
+        )
         result = get_power(pb.delta_x(), pb.boxlength, b=1, log_bins=True)
 
     # bin_centres should be geometric means of adjacent edges
@@ -331,4 +342,3 @@ def test_powerspectrum_validation_variance_shape():
             nsamples=nsamples,
             variance=np.ones(5),
         )
-
