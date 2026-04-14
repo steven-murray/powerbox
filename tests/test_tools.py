@@ -1,8 +1,8 @@
-import pytest
-
-import numpy as np
 import warnings
 from functools import partial
+
+import numpy as np
+import pytest
 
 from powerbox.powerbox import PowerBox
 from powerbox.tools import (
@@ -21,13 +21,14 @@ angular_average_nd = partial(angular_average_nd, bins_upto_boxlen=True)
 
 
 def test_warn_interp_weights():
+    rng = np.random.default_rng()
     x = np.linspace(-3, 3, 400)
     X, Y = np.meshgrid(x, x)
     r2 = X**2 + Y**2
     P = r2**-1.0
     P = np.repeat(P, 100).reshape(400, 400, 100)
     freq = [x, x, np.linspace(-2, 2, 100)]
-    weights = np.random.rand(np.prod(P.shape)).reshape(P.shape)
+    weights = rng.random(np.prod(P.shape)).reshape(P.shape)
     with pytest.warns(RuntimeWarning):
         angular_average(
             P,
@@ -91,10 +92,7 @@ def test_angular_avg_nd_3(interpolation_method):
         # Without interpolation, the radially-averaged power is not very accurate
         # due to the low number of bins at small values of k_av_bins, so we start
         # the comparison at the 6th bin.
-        assert (
-            np.max(np.abs((p_k[6:, 0] - k_av_bins[6:] ** -2.0) / k_av_bins[6:] ** -2.0))
-            < 0.05
-        )
+        assert np.max(np.abs((p_k[6:, 0] - k_av_bins[6:] ** -2.0) / k_av_bins[6:] ** -2.0)) < 0.05
 
 
 def test_weights_shape():
@@ -191,9 +189,7 @@ def test_interp_w_mu(n):
     if n == 2:
         kpar_mesh, kperp_mesh = np.meshgrid(x, x)
         with warnings.catch_warnings():
-            warnings.filterwarnings(
-                "ignore", message="divide by zero encountered in divide"
-            )
+            warnings.filterwarnings("ignore", message="divide by zero encountered in divide")
             theta = np.arctan2(kperp_mesh, kpar_mesh)
         mu_mesh = np.cos(theta)
     else:
@@ -287,9 +283,7 @@ def test_error_w_kmag_coords():
         ValueError,
         match="coords must be a list of 1D coordinate arrays when interpolating",
     ):
-        angular_average_nd(
-            field=P, coords=X**2 + Y**2, bins=20, interpolation_method="linear"
-        )
+        angular_average_nd(field=P, coords=X**2 + Y**2, bins=20, interpolation_method="linear")
 
     x = np.linspace(-3, 3, 40)
     P = np.ones((40, 40, 40))
@@ -299,9 +293,7 @@ def test_error_w_kmag_coords():
         ValueError,
         match="coords must be a list of 1D coordinate arrays when interpolating",
     ):
-        angular_average(
-            field=P, coords=X**2 + Y**2, bins=20, interpolation_method="linear"
-        )
+        angular_average(field=P, coords=X**2 + Y**2, bins=20, interpolation_method="linear")
 
 
 @pytest.mark.parametrize("n", range(1, 3))
@@ -331,10 +323,7 @@ def test_angular_avg_nd(n):
         assert (
             np.max(
                 np.abs(
-                    (
-                        p_k_lin[6:, len(x) // 2, len(x) // 2, 0]
-                        - k_av_bins_lin[6:] ** -2.0
-                    )
+                    (p_k_lin[6:, len(x) // 2, len(x) // 2, 0] - k_av_bins_lin[6:] ** -2.0)
                     / k_av_bins_lin[6:] ** -2.0
                 )
             )
@@ -342,19 +331,11 @@ def test_angular_avg_nd(n):
         )
     elif n == 2:
         assert (
-            np.max(
-                np.abs(
-                    (p_k_lin[:, len(x) // 2, 0] - k_av_bins_lin**-2.0)
-                    / k_av_bins_lin**-2.0
-                )
-            )
+            np.max(np.abs((p_k_lin[:, len(x) // 2, 0] - k_av_bins_lin**-2.0) / k_av_bins_lin**-2.0))
             < 0.05
         )
     else:
-        assert (
-            np.max(np.abs((p_k_lin[:, 0] - k_av_bins_lin**-2.0) / k_av_bins_lin**-2.0))
-            < 0.05
-        )
+        assert np.max(np.abs((p_k_lin[:, 0] - k_av_bins_lin**-2.0) / k_av_bins_lin**-2.0)) < 0.05
 
 
 def test_angular_avg_nd_complex_interp():
@@ -374,9 +355,7 @@ def test_angular_avg_nd_complex_interp():
     real = np.real(p_k_lin)
     imag = np.imag(p_k_lin)
     k_av_bins_lin = k_av_bins_lin[:, 0]
-    assert (
-        np.max(np.abs((real[:, 0] - k_av_bins_lin**-2.0) / k_av_bins_lin**-2.0)) < 0.05
-    )
+    assert np.max(np.abs((real[:, 0] - k_av_bins_lin**-2.0) / k_av_bins_lin**-2.0)) < 0.05
 
     np.testing.assert_allclose(real, imag)
 
@@ -456,11 +435,12 @@ def test_null_variance_2d():
 
 
 def test_variance_2d():
+    rng = np.random.default_rng()
     x = np.linspace(-3, 3, 400)
     X, Y = np.meshgrid(x, x)
     r2 = X**2 + Y**2
     P = np.ones_like(r2)
-    P += np.random.normal(scale=1, size=(len(x), len(x)))
+    P += rng.normal(scale=1, size=(len(x), len(x)))
     _, _, vv, _ = angular_average(
         P,
         np.sqrt(r2),
@@ -494,9 +474,7 @@ def test_bin_edges():
     r2 = X**2 + Y**2
     P = r2**-1.0
     bins = np.linspace(0, x.max(), 20)
-    _, coord, *_ = angular_average(
-        P, np.sqrt(r2), bins=bins, bin_ave=False, bins_upto_boxlen=True
-    )
+    _, coord, *_ = angular_average(P, np.sqrt(r2), bins=bins, bin_ave=False, bins_upto_boxlen=True)
     np.testing.assert_allclose(coord, bins)
 
 
@@ -517,11 +495,12 @@ def test_sum():
 
 
 def test_var_trivial_weights():
+    rng = np.random.default_rng()
     x = np.linspace(-3, 3, 400)
     X, Y = np.meshgrid(x, x)
     r2 = X**2 + Y**2
     P = np.ones_like(r2)
-    P += np.random.normal(scale=1, size=(len(x), len(x)))
+    P += rng.normal(scale=1, size=(len(x), len(x)))
     var = angular_average(
         P,
         np.sqrt(r2),
@@ -559,6 +538,7 @@ def test_cross_power_identity():
 
 @pytest.mark.skip()
 def test_against_multirealisation():
+    rng = np.random.default_rng()
     x = np.linspace(-3, 3, 1000)
     X, Y = np.meshgrid(x, x)
     r2 = X**2 + Y**2
@@ -567,7 +547,7 @@ def test_against_multirealisation():
     # Get the variance from several realisations
     ave = [0] * 50
     for j in range(50):
-        P = np.ones_like(r2) + np.random.normal(scale=1, size=(len(x), len(x)))
+        P = np.ones_like(r2) + rng.normal(scale=1, size=(len(x), len(x)))
         ave[j], *_ = angular_average(P, np.sqrt(r2), bins=bins)
 
     var = np.var(np.array(ave), axis=0)
@@ -587,9 +567,7 @@ def test_angular_average_shape_exceptions():
     r2 = X**2 + Y**2
     P = r2**-1.0
 
-    with pytest.raises(
-        ValueError, match=r"list of coords must be same length as field.ndim"
-    ):
+    with pytest.raises(ValueError, match=r"list of coords must be same length as field.ndim"):
         angular_average(field=P, coords=[x], bins=4)
 
     with pytest.raises(
@@ -598,9 +576,7 @@ def test_angular_average_shape_exceptions():
     ):
         angular_average(field=P, coords=r2, bins=20, interpolation_method="linear")
 
-    with pytest.raises(
-        ValueError, match="coords must have the same shape as the field"
-    ):
+    with pytest.raises(ValueError, match="coords must have the same shape as the field"):
         angular_average(field=P, coords=x, bins=4)
 
 
@@ -650,12 +626,10 @@ class TestInterpSimilarToNoInterp:
         start = 3
         valid = np.isfinite(avg_none[start:]) & np.isfinite(avg_interp[start:])
         rel_err = np.abs(
-            (avg_interp[start:][valid] - avg_none[start:][valid])
-            / avg_none[start:][valid]
+            (avg_interp[start:][valid] - avg_none[start:][valid]) / avg_none[start:][valid]
         )
         assert np.max(rel_err) < 0.10, (
-            f"Max relative error {np.max(rel_err):.4f} exceeds 10% "
-            f"for {interpolation_method}"
+            f"Max relative error {np.max(rel_err):.4f} exceeds 10% for {interpolation_method}"
         )
 
     def test_angular_average_3d(self, interpolation_method):
@@ -682,12 +656,10 @@ class TestInterpSimilarToNoInterp:
         start = 3
         valid = np.isfinite(avg_none[start:]) & np.isfinite(avg_interp[start:])
         rel_err = np.abs(
-            (avg_interp[start:][valid] - avg_none[start:][valid])
-            / avg_none[start:][valid]
+            (avg_interp[start:][valid] - avg_none[start:][valid]) / avg_none[start:][valid]
         )
         assert np.max(rel_err) < 0.10, (
-            f"Max relative error {np.max(rel_err):.4f} exceeds 10% "
-            f"for {interpolation_method}"
+            f"Max relative error {np.max(rel_err):.4f} exceeds 10% for {interpolation_method}"
         )
 
     def test_angular_average_nd_2d_field(self, interpolation_method):
@@ -737,8 +709,6 @@ def test_get_power_2d_sumweights_is_1d():
     p, k, var, sumweights, extra_freq = get_power(dx, pb.boxlength, b=1, res_ndim=2)
 
     # p has shape (n_bins, n_remaining) but sumweights should be 1D
-    assert sumweights.ndim == 1, (
-        f"Expected sumweights to be 1D, got shape {sumweights.shape}"
-    )
+    assert sumweights.ndim == 1, f"Expected sumweights to be 1D, got shape {sumweights.shape}"
     assert k.ndim == 1, f"Expected k to be 1D, got shape {k.shape}"
     assert sumweights.shape[0] == p.shape[0]

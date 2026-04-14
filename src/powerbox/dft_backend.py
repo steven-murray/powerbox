@@ -2,16 +2,16 @@
 
 from __future__ import annotations
 
-import numpy as np
+import contextlib
 import warnings
 from abc import ABC
 from functools import cache
 from multiprocessing import cpu_count
 
-try:
+import numpy as np
+
+with contextlib.suppress(ImportError):
     import pyfftw
-except ImportError:
-    pass
 
 
 class FFTBackend(ABC):  # noqa: B024
@@ -82,8 +82,8 @@ class FFTW(FFTBackend):
     def __init__(self, nthreads=None):
         try:
             import pyfftw
-        except ImportError:
-            raise ImportError("pyFFTW could not be imported...")
+        except ImportError as err:
+            raise ImportError("pyFFTW could not be imported...") from err
 
         try:
             pyfftw.builders._utils._default_threads(4)
@@ -126,9 +126,7 @@ def get_fft_backend(nthreads=None):
             fftbackend = FFTW(nthreads=nthreads)
         except ImportError:
             if nthreads is not None:
-                warnings.warn(
-                    "Could not import pyfftw... Proceeding with numpy.", stacklevel=2
-                )
+                warnings.warn("Could not import pyfftw... Proceeding with numpy.", stacklevel=2)
             fftbackend = NumpyFFT()
     else:
         fftbackend = NumpyFFT()

@@ -1,13 +1,15 @@
-import pytest
-
 import numpy as np
+import pytest
 from scipy.ndimage import gaussian_filter
 
 from powerbox import PowerBox
 
 
 @pytest.mark.skip(
-    reason="this is not passing to desired tolerance at this point... not sure if this is a problem. It's not systematic."
+    reason=(
+        "this is not passing to desired tolerance at this point... "
+        "not sure if this is a problem. It's not systematic."
+    )
 )
 def test_resolution():
     var = [0] * 6

@@ -1,28 +1,35 @@
 r"""
 A module defining some "nicer" fourier transform functions.
 
-We define only two functions -- an arbitrary-dimension forward transform, and its inverse. In each case, the transform
-is designed to replicate the continuous transform. That is, the transform is volume-normalised and obeys correct
-Fourier conventions.
+We define only two functions: an arbitrary-dimension forward transform, and its
+inverse. In each case, the transform is designed to replicate the continuous
+transform. That is, the transform is volume-normalised and obeys correct Fourier
+conventions.
 
-The actual FFT backend is provided by ``pyFFTW`` if it is installed, which provides a significant speedup, and
-multi-threading.
+The actual FFT backend is provided by ``pyFFTW`` if it is installed, which
+provides a significant speedup and multi-threading.
 
-Conveniently, we allow for arbitrary Fourier convention, according to the scheme in
-http://mathworld.wolfram.com/FourierTransform.html. That is, we define the forward and inverse *n*-dimensional
-transforms respectively as
+Conveniently, we allow for arbitrary Fourier convention, according to the scheme
+in http://mathworld.wolfram.com/FourierTransform.html. That is, we define the
+forward and inverse *n*-dimensional transforms respectively as
 
-.. math:: F(k) = \sqrt{\frac{|b|}{(2\pi)^{1-a}}}^n \int f(r) e^{-i b\mathbf{k}\cdot\mathbf{r}} d^n\mathbf{r}
+.. math::
+    F(k) = \sqrt{\frac{|b|}{(2\pi)^{1-a}}}^n
+    \int f(r) e^{-i b\mathbf{k}\cdot\mathbf{r}} d^n\mathbf{r}
 
 and
 
-.. math:: f(r) = \sqrt{\frac{|b|}{(2\pi)^{1+a}}}^n \int F(k) e^{+i b\mathbf{k}\cdot\mathbf{r}} d^n \mathbf{k}.
+.. math::
+    f(r) = \sqrt{\frac{|b|}{(2\pi)^{1+a}}}^n
+    \int F(k) e^{+i b\mathbf{k}\cdot\mathbf{r}} d^n \mathbf{k}.
 
-In both transforms, the corresponding co-ordinates are returned so a completely consistent transform is simple to get.
-This makes switching from standard frequency to angular frequency very simple.
+In both transforms, the corresponding co-ordinates are returned so a completely
+consistent transform is simple to get. This makes switching from standard
+frequency to angular frequency very simple.
 
-We note that currently, only positive values for b are implemented (in fact, using negative b is consistent, but
-one must be careful that the frequencies returned are descending, rather than ascending).
+We note that currently, only positive values for ``b`` are implemented. Using
+negative ``b`` is consistent, but one must be careful that the frequencies
+returned are descending, rather than ascending.
 """
 
 from __future__ import annotations
@@ -162,9 +169,9 @@ def fft(
         * np.sqrt(np.abs(b) / (2 * np.pi) ** (1 - a)) ** len(axes)
     )
 
-    dx = np.array([float(length) / float(n) for length, n in zip(L, N)])
+    dx = np.array([float(length) / float(n) for length, n in zip(L, N, strict=True)])
 
-    freq = [backend.fftfreq(n, d=d, b=b) for n, d in zip(N, dx)]
+    freq = [backend.fftfreq(n, d=d, b=b) for n, d in zip(N, dx, strict=True)]
 
     # Adjust phases of the result to align with the left edge properly.
     ft = _adjust_phase(ft, left_edge, freq, axes, b)
@@ -269,23 +276,19 @@ def ifft(
     left_edge = _set_left_edge(left_edge, axes, Lk)
 
     V = np.prod(Lk)
-    dk = np.array([float(lk) / float(n) for lk, n in zip(Lk, N)])
+    dk = np.array([float(lk) / float(n) for lk, n in zip(Lk, N, strict=True)])
 
-    ft = (
-        V
-        * backend.ifftn(X, axes=axes)
-        * np.sqrt(np.abs(b) / (2 * np.pi) ** (1 + a)) ** len(axes)
-    )
+    ft = V * backend.ifftn(X, axes=axes) * np.sqrt(np.abs(b) / (2 * np.pi) ** (1 + a)) ** len(axes)
     ft = backend.ifftshift(ft, axes=axes)
 
-    freq = [backend.fftfreq(n, d=d, b=b) for n, d in zip(N, dk)]
+    freq = [backend.fftfreq(n, d=d, b=b) for n, d in zip(N, dk, strict=True)]
 
     ft = _adjust_phase(ft, left_edge, freq, axes, -b)
     return _retfunc(ft, freq, axes, ret_cubegrid)
 
 
 def _adjust_phase(ft, left_edge, freq, axes, b):
-    for i, (ledge, fq) in enumerate(zip(left_edge, freq)):
+    for i, (ledge, fq) in enumerate(zip(left_edge, freq, strict=True)):
         xp = np.exp(-b * 1j * fq * ledge)
         obj = (
             tuple([None] * axes[i])

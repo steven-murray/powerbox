@@ -6,11 +6,12 @@ power spectrum.
 
 from __future__ import annotations
 
-import numpy as np
 import warnings
+from collections.abc import Sequence
+
+import numpy as np
 from scipy.interpolate import RegularGridInterpolator
 from scipy.special import gamma
-from collections.abc import Sequence
 
 from . import dft
 
@@ -39,9 +40,7 @@ def _getbins(
     if bins_upto_boxlen:
         try:
             # Fails if coords is not a cube / inhomogeneous.
-            max_radius = np.min(
-                [np.max(coord_mags, axis=i) for i in range(coord_mags.ndim)]
-            )
+            max_radius = np.min([np.max(coord_mags, axis=i) for i in range(coord_mags.ndim)])
         except ValueError:
             maxs = [np.max(coord_mags, axis=i) for i in range(coord_mags.ndim)]
             maxs_flat = []
@@ -225,9 +224,7 @@ def angular_average(
     else:
         # coords are the magnitude of the co-ordinates
         if interpolation_method is not None:
-            raise ValueError(
-                "coords must be a list of 1D coordinate arrays when interpolating!"
-            )
+            raise ValueError("coords must be a list of 1D coordinate arrays when interpolating!")
         if coords.shape != field.shape:
             raise ValueError("coords must have the same shape as the field")
         coord_mags = coords
@@ -244,9 +241,7 @@ def angular_average(
         )
 
         if np.any(sumweights == 0):
-            warnings.warn(
-                "One or more radial bins had no cells within it.", stacklevel=2
-            )
+            warnings.warn("One or more radial bins had no cells within it.", stacklevel=2)
         res = _field_average(indx, field, weights, sumweights)
     else:
         bin_edges = _getbins(bins, coord_mags, log_bins, bins_upto_boxlen)
@@ -277,9 +272,9 @@ def angular_average(
         if np.isscalar(weights):
             sumweights = np.bincount(indx, minlength=len(bin_edges) + 1)[1:-1]
         else:
-            sumweights = np.bincount(
-                indx, weights=weights.flatten(), minlength=len(bin_edges) + 1
-            )[1:-1]
+            sumweights = np.bincount(indx, weights=weights.flatten(), minlength=len(bin_edges) + 1)[
+                1:-1
+            ]
     var = None
     if get_variance and interpolation_method is None:
         var = _field_variance(indx, field, res, weights, sumweights)
@@ -318,9 +313,7 @@ def _get_binweights(
             weights.shape,
         )
     else:
-        sumweights = np.bincount(
-            indx, weights=weights.flatten(), minlength=len(bins) + 1
-        )[1:-1]
+        sumweights = np.bincount(indx, weights=weights.flatten(), minlength=len(bins) + 1)[1:-1]
     if average:
         binweight = sumweights
     else:
@@ -459,17 +452,13 @@ def regular_angular_generator(angular_resolution=0.05):
         phi_n = np.concatenate(
             [
                 np.array(
-                    np.meshgrid(
-                        *([phi_N[i]] + [phi_i[i]] * (dims2avg - 1)), sparse=False
-                    )
+                    np.meshgrid(*([phi_N[i]] + [phi_i[i]] * (dims2avg - 1)), sparse=False)
                 ).reshape((dims2avg, num_angular_bins[i] ** dims2avg))
                 for i in range(len(bins))
             ],
             axis=-1,
         )
-        r_n = np.concatenate(
-            [[r] * (num_angular_bins[i] ** dims2avg) for i, r in enumerate(bins)]
-        )
+        r_n = np.concatenate([[r] * (num_angular_bins[i] ** dims2avg) for i, r in enumerate(bins)])
         return r_n, phi_n
 
     return generator
@@ -484,7 +473,8 @@ def _sample_coords_interpolate(coords, bins, weights, interp_points_generator=No
         weights = np.ones(field_shape) * weights
     # To extrapolate at the edges if needed.
     # Evaluate it on points in angular coords that we then convert to Cartesian.
-    # Number of angular bins for each radius absk on which to calculate the interpolated power when doing the averaging
+    # Number of angular bins for each radius absk on which to calculate the
+    # interpolated power when doing the averaging.
     # Larger wavemodes / radii will have more samples in theta
     # "bins" is always 1D
     # Max is to set a minimum number of bins for the smaller wavemode bins
@@ -497,18 +487,15 @@ def _sample_coords_interpolate(coords, bins, weights, interp_points_generator=No
         sample_coords = bins.reshape(1, -1)
         r_n = bins
     # Remove sample coords that are not even on the coords grid (e.g. due to phi)
-    mask1 = np.all(
-        sample_coords >= np.array([c.min() for c in coords])[..., np.newaxis], axis=0
-    )
-    mask2 = np.all(
-        sample_coords <= np.array([c.max() for c in coords])[..., np.newaxis], axis=0
-    )
+    mask1 = np.all(sample_coords >= np.array([c.min() for c in coords])[..., np.newaxis], axis=0)
+    mask2 = np.all(sample_coords <= np.array([c.max() for c in coords])[..., np.newaxis], axis=0)
     mask = mask1 & mask2
     sample_coords = sample_coords[:, mask]
     r_n = r_n[mask]
     if len(r_n) == 0:
         raise ValueError(
-            "Generated sample points are outside of the coordinate box provided for the field! Try changing your points generator or field coordinates."
+            "Generated sample points are outside of the coordinate box provided "
+            "for the field! Try changing your points generator or field coordinates."
         )
     return sample_coords, r_n
 
@@ -536,9 +523,7 @@ def linear_interp(
     result : ndarray, shape (N,)
         Interpolated values.
     """
-    interp_fnc = RegularGridInterpolator(
-        coords, field, bounds_error=False, fill_value=np.nan
-    )
+    interp_fnc = RegularGridInterpolator(coords, field, bounds_error=False, fill_value=np.nan)
     return interp_fnc(sample_points)
 
 
@@ -589,9 +574,7 @@ def nan_aware_interp(
     return result
 
 
-def _field_average_interpolate(
-    coords, field, bins, weights, sample_coords, r_n, interp_fn=None
-):
+def _field_average_interpolate(coords, field, bins, weights, sample_coords, r_n, interp_fn=None):
     # Grid is regular + can be ordered only in Cartesian coords.
     if interp_fn is None:
         interp_fn = linear_interp
@@ -653,17 +636,15 @@ def _field_average(indx, field, weights, sumweights):
     field = field * weights  # Leave like this because field is mutable
 
     rl = (
-        np.bincount(
-            indx, weights=np.real(field.flatten()), minlength=len(sumweights) + 2
-        )[1:-1]
+        np.bincount(indx, weights=np.real(field.flatten()), minlength=len(sumweights) + 2)[1:-1]
         / sumweights
     )
     if field.dtype.kind == "c":
         im = (
             1j
-            * np.bincount(
-                indx, weights=np.imag(field.flatten()), minlength=len(sumweights) + 2
-            )[1:-1]
+            * np.bincount(indx, weights=np.imag(field.flatten()), minlength=len(sumweights) + 2)[
+                1:-1
+            ]
             / sumweights
         )
     else:
@@ -674,12 +655,11 @@ def _field_average(indx, field, weights, sumweights):
 
 def _field_variance(indx, field, average, weights, V1):
     if field.dtype.kind == "c":
-        raise NotImplementedError(
-            "Cannot use a complex field when computing variance, yet."
-        )
+        raise NotImplementedError("Cannot use a complex field when computing variance, yet.")
 
     # Create a full flattened array of the same shape as field, with the average in that bin.
-    # We have to pad the average vector with 0s on either side to account for cells outside the bin range.
+    # We have to pad the average vector with 0s on either side to account for
+    # cells outside the bin range.
     average_field = np.concatenate(([0], average, [0]))[indx]
 
     # Create the V2 array
@@ -797,13 +777,9 @@ def angular_average_nd(  # noqa: C901
         coord_mags = coords
 
     if ndims_to_avg < 1:
-        raise ValueError(
-            f"coords given imply ndim_to_avg of {ndims_to_avg}. Must be >0"
-        )
+        raise ValueError(f"coords given imply ndim_to_avg of {ndims_to_avg}. Must be >0")
     elif ndims_to_avg > field.ndim:
-        raise ValueError(
-            f"coords given imply ndim_to_avg of {ndims_to_avg}, >{field.ndim}"
-        )
+        raise ValueError(f"coords given imply ndim_to_avg of {ndims_to_avg}, >{field.ndim}")
 
     if not np.isscalar(weights) and weights.shape not in (
         field.shape,
@@ -849,10 +825,7 @@ def angular_average_nd(  # noqa: C901
     outbins = None
     outshape = field.shape[: (field.ndim - ndims_to_avg)]
     for idx in np.ndindex(outshape):
-        if np.isscalar(weights) or weights.ndim == ndims_to_avg:
-            w = weights
-        else:
-            w = weights[idx]
+        w = weights if np.isscalar(weights) or weights.ndim == ndims_to_avg else weights[idx]
 
         avg, _bins, variance, sumwght = angular_average(
             field=field[idx],
@@ -1029,14 +1002,12 @@ def discretize_N(
     """
     if deltax.shape[1] > deltax.shape[0]:
         raise ValueError(
-            "It seems that there are more dimensions than particles! "
-            "Try transposing deltax."
+            "It seems that there are more dimensions than particles! Try transposing deltax."
         )
 
     if deltax2 is not None and deltax2.shape[1] > deltax2.shape[0]:
         raise ValueError(
-            "It seems that there are more dimensions than particles! "
-            "Try transposing deltax2."
+            "It seems that there are more dimensions than particles! Try transposing deltax2."
         )
 
     dim = deltax.shape[1]
@@ -1054,16 +1025,14 @@ def discretize_N(
     Npart2 = deltax2.shape[0] if deltax2 is not None else Npart1
 
     # Generate a histogram of the data, with appropriate number of bins.
-    edges = [np.linspace(0, L, n + 1) for L, n in zip(boxlength, N)]
+    edges = [np.linspace(0, L, n + 1) for L, n in zip(boxlength, N, strict=True)]
 
-    deltax = np.histogramdd(deltax % boxlength, bins=edges, weights=weights)[0].astype(
-        "float"
-    )
+    deltax = np.histogramdd(deltax % boxlength, bins=edges, weights=weights)[0].astype("float")
 
     if deltax2 is not None:
-        deltax2 = np.histogramdd(deltax2 % boxlength, bins=edges, weights=weights2)[
-            0
-        ].astype("float")
+        deltax2 = np.histogramdd(deltax2 % boxlength, bins=edges, weights=weights2)[0].astype(
+            "float"
+        )
 
     # Convert sampled data to mean-zero data
     if dimensionless:
@@ -1075,6 +1044,75 @@ def discretize_N(
         if deltax2 is not None:
             deltax2 -= np.mean(deltax2)
     return deltax, deltax2, Npart1, Npart2, dim, N, boxlength
+
+
+def _prepare_get_power_inputs(
+    deltax: np.ndarray,
+    boxlength,
+    deltax2: np.ndarray | None,
+    N,
+    weights,
+    weights2,
+    dimensionless: bool,
+):
+    """Prepare inputs for get_power and normalize shape/metadata."""
+    if N is not None:
+        return discretize_N(
+            deltax,
+            boxlength,
+            deltax2=deltax2,
+            N=N,
+            weights=weights,
+            weights2=weights2,
+            dimensionless=dimensionless,
+        )
+
+    dim = len(deltax.shape)
+
+    if not np.iterable(boxlength):
+        boxlength = [float(boxlength)] * dim
+    else:
+        boxlength = [float(val) for val in boxlength]
+
+    if deltax2 is not None and deltax.shape != deltax2.shape:
+        raise ValueError("deltax and deltax2 must have the same shape!")
+
+    N = deltax.shape
+    Npart1 = None
+    Npart2 = None
+    return deltax, deltax2, Npart1, Npart2, dim, N, boxlength
+
+
+def _finalize_get_power_result(
+    res: list,
+    freq: list[np.ndarray],
+    res_ndim: int,
+    dim: int,
+    remove_shotnoise: bool,
+    Npart1,
+    Npart2,
+    V: float,
+):
+    """Apply shot-noise and shape normalization, then build return tuple."""
+    if remove_shotnoise and Npart1:
+        res[0] -= np.sqrt(V**2 / Npart1 / Npart2)
+
+    # When averaging over fewer than all dimensions, the bins and sumweights
+    # arrays from angular_average_nd have shape (n_bins, *remaining_dims).
+    # Since the bins (and typically the sumweights) are identical across the
+    # remaining dimensions, collapse them to 1D.
+    if res_ndim < dim:
+        for idx in (1, 3):  # bins and sumweights
+            arr = res[idx]
+            if arr is not None and arr.ndim > 1:
+                res[idx] = arr[(slice(None),) + (0,) * (arr.ndim - 1)]
+
+    # Build return: (P, k, var, sumweights, [extra_freq])
+    ret = [res[0], res[1], res[2], res[3]]
+    if res_ndim < dim:
+        ret.append(freq[res_ndim:])
+
+    return tuple(ret) if len(ret) > 1 else ret[0]
 
 
 def get_power(
@@ -1261,43 +1299,23 @@ def get_power(
     >>>     return absk ** 3 / (2 * np.pi ** 2)
     >>> p, k = get_power(pb.delta_x, pb.boxlength, prefactor_fnc=power2delta)
     """
-    # Check if the input data is in sampled particle format
-    if N is not None:
-        deltax, deltax2, Npart1, Npart2, dim, N, boxlength = discretize_N(
-            deltax,
-            boxlength,
-            deltax2=deltax2,
-            N=N,
-            weights=weights,
-            weights2=weights2,
-            dimensionless=dimensionless,
-        )
-    else:
-        # If input data is already a density field, just get the dimensions.
-        dim = len(deltax.shape)
-
-        if not np.iterable(boxlength):
-            boxlength = [float(boxlength)] * dim
-        else:
-            boxlength = [float(val) for val in boxlength]
-
-        if deltax2 is not None and deltax.shape != deltax2.shape:
-            raise ValueError("deltax and deltax2 must have the same shape!")
-
-        N = deltax.shape
-        Npart1 = None
+    deltax, deltax2, Npart1, Npart2, dim, N, boxlength = _prepare_get_power_inputs(
+        deltax=deltax,
+        boxlength=boxlength,
+        deltax2=deltax2,
+        N=N,
+        weights=weights,
+        weights2=weights2,
+        dimensionless=dimensionless,
+    )
 
     V = np.prod(boxlength)
 
     # Calculate the n-D power spectrum and align it with the k from powerbox.
-    FT, freq, k = dft.fft(
-        deltax, L=boxlength, a=a, b=b, ret_cubegrid=True, nthreads=nthreads
-    )
+    FT, freq, k = dft.fft(deltax, L=boxlength, a=a, b=b, ret_cubegrid=True, nthreads=nthreads)
 
     FT2 = (
-        dft.fft(deltax2, L=boxlength, a=a, b=b, nthreads=nthreads)[0]
-        if deltax2 is not None
-        else FT
+        dft.fft(deltax2, L=boxlength, a=a, b=b, nthreads=nthreads)[0] if deltax2 is not None else FT
     )
 
     P = np.real(FT * np.conj(FT2) / V**2)
@@ -1347,23 +1365,13 @@ def get_power(
         bins_upto_boxlen=bins_upto_boxlen,
     )
     res = list(res)  # [P, k, var, sumweights]
-    # Remove shot-noise
-    if remove_shotnoise and Npart1:
-        res[0] -= np.sqrt(V**2 / Npart1 / Npart2)
-
-    # When averaging over fewer than all dimensions, the bins and sumweights
-    # arrays from angular_average_nd have shape (n_bins, *remaining_dims).
-    # Since the bins (and typically the sumweights) are identical across the
-    # remaining dimensions, collapse them to 1D.
-    if res_ndim < dim:
-        for idx in (1, 3):  # bins and sumweights
-            arr = res[idx]
-            if arr is not None and arr.ndim > 1:
-                res[idx] = arr[(slice(None),) + (0,) * (arr.ndim - 1)]
-
-    # Build return: (P, k, var, sumweights, [extra_freq])
-    ret = [res[0], res[1], res[2], res[3]]
-    if res_ndim < dim:
-        ret.append(freq[res_ndim:])
-
-    return tuple(ret) if len(ret) > 1 else ret[0]
+    return _finalize_get_power_result(
+        res=res,
+        freq=freq,
+        res_ndim=res_ndim,
+        dim=dim,
+        remove_shotnoise=remove_shotnoise,
+        Npart1=Npart1,
+        Npart2=Npart2,
+        V=V,
+    )

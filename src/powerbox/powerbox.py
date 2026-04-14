@@ -9,8 +9,9 @@ subclassing :class:`PowerBox` and over-writing the same methods as are over-writ
 
 from __future__ import annotations
 
-import numpy as np
 import warnings
+
+import numpy as np
 
 from . import dft
 from .tools import _magnitude_grid
@@ -160,6 +161,12 @@ class PowerBox:
         self.Ntot = self.N**self.dim
 
         self.seed = seed
+        if seed is None:
+            self.rng = np.random.default_rng()
+        else:
+            # Keep seeded realizations close to historical behavior while using
+            # the Generator API required by modern NumPy.
+            self.rng = np.random.Generator(np.random.MT19937(seed))
 
         if N % 2 == 0:
             self._even = True
@@ -192,11 +199,8 @@ class PowerBox:
 
     def gauss_hermitian(self):
         """A random array which has Gaussian magnitudes and Hermitian symmetry."""
-        if self.seed:
-            np.random.seed(self.seed)
-
-        mag = np.random.normal(0, 1, size=[self.n] * self.dim)
-        pha = 2 * np.pi * np.random.uniform(size=[self.n] * self.dim)
+        mag = self.rng.normal(0, 1, size=[self.n] * self.dim)
+        pha = 2 * np.pi * self.rng.uniform(size=[self.n] * self.dim)
 
         dk = _make_hermitian(mag, pha)
 
@@ -223,9 +227,7 @@ class PowerBox:
         p = self.power_array()
 
         if np.any(p < 0):
-            raise ValueError(
-                "The power spectrum function has returned negative values."
-            )
+            raise ValueError("The power spectrum function has returned negative values.")
 
         gh = self.gauss_hermitian()
         gh[...] = np.sqrt(p) * gh
@@ -233,8 +235,9 @@ class PowerBox:
 
     def delta_x(self):
         """The realised field in real-space from the input power spectrum."""
-        # Here we multiply by V because the (inverse) fourier-transform of the (dimensionless) power has
-        # units of 1/V and we require a unitless quantity for delta_x.
+        # Here we multiply by V because the inverse Fourier transform of the
+        # dimensionless power has units of 1/V, and we require a unitless
+        # quantity for delta_x.
         dk = self.fftbackend.empty((self.N,) * self.dim, dtype="complex128")
         dk[...] = self.delta_k()
         dk[...] = (
@@ -309,7 +312,7 @@ class PowerBox:
         dx = (dx + 1) * self.dx**self.dim * nbar
         n = dx
 
-        self.n_per_cell = np.random.poisson(n)
+        self.n_per_cell = self.rng.poisson(n)
 
         # Get all source positions
         args = [self.x] * self.dim
@@ -319,9 +322,7 @@ class PowerBox:
         tracer_positions = tracer_positions.repeat(self.n_per_cell.flatten(), axis=0)
 
         if randomise_in_cell:
-            tracer_positions += (
-                np.random.uniform(size=(np.sum(self.n_per_cell), self.dim)) * self.dx
-            )
+            tracer_positions += self.rng.uniform(size=(np.sum(self.n_per_cell), self.dim)) * self.dx
 
         if min_at_zero:
             tracer_positions += self.boxlength / 2.0
@@ -392,11 +393,11 @@ class LogNormalPowerBox(PowerBox):
         )
 
     def gaussian_correlation_array(self):
-        """The correlation function required for a Gaussian field to produce the input power on a lognormal field."""
+        """Correlation required for a Gaussian field to produce the input power."""
         return np.log(1 + self.correlation_array())
 
     def gaussian_power_array(self):
-        """The power spectrum required for a Gaussian field to produce the input power on a lognormal field."""
+        """Power spectrum required for a Gaussian field to produce the input power."""
         gca = self.fftbackend.empty((self.N,) * self.dim)
         gca[...] = self.gaussian_correlation_array()
         gpa = np.abs(

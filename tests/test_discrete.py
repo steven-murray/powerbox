@@ -1,7 +1,7 @@
-import pytest
+from functools import partial
 
 import numpy as np
-from functools import partial
+import pytest
 
 from powerbox import LogNormalPowerBox, PowerBox, get_power
 
@@ -30,7 +30,7 @@ def test_discrete_power_gaussian():
     # indexing used by meshgrid within `create_discrete_sample`.
     N = [pb.N] * pb.dim
     L = [pb.boxlength] * pb.dim
-    edges = [np.linspace(-_L / 2.0, _L / 2.0, _n + 1) for _L, _n in zip(L, N)]
+    edges = [np.linspace(-_L / 2.0, _L / 2.0, _n + 1) for _L, _n in zip(L, N, strict=True)]
     delta_samp = np.histogramdd(sample, bins=edges, weights=None)[0].astype("float")
 
     # Check cross spectrum and assert a strong correlation
