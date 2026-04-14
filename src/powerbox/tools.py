@@ -1142,8 +1142,20 @@ def get_power(
         because of standard cosmological usage.
     bins : int or array, optional
         Defines the final k-bins output. If None, chooses a number based on the input
-        resolution of the box. Otherwise, if int, this defines the number of kbins, or
-        if an array, it defines the exact bin edges.
+        resolution of the box (approximately ``N/2.2`` bins). Otherwise, if int, this
+        defines the number of k-bins, or if an array, it defines the exact bin edges.
+
+        When ``bins`` is an integer, the bin edges are determined as follows
+        (where :math:`N` is the number of grid cells per side, i.e. the
+        ``N`` parameter, and :math:`L` is the box side length, i.e.
+        ``boxlength``):
+
+        * If ``log_bins=False``: ``bins + 1`` edges are spaced linearly from zero
+          to the Nyquist frequency (:math:`\pi N / L`).
+        * If ``log_bins=True``: ``bins + 1`` edges are spaced logarithmically from
+          the smallest *non-zero* k-magnitude (the fundamental mode,
+          :math:`2\pi / L`) to the maximum k-magnitude (approximately the Nyquist
+          frequency, :math:`\pi N / L`).
     res_ndim : int, optional
         Only perform angular averaging over first `res_ndim` dimensions. By default,
         uses all dimensions.
@@ -1158,6 +1170,9 @@ def get_power(
         Whether to also return an estimate of the variance of the power in each bin.
     log_bins : bool, optional
         Whether to create bins in log-space. Ignored if ``bins`` is an array.
+        When ``True`` and ``bins`` is an integer, the bin edges span from the
+        fundamental mode (:math:`2\pi / L`) to the Nyquist frequency. See
+        ``bins`` for details.
     ignore_zero_mode : bool, optional
         Whether to ignore the k=0 mode (or DC term).
     k_weights : nd-array or callable optional
