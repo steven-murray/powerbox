@@ -1,3 +1,5 @@
+"""Sphinx configuration for the powerbox documentation."""
+
 #
 # powerbox documentation build configuration file, created by
 # sphinx-quickstart on Thu Feb 23 07:59:57 2017.
@@ -79,11 +81,13 @@ author = "Steven Murray"
 # built documents.
 #
 def read(*names, **kwargs):
+    """Read and return a text file relative to the docs directory."""
     with DOCS_DIR.joinpath(*names).open(encoding=kwargs.get("encoding", "utf8")) as fp:
         return fp.read()
 
 
 def find_version(*file_paths):
+    """Extract the package ``__version__`` string from a source file."""
     version_file = read(*file_paths)
     version_match = re.search(r"^__version__ = ['\"]([^'\"]*)['\"]", version_file, re.M)
     if version_match:

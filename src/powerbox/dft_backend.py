@@ -19,7 +19,7 @@ class FFTBackend(ABC):  # noqa: B024
 
     def fftshift(self, x, *args, **kwargs):
         """
-        The same as numpy, except that it preserves units (if Astropy quantities are used).
+        Apply ``numpy.fftshift`` while preserving units when present.
 
         All extra arguments are passed directly to numpy's ``fftshift``.
         """
@@ -29,7 +29,7 @@ class FFTBackend(ABC):  # noqa: B024
 
     def ifftshift(self, x, *args, **kwargs):
         """
-        The same as numpy except it preserves units (if Astropy quantities are used).
+        Apply ``numpy.ifftshift`` while preserving units when present.
 
         All extra arguments are passed directly to numpy's ``ifftshift``.
         """
@@ -37,7 +37,7 @@ class FFTBackend(ABC):  # noqa: B024
 
         return out * x.unit if hasattr(x, "unit") else out
 
-    def fftfreq(self, N, d=1.0, b=2 * np.pi):
+    def fftfreq(self, N: int, d: float = 1.0, b: float = 2 * np.pi):
         """
         Return fourier frequencies for a box with N cells, using general Fourier convention.
 
@@ -62,7 +62,7 @@ class FFTBackend(ABC):  # noqa: B024
 class NumpyFFT(FFTBackend):
     """FFT backend using numpy.fft."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.fftn = np.fft.fftn
 
         self.ifftn = np.fft.ifftn
@@ -79,7 +79,7 @@ class NumpyFFT(FFTBackend):
 class FFTW(FFTBackend):
     """FFT backend using pyfftw."""
 
-    def __init__(self, nthreads=None):
+    def __init__(self, nthreads: int | None = None) -> None:
         try:
             import pyfftw
         except ImportError as err:
@@ -115,7 +115,7 @@ class FFTW(FFTBackend):
 
 
 @cache
-def get_fft_backend(nthreads=None):
+def get_fft_backend(nthreads: bool | int | None = None) -> FFTW | NumpyFFT:
     """Choose a backend based on nthreads.
 
     Will return the Numpy backend if nthreads is None, otherwise the FFTW backend with

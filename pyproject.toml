@@ -73,10 +73,9 @@ extend-select = [
   "W",    # pycodestyle warning
   "UP",   # pyupgrade
   "C90",  # mccabe complexity
-   "I",    # isort
-#   "N",    # pep8-naming
-#   "D",    # docstyle
-   # "ANN"   # type annotations
+  "I",    # isort
+  "D",    # docstyle
+    # "ANN",  # type annotations
    "B",    # bugbear
    "A",    # builtins
    "C4",   # comprehensions
@@ -84,15 +83,15 @@ extend-select = [
    "FA",   # future annotations
    "PIE",  # flake8-pie
    "T",    # print statements
-#   "PT",   # pytest-style
+    "PT",   # pytest-style
    "Q",    # quotes
    "SIM",  # simplify
    "PTH",  # use Pathlib
-#   "ERA",  # kill commented code
+    "ERA",  # kill commented code
    "NPY",  # numpy-specific rules
    "PERF", # performance
    # "FURB", # refurb
-#   "RUF",  # ruff-specific rules
+    "RUF",  # ruff-specific rules
 ]
 ignore = [
     "DTZ007",   # use %z in strptime
@@ -103,13 +102,16 @@ ignore = [
 "tests/*.py" = [
     "D103",  # ignore missing docstring in tests
     "T",     # print statements
+    "ANN",   # do not require full annotation coverage in tests
 ]
 "docs/conf.py" = [
     "A",  # conf.py can shadow builtins
     "ERA",
+    "ANN",
 ]
 "docs/demos/*.ipynb" = [
     "T", # allow printing
+    "ANN",
 ]
 [tool.ruff.lint.pydocstyle]
 convention = 'numpy'

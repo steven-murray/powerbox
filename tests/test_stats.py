@@ -1,3 +1,5 @@
+"""Statistical behavior tests for generated fields."""
+
 import numpy as np
 import pytest
 from scipy.ndimage import gaussian_filter
@@ -11,7 +13,7 @@ from powerbox import PowerBox
         "not sure if this is a problem. It's not systematic."
     )
 )
-def test_resolution():
+def test_resolution() -> None:
     var = [0] * 6
     for i in range(6):
         pb = PowerBox(

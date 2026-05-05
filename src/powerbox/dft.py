@@ -34,12 +34,12 @@ returned are descending, rather than ascending.
 
 from __future__ import annotations
 
-__all__ = ["fft", "ifft", "fftfreq", "fftshift", "ifftshift"]
+__all__ = ["fft", "fftfreq", "fftshift", "ifft", "ifftshift"]
 
 # To avoid MKL-related bugs, numpy needs to be imported after pyfftw: see https://github.com/pyFFTW/pyFFTW/issues/40
 import numpy as np
 
-from .dft_backend import FFTBackend, get_fft_backend
+from .dft_backend import get_fft_backend
 
 
 def fftshift(x, *args, **kwargs):  # noqa: D103
@@ -70,13 +70,13 @@ def fft(
     X,
     L=None,
     Lk=None,
-    a=0,
-    b=2 * np.pi,
+    a: float = 0,
+    b: float = 2 * np.pi,
     left_edge=None,
     axes=None,
-    ret_cubegrid=False,
+    ret_cubegrid: bool = False,
     nthreads=None,
-    backend: FFTBackend = None,
+    backend=None,
 ):
     r"""
     Arbitrary-dimension nice Fourier Transform.
@@ -182,13 +182,13 @@ def ifft(
     X,
     Lk=None,
     L=None,
-    a=0,
-    b=2 * np.pi,
+    a: float = 0,
+    b: float = 2 * np.pi,
     axes=None,
     left_edge=None,
-    ret_cubegrid=False,
-    nthreads: int | None = None,
-    backend: FFTBackend | None = None,
+    ret_cubegrid: bool = False,
+    nthreads=None,
+    backend=None,
 ):
     r"""
     Arbitrary-dimension nice inverse Fourier Transform.
@@ -287,13 +287,13 @@ def ifft(
     return _retfunc(ft, freq, axes, ret_cubegrid)
 
 
-def _adjust_phase(ft, left_edge, freq, axes, b):
+def _adjust_phase(ft, left_edge, freq, axes, b: float):
     for i, (ledge, fq) in enumerate(zip(left_edge, freq, strict=True)):
         xp = np.exp(-b * 1j * fq * ledge)
         obj = (
-            tuple([None] * axes[i])
-            + (slice(None, None, None),)
-            + tuple([None] * (ft.ndim - axes[i] - 1))
+            *([None] * axes[i]),
+            slice(None, None, None),
+            *([None] * (ft.ndim - axes[i] - 1)),
         )
         ft *= xp[obj]
     return ft
@@ -310,7 +310,7 @@ def _set_left_edge(left_edge, axes, L):
     return left_edge
 
 
-def _retfunc(ft, freq, axes, ret_cubegrid):
+def _retfunc(ft, freq, axes, ret_cubegrid: bool):
     if not ret_cubegrid:
         return ft, freq
     grid = freq[0] ** 2

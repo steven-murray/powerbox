@@ -131,17 +131,17 @@ class PowerBox:
 
     def __init__(
         self,
-        N,
+        N: int,
         pk,
-        dim=2,
-        boxlength=1.0,
-        ensure_physical=False,
-        a=1.0,
-        b=1.0,
-        vol_normalised_power=True,
-        seed=None,
-        nthreads=None,
-    ):
+        dim: int = 2,
+        boxlength: float = 1.0,
+        ensure_physical: bool = False,
+        a: float = 1.0,
+        b: float = 1.0,
+        vol_normalised_power: bool = True,
+        seed: int | None = None,
+        nthreads: bool | int | None = None,
+    ) -> None:
         self.N = N
         self.dim = dim
         self.boxlength = boxlength
@@ -179,7 +179,7 @@ class PowerBox:
         self.dx = float(boxlength) / N
 
     def k(self):
-        """The entire grid of wavenumber magitudes."""
+        """Return the full grid of wavenumber magnitudes."""
         return _magnitude_grid(self.kvec, self.dim)
 
     @property
@@ -198,7 +198,7 @@ class PowerBox:
         return np.arange(-self.boxlength / 2, self.boxlength / 2, self.dx)[: self.N]
 
     def gauss_hermitian(self):
-        """A random array which has Gaussian magnitudes and Hermitian symmetry."""
+        """Return a random array with Gaussian magnitudes and Hermitian symmetry."""
         mag = self.rng.normal(0, 1, size=[self.n] * self.dim)
         pha = 2 * np.pi * self.rng.uniform(size=[self.n] * self.dim)
 
@@ -211,7 +211,7 @@ class PowerBox:
         return dk
 
     def power_array(self):
-        """The Power Spectrum (volume normalised) at `self.k`."""
+        """Return the volume-normalized power spectrum evaluated on ``self.k``."""
         k = self.k()
         mask = k != 0
         # Re-use the k array to conserve memory
@@ -219,7 +219,7 @@ class PowerBox:
         return k
 
     def delta_k(self):
-        """A realisation of the delta_k.
+        """Return a realization of ``delta_k``.
 
         The gaussianised square root of the power spectrum (i.e. the Fourier
         co-efficients).
@@ -234,7 +234,7 @@ class PowerBox:
         return gh
 
     def delta_x(self):
-        """The realised field in real-space from the input power spectrum."""
+        """Return the realized real-space field from the input power spectrum."""
         # Here we multiply by V because the inverse Fourier transform of the
         # dimensionless power has units of 1/V, and we require a unitless
         # quantity for delta_x.
@@ -259,10 +259,10 @@ class PowerBox:
 
     def create_discrete_sample(
         self,
-        nbar,
-        randomise_in_cell=True,
-        min_at_zero=False,
-        store_pos=False,
+        nbar: float,
+        randomise_in_cell: bool = True,
+        min_at_zero: bool = False,
+        store_pos: bool = False,
         delta_x=None,
     ):
         r"""Create a sample of tracers of the underlying density distribution.
@@ -375,11 +375,11 @@ class LogNormalPowerBox(PowerBox):
     >>> plt.scatter(positions[:,0],positions[:,1],s=2,alpha=0.5,lw=0)
     """
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
 
     def correlation_array(self):
-        """The correlation function from the input power, on the grid."""
+        """Return the correlation function from the input power on the grid."""
         pa = self.fftbackend.empty((self.N,) * self.dim)
         pa[...] = self.power_array()
         return self.V * np.real(
@@ -414,7 +414,7 @@ class LogNormalPowerBox(PowerBox):
 
     def delta_k(self):
         """
-        A realisation of the delta_k.
+        Return a realization of ``delta_k``.
 
         i.e. the gaussianised square root of the unitless power spectrum
         (i.e. the Fourier co-efficients)
@@ -425,7 +425,7 @@ class LogNormalPowerBox(PowerBox):
         return gh
 
     def delta_x(self):
-        """The real-space over-density field, from the input power spectrum."""
+        """Return the real-space over-density field from the input power spectrum."""
         dk = self.fftbackend.empty((self.N,) * self.dim, dtype="complex128")
         dk[...] = self.delta_k()
         dk[...] = (
