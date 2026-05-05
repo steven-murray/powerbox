@@ -61,13 +61,13 @@ def test_discrete_power_lognormal() -> None:
 
     assert res < 1e-1
 
-    with pytest.raises(ValueError, match=r"Try transposing deltax\\."):
+    with pytest.raises(ValueError, match=r"Try transposing deltax\."):
         power, bins, _, _ = get_power(sample.T, pb.boxlength, N=pb.N)
 
-    with pytest.raises(ValueError, match=r"Try transposing deltax\\."):
+    with pytest.raises(ValueError, match=r"Try transposing deltax\."):
         power, bins, _, _ = get_power(sample.T, pb.boxlength, N=pb.N, deltax2=sample.T)
 
-    with pytest.raises(ValueError, match=r"Try transposing deltax2\\."):
+    with pytest.raises(ValueError, match=r"Try transposing deltax2\."):
         power, bins, _, _ = get_power(sample, pb.boxlength, N=pb.N, deltax2=sample.T)
 
     get_power(sample, pb.boxlength, N=pb.N, deltax2=sample, dimensionless=False)
