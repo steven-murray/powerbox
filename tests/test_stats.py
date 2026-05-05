@@ -1,15 +1,19 @@
-import pytest
+"""Statistical behavior tests for generated fields."""
 
 import numpy as np
+import pytest
 from scipy.ndimage import gaussian_filter
 
 from powerbox import PowerBox
 
 
 @pytest.mark.skip(
-    reason="this is not passing to desired tolerance at this point... not sure if this is a problem. It's not systematic."
+    reason=(
+        "this is not passing to desired tolerance at this point... "
+        "not sure if this is a problem. It's not systematic."
+    )
 )
-def test_resolution():
+def test_resolution() -> None:
     var = [0] * 6
     for i in range(6):
         pb = PowerBox(

@@ -1,16 +1,19 @@
-import numpy as np
+"""Tests comparing Gaussian and lognormal realizations."""
+
 from functools import partial
+
+import numpy as np
 
 from powerbox import LogNormalPowerBox, PowerBox, get_power
 
 get_power = partial(get_power, bins_upto_boxlen=True)
 
 
-def test_ln_vs_straight():
+def test_ln_vs_straight() -> None:
     # Set up two boxes with exactly the same parameters
-    pb = PowerBox(128, lambda u: 100.0 * u**-2.0, dim=3, seed=1234, boxlength=100.0)
+    pb = PowerBox(128, lambda u: 100.0 * (1 + u) ** -2.0, dim=3, seed=1234, boxlength=100.0)
     ln_pb = LogNormalPowerBox(
-        128, lambda u: 100.0 * u**-2.0, dim=3, seed=1234, boxlength=100.0
+        128, lambda u: 100.0 * (1 + u) ** -2.0, dim=3, seed=1234, boxlength=100.0
     )
 
     pk = get_power(pb.delta_x(), pb.boxlength)[0]
@@ -22,7 +25,7 @@ def test_ln_vs_straight():
     assert np.mean(np.abs((pk - ln_pk) / pk)) < 2e-1  # 10% agreement
 
 
-def test_ln_vs_straight_standard_freq():
+def test_ln_vs_straight_standard_freq() -> None:
     # Set up two boxes with exactly the same parameters
     pb = PowerBox(
         128,

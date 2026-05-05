@@ -2,16 +2,16 @@
 
 from __future__ import annotations
 
-import numpy as np
+import contextlib
 import warnings
 from abc import ABC
 from functools import cache
 from multiprocessing import cpu_count
 
-try:
+import numpy as np
+
+with contextlib.suppress(ImportError):
     import pyfftw
-except ImportError:
-    pass
 
 
 class FFTBackend(ABC):  # noqa: B024
@@ -19,7 +19,7 @@ class FFTBackend(ABC):  # noqa: B024
 
     def fftshift(self, x, *args, **kwargs):
         """
-        The same as numpy, except that it preserves units (if Astropy quantities are used).
+        Apply ``numpy.fftshift`` while preserving units when present.
 
         All extra arguments are passed directly to numpy's ``fftshift``.
         """
@@ -29,7 +29,7 @@ class FFTBackend(ABC):  # noqa: B024
 
     def ifftshift(self, x, *args, **kwargs):
         """
-        The same as numpy except it preserves units (if Astropy quantities are used).
+        Apply ``numpy.ifftshift`` while preserving units when present.
 
         All extra arguments are passed directly to numpy's ``ifftshift``.
         """
@@ -37,7 +37,7 @@ class FFTBackend(ABC):  # noqa: B024
 
         return out * x.unit if hasattr(x, "unit") else out
 
-    def fftfreq(self, N, d=1.0, b=2 * np.pi):
+    def fftfreq(self, N: int, d: float = 1.0, b: float = 2 * np.pi):
         """
         Return fourier frequencies for a box with N cells, using general Fourier convention.
 
@@ -62,7 +62,7 @@ class FFTBackend(ABC):  # noqa: B024
 class NumpyFFT(FFTBackend):
     """FFT backend using numpy.fft."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.fftn = np.fft.fftn
 
         self.ifftn = np.fft.ifftn
@@ -79,11 +79,11 @@ class NumpyFFT(FFTBackend):
 class FFTW(FFTBackend):
     """FFT backend using pyfftw."""
 
-    def __init__(self, nthreads=None):
+    def __init__(self, nthreads: int | None = None) -> None:
         try:
             import pyfftw
-        except ImportError:
-            raise ImportError("pyFFTW could not be imported...")
+        except ImportError as err:
+            raise ImportError("pyFFTW could not be imported...") from err
 
         try:
             pyfftw.builders._utils._default_threads(4)
@@ -115,20 +115,24 @@ class FFTW(FFTBackend):
 
 
 @cache
-def get_fft_backend(nthreads=None):
+def get_fft_backend(nthreads: int | None = None) -> FFTW | NumpyFFT:
     """Choose a backend based on nthreads.
 
     Will return the Numpy backend if nthreads is None, otherwise the FFTW backend with
     the given number of threads.
     """
+    # Handle bool explicitly: False → 0 (numpy backend), True → 1 (numpy backend).
+    # Explicit conversion avoids implicit boolean-to-integer coercion in the
+    # comparison below, making the intent clear rather than relying on True == 1.
+    if isinstance(nthreads, bool):
+        nthreads = int(nthreads)
+
     if nthreads is None or nthreads > 1:
         try:
             fftbackend = FFTW(nthreads=nthreads)
         except ImportError:
             if nthreads is not None:
-                warnings.warn(
-                    "Could not import pyfftw... Proceeding with numpy.", stacklevel=2
-                )
+                warnings.warn("Could not import pyfftw... Proceeding with numpy.", stacklevel=2)
             fftbackend = NumpyFFT()
     else:
         fftbackend = NumpyFFT()

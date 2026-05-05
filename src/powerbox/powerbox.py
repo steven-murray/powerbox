@@ -9,8 +9,9 @@ subclassing :class:`PowerBox` and over-writing the same methods as are over-writ
 
 from __future__ import annotations
 
-import numpy as np
 import warnings
+
+import numpy as np
 
 from . import dft
 from .tools import _magnitude_grid
@@ -78,10 +79,11 @@ class PowerBox:
         A random seed to define the initial conditions. If not set, it will remain
         random, and each call to eg. :meth:`delta_x()` will produce a *different*
         realisation.
-    nthreads : bool or int, optional
-        If set to False, uses numpy's FFT routine. If set to None, uses pyFFTW with
-        number of threads equal to the number of available CPUs. If int, uses pyFFTW
-        with number of threads equal to the input value.
+    nthreads : int, optional
+        Number of threads for pyFFTW. If set to None, uses pyFFTW with the number of
+        threads equal to the number of available CPUs. If set to 0 or 1, uses numpy's
+        FFT routine instead. If set to an integer greater than 1, uses pyFFTW with that
+        many threads.
 
     Notes
     -----
@@ -130,17 +132,17 @@ class PowerBox:
 
     def __init__(
         self,
-        N,
+        N: int,
         pk,
-        dim=2,
-        boxlength=1.0,
-        ensure_physical=False,
-        a=1.0,
-        b=1.0,
-        vol_normalised_power=True,
-        seed=None,
-        nthreads=None,
-    ):
+        dim: int = 2,
+        boxlength: float = 1.0,
+        ensure_physical: bool = False,
+        a: float = 1.0,
+        b: float = 1.0,
+        vol_normalised_power: bool = True,
+        seed: int | None = None,
+        nthreads: int | None = None,
+    ) -> None:
         self.N = N
         self.dim = dim
         self.boxlength = boxlength
@@ -160,6 +162,12 @@ class PowerBox:
         self.Ntot = self.N**self.dim
 
         self.seed = seed
+        if seed is None:
+            self.rng = np.random.default_rng()
+        else:
+            # Keep seeded realizations close to historical behavior while using
+            # the Generator API required by modern NumPy.
+            self.rng = np.random.Generator(np.random.MT19937(seed))
 
         if N % 2 == 0:
             self._even = True
@@ -172,7 +180,7 @@ class PowerBox:
         self.dx = float(boxlength) / N
 
     def k(self):
-        """The entire grid of wavenumber magitudes."""
+        """Return the full grid of wavenumber magnitudes."""
         return _magnitude_grid(self.kvec, self.dim)
 
     @property
@@ -191,12 +199,9 @@ class PowerBox:
         return np.arange(-self.boxlength / 2, self.boxlength / 2, self.dx)[: self.N]
 
     def gauss_hermitian(self):
-        """A random array which has Gaussian magnitudes and Hermitian symmetry."""
-        if self.seed:
-            np.random.seed(self.seed)
-
-        mag = np.random.normal(0, 1, size=[self.n] * self.dim)
-        pha = 2 * np.pi * np.random.uniform(size=[self.n] * self.dim)
+        """Return a random array with Gaussian magnitudes and Hermitian symmetry."""
+        mag = self.rng.normal(0, 1, size=[self.n] * self.dim)
+        pha = 2 * np.pi * self.rng.uniform(size=[self.n] * self.dim)
 
         dk = _make_hermitian(mag, pha)
 
@@ -207,7 +212,7 @@ class PowerBox:
         return dk
 
     def power_array(self):
-        """The Power Spectrum (volume normalised) at `self.k`."""
+        """Return the volume-normalized power spectrum evaluated on ``self.k``."""
         k = self.k()
         mask = k != 0
         # Re-use the k array to conserve memory
@@ -215,7 +220,7 @@ class PowerBox:
         return k
 
     def delta_k(self):
-        """A realisation of the delta_k.
+        """Return a realization of ``delta_k``.
 
         The gaussianised square root of the power spectrum (i.e. the Fourier
         co-efficients).
@@ -223,18 +228,17 @@ class PowerBox:
         p = self.power_array()
 
         if np.any(p < 0):
-            raise ValueError(
-                "The power spectrum function has returned negative values."
-            )
+            raise ValueError("The power spectrum function has returned negative values.")
 
         gh = self.gauss_hermitian()
         gh[...] = np.sqrt(p) * gh
         return gh
 
     def delta_x(self):
-        """The realised field in real-space from the input power spectrum."""
-        # Here we multiply by V because the (inverse) fourier-transform of the (dimensionless) power has
-        # units of 1/V and we require a unitless quantity for delta_x.
+        """Return the realized real-space field from the input power spectrum."""
+        # Here we multiply by V because the inverse Fourier transform of the
+        # dimensionless power has units of 1/V, and we require a unitless
+        # quantity for delta_x.
         dk = self.fftbackend.empty((self.N,) * self.dim, dtype="complex128")
         dk[...] = self.delta_k()
         dk[...] = (
@@ -256,10 +260,10 @@ class PowerBox:
 
     def create_discrete_sample(
         self,
-        nbar,
-        randomise_in_cell=True,
-        min_at_zero=False,
-        store_pos=False,
+        nbar: float,
+        randomise_in_cell: bool = True,
+        min_at_zero: bool = False,
+        store_pos: bool = False,
         delta_x=None,
     ):
         r"""Create a sample of tracers of the underlying density distribution.
@@ -309,7 +313,7 @@ class PowerBox:
         dx = (dx + 1) * self.dx**self.dim * nbar
         n = dx
 
-        self.n_per_cell = np.random.poisson(n)
+        self.n_per_cell = self.rng.poisson(n)
 
         # Get all source positions
         args = [self.x] * self.dim
@@ -319,9 +323,7 @@ class PowerBox:
         tracer_positions = tracer_positions.repeat(self.n_per_cell.flatten(), axis=0)
 
         if randomise_in_cell:
-            tracer_positions += (
-                np.random.uniform(size=(np.sum(self.n_per_cell), self.dim)) * self.dx
-            )
+            tracer_positions += self.rng.uniform(size=(np.sum(self.n_per_cell), self.dim)) * self.dx
 
         if min_at_zero:
             tracer_positions += self.boxlength / 2.0
@@ -374,11 +376,11 @@ class LogNormalPowerBox(PowerBox):
     >>> plt.scatter(positions[:,0],positions[:,1],s=2,alpha=0.5,lw=0)
     """
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
 
     def correlation_array(self):
-        """The correlation function from the input power, on the grid."""
+        """Return the correlation function from the input power on the grid."""
         pa = self.fftbackend.empty((self.N,) * self.dim)
         pa[...] = self.power_array()
         return self.V * np.real(
@@ -392,11 +394,11 @@ class LogNormalPowerBox(PowerBox):
         )
 
     def gaussian_correlation_array(self):
-        """The correlation function required for a Gaussian field to produce the input power on a lognormal field."""
+        """Correlation required for a Gaussian field to produce the input power."""
         return np.log(1 + self.correlation_array())
 
     def gaussian_power_array(self):
-        """The power spectrum required for a Gaussian field to produce the input power on a lognormal field."""
+        """Power spectrum required for a Gaussian field to produce the input power."""
         gca = self.fftbackend.empty((self.N,) * self.dim)
         gca[...] = self.gaussian_correlation_array()
         gpa = np.abs(
@@ -413,7 +415,7 @@ class LogNormalPowerBox(PowerBox):
 
     def delta_k(self):
         """
-        A realisation of the delta_k.
+        Return a realization of ``delta_k``.
 
         i.e. the gaussianised square root of the unitless power spectrum
         (i.e. the Fourier co-efficients)
@@ -424,7 +426,7 @@ class LogNormalPowerBox(PowerBox):
         return gh
 
     def delta_x(self):
-        """The real-space over-density field, from the input power spectrum."""
+        """Return the real-space over-density field from the input power spectrum."""
         dk = self.fftbackend.empty((self.N,) * self.dim, dtype="complex128")
         dk[...] = self.delta_k()
         dk[...] = (
