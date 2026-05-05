@@ -2,7 +2,7 @@
 
 ## Do
 - use uv run for all project tooling commands (pytest, ruff, etc.)
-- setup environment with uv sync; prefer uv sync --locked --all-extras --dev for CI parity
+- set up environment with uv sync; prefer uv sync --locked --all-extras --dev for CI parity
 - add type hints for all new parameters
 - write or update tests for every behavior change
 - add numpydoc-style docstrings for new public modules, classes, and functions
