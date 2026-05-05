@@ -153,3 +153,12 @@ def test_fftshift(nthreads) -> None:
 def test_fftfreq(nthreads, n) -> None:
     freqs = fftfreq(n, nthreads=nthreads)
     assert np.all(np.diff(freqs)) > 0
+
+
+@pytest.mark.parametrize("nthreads", [False, True])
+def test_get_fft_backend_bool_returns_numpy(nthreads) -> None:
+    """Passing a bool to get_fft_backend should always return the NumpyFFT backend."""
+    from powerbox.dft_backend import NumpyFFT, get_fft_backend
+
+    backend = get_fft_backend(nthreads)
+    assert isinstance(backend, NumpyFFT)

@@ -122,7 +122,8 @@ def get_fft_backend(nthreads: int | None = None) -> FFTW | NumpyFFT:
     the given number of threads.
     """
     # Handle bool explicitly: False → 0 (numpy backend), True → 1 (numpy backend).
-    # This avoids silently treating True/False as integer thread counts.
+    # Explicit conversion avoids implicit boolean-to-integer coercion in the
+    # comparison below, making the intent clear rather than relying on True == 1.
     if isinstance(nthreads, bool):
         nthreads = int(nthreads)
 
