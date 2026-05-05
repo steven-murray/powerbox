@@ -1,38 +1,45 @@
 r"""
 A module defining some "nicer" fourier transform functions.
 
-We define only two functions -- an arbitrary-dimension forward transform, and its inverse. In each case, the transform
-is designed to replicate the continuous transform. That is, the transform is volume-normalised and obeys correct
-Fourier conventions.
+We define only two functions: an arbitrary-dimension forward transform, and its
+inverse. In each case, the transform is designed to replicate the continuous
+transform. That is, the transform is volume-normalised and obeys correct Fourier
+conventions.
 
-The actual FFT backend is provided by ``pyFFTW`` if it is installed, which provides a significant speedup, and
-multi-threading.
+The actual FFT backend is provided by ``pyFFTW`` if it is installed, which
+provides a significant speedup and multi-threading.
 
-Conveniently, we allow for arbitrary Fourier convention, according to the scheme in
-http://mathworld.wolfram.com/FourierTransform.html. That is, we define the forward and inverse *n*-dimensional
-transforms respectively as
+Conveniently, we allow for arbitrary Fourier convention, according to the scheme
+in http://mathworld.wolfram.com/FourierTransform.html. That is, we define the
+forward and inverse *n*-dimensional transforms respectively as
 
-.. math:: F(k) = \sqrt{\frac{|b|}{(2\pi)^{1-a}}}^n \int f(r) e^{-i b\mathbf{k}\cdot\mathbf{r}} d^n\mathbf{r}
+.. math::
+    F(k) = \sqrt{\frac{|b|}{(2\pi)^{1-a}}}^n
+    \int f(r) e^{-i b\mathbf{k}\cdot\mathbf{r}} d^n\mathbf{r}
 
 and
 
-.. math:: f(r) = \sqrt{\frac{|b|}{(2\pi)^{1+a}}}^n \int F(k) e^{+i b\mathbf{k}\cdot\mathbf{r}} d^n \mathbf{k}.
+.. math::
+    f(r) = \sqrt{\frac{|b|}{(2\pi)^{1+a}}}^n
+    \int F(k) e^{+i b\mathbf{k}\cdot\mathbf{r}} d^n \mathbf{k}.
 
-In both transforms, the corresponding co-ordinates are returned so a completely consistent transform is simple to get.
-This makes switching from standard frequency to angular frequency very simple.
+In both transforms, the corresponding co-ordinates are returned so a completely
+consistent transform is simple to get. This makes switching from standard
+frequency to angular frequency very simple.
 
-We note that currently, only positive values for b are implemented (in fact, using negative b is consistent, but
-one must be careful that the frequencies returned are descending, rather than ascending).
+We note that currently, only positive values for ``b`` are implemented. Using
+negative ``b`` is consistent, but one must be careful that the frequencies
+returned are descending, rather than ascending.
 """
 
 from __future__ import annotations
 
-__all__ = ["fft", "ifft", "fftfreq", "fftshift", "ifftshift"]
+__all__ = ["fft", "fftfreq", "fftshift", "ifft", "ifftshift"]
 
 # To avoid MKL-related bugs, numpy needs to be imported after pyfftw: see https://github.com/pyFFTW/pyFFTW/issues/40
 import numpy as np
 
-from .dft_backend import FFTBackend, get_fft_backend
+from .dft_backend import get_fft_backend
 
 
 def fftshift(x, *args, **kwargs):  # noqa: D103
@@ -63,13 +70,13 @@ def fft(
     X,
     L=None,
     Lk=None,
-    a=0,
-    b=2 * np.pi,
+    a: float = 0,
+    b: float = 2 * np.pi,
     left_edge=None,
     axes=None,
-    ret_cubegrid=False,
+    ret_cubegrid: bool = False,
     nthreads=None,
-    backend: FFTBackend = None,
+    backend=None,
 ):
     r"""
     Arbitrary-dimension nice Fourier Transform.
@@ -112,10 +119,11 @@ def fft(
         transform.
     ret_cubegrid : bool, optional
         Whether to return the entire grid of frequency magnitudes.
-    nthreads : bool or int, optional
-        If set to False, uses numpy's FFT routine. If set to None, uses pyFFTW with
-        number of threads equal to the number of available CPUs. If int, uses pyFFTW
-        with number of threads equal to the input value.
+    nthreads : int, optional
+        Number of threads for pyFFTW. If set to None, uses pyFFTW with the number of
+        threads equal to the number of available CPUs. If set to 0 or 1, uses numpy's
+        FFT routine instead. If set to an integer greater than 1, uses pyFFTW with that
+        many threads.
     backend : FFTBackend, optional
         The backend to use for the FFT. If not provided, the backend is chosen based on
         the value of nthreads.
@@ -162,9 +170,9 @@ def fft(
         * np.sqrt(np.abs(b) / (2 * np.pi) ** (1 - a)) ** len(axes)
     )
 
-    dx = np.array([float(length) / float(n) for length, n in zip(L, N)])
+    dx = np.array([float(length) / float(n) for length, n in zip(L, N, strict=True)])
 
-    freq = [backend.fftfreq(n, d=d, b=b) for n, d in zip(N, dx)]
+    freq = [backend.fftfreq(n, d=d, b=b) for n, d in zip(N, dx, strict=True)]
 
     # Adjust phases of the result to align with the left edge properly.
     ft = _adjust_phase(ft, left_edge, freq, axes, b)
@@ -175,13 +183,13 @@ def ifft(
     X,
     Lk=None,
     L=None,
-    a=0,
-    b=2 * np.pi,
+    a: float = 0,
+    b: float = 2 * np.pi,
     axes=None,
     left_edge=None,
-    ret_cubegrid=False,
-    nthreads: int | None = None,
-    backend: FFTBackend | None = None,
+    ret_cubegrid: bool = False,
+    nthreads=None,
+    backend=None,
 ):
     r"""
     Arbitrary-dimension nice inverse Fourier Transform.
@@ -224,10 +232,11 @@ def ifft(
         numpy ifft. This affects only the phases of the result.
     ret_cubegrid : bool, optional
         Whether to return the entire grid of real-space co-ordinate magnitudes.
-    nthreads : bool or int, optional
-        If set to False, uses numpy's FFT routine. If set to None, uses pyFFTW with
-        number of threads equal to the number of available CPUs. If int, uses pyFFTW
-        with number of threads equal to the input value.
+    nthreads : int, optional
+        Number of threads for pyFFTW. If set to None, uses pyFFTW with the number of
+        threads equal to the number of available CPUs. If set to 0 or 1, uses numpy's
+        FFT routine instead. If set to an integer greater than 1, uses pyFFTW with that
+        many threads.
     backend : FFTBackend, optional
         The backend to use for the FFT. If not provided, the backend is chosen based on
         the value of nthreads.
@@ -269,28 +278,24 @@ def ifft(
     left_edge = _set_left_edge(left_edge, axes, Lk)
 
     V = np.prod(Lk)
-    dk = np.array([float(lk) / float(n) for lk, n in zip(Lk, N)])
+    dk = np.array([float(lk) / float(n) for lk, n in zip(Lk, N, strict=True)])
 
-    ft = (
-        V
-        * backend.ifftn(X, axes=axes)
-        * np.sqrt(np.abs(b) / (2 * np.pi) ** (1 + a)) ** len(axes)
-    )
+    ft = V * backend.ifftn(X, axes=axes) * np.sqrt(np.abs(b) / (2 * np.pi) ** (1 + a)) ** len(axes)
     ft = backend.ifftshift(ft, axes=axes)
 
-    freq = [backend.fftfreq(n, d=d, b=b) for n, d in zip(N, dk)]
+    freq = [backend.fftfreq(n, d=d, b=b) for n, d in zip(N, dk, strict=True)]
 
     ft = _adjust_phase(ft, left_edge, freq, axes, -b)
     return _retfunc(ft, freq, axes, ret_cubegrid)
 
 
-def _adjust_phase(ft, left_edge, freq, axes, b):
-    for i, (ledge, fq) in enumerate(zip(left_edge, freq)):
+def _adjust_phase(ft, left_edge, freq, axes, b: float):
+    for i, (ledge, fq) in enumerate(zip(left_edge, freq, strict=True)):
         xp = np.exp(-b * 1j * fq * ledge)
         obj = (
-            tuple([None] * axes[i])
-            + (slice(None, None, None),)
-            + tuple([None] * (ft.ndim - axes[i] - 1))
+            *([None] * axes[i]),
+            slice(None, None, None),
+            *([None] * (ft.ndim - axes[i] - 1)),
         )
         ft *= xp[obj]
     return ft
@@ -307,7 +312,7 @@ def _set_left_edge(left_edge, axes, L):
     return left_edge
 
 
-def _retfunc(ft, freq, axes, ret_cubegrid):
+def _retfunc(ft, freq, axes, ret_cubegrid: bool):
     if not ret_cubegrid:
         return ft, freq
     grid = freq[0] ** 2
