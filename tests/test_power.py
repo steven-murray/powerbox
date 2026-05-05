@@ -137,19 +137,13 @@ def test_k_weights() -> None:
     # set the masked region to zero in the full box
     with warnings.catch_warnings():
         warnings.filterwarnings("ignore", message="invalid value encountered in divide")
-        warnings.filterwarnings(
-            "ignore", message="One or more radial bins had no cells within it"
-        )
-        res2 = get_power(
-            real_space_field, pb.boxlength, k_weights=k_weights, bins=res3.bin_edges
-        )
+        warnings.filterwarnings("ignore", message="One or more radial bins had no cells within it")
+        res2 = get_power(real_space_field, pb.boxlength, k_weights=k_weights, bins=res3.bin_edges)
     # we expect that the PS of the small box is similar to the PS
     # of the big box with the low-k modes removed
 
     assert np.all(res3.bin_edges == res2.bin_edges)
-    assert np.allclose(
-        res2.power[~np.isnan(res2.power)], res3.power[~np.isnan(res2.power)]
-    )
+    assert np.allclose(res2.power[~np.isnan(res2.power)], res3.power[~np.isnan(res2.power)])
 
 
 def test_prefactor_fnc() -> None:
@@ -165,9 +159,7 @@ def test_k_weights_fnc() -> None:
     pb = PowerBox(50, dim=3, pk=lambda k: 1.0 * k**-2.0, boxlength=1.0, b=1)
     with warnings.catch_warnings():
         warnings.filterwarnings("ignore", message="invalid value encountered in divide")
-        warnings.filterwarnings(
-            "ignore", message="One or more radial bins had no cells within it"
-        )
+        warnings.filterwarnings("ignore", message="One or more radial bins had no cells within it")
         res_ki0 = get_power(pb.delta_x(), pb.boxlength, k_weights=ignore_zero_ki)
     res = get_power(pb.delta_x(), pb.boxlength, k_weights=ignore_zero_absk)
 
@@ -244,15 +236,11 @@ def test_power_spectrum_log_bins():
     """log_bins=True produces log-spaced bin_edges and geometric bin_centres."""
     pb = PowerBox(50, dim=2, pk=lambda k: k**-2.0, boxlength=1.0, b=1)
     with warnings.catch_warnings():
-        warnings.filterwarnings(
-            "ignore", message="One or more radial bins had no cells within it"
-        )
+        warnings.filterwarnings("ignore", message="One or more radial bins had no cells within it")
         result = get_power(pb.delta_x(), pb.boxlength, b=1, log_bins=True)
 
     # bin_centres should be geometric means of adjacent edges
-    expected_centres = np.exp(
-        (np.log(result.bin_edges[1:]) + np.log(result.bin_edges[:-1])) / 2
-    )
+    expected_centres = np.exp((np.log(result.bin_edges[1:]) + np.log(result.bin_edges[:-1])) / 2)
     np.testing.assert_allclose(result.bin_centres, expected_centres)
 
 

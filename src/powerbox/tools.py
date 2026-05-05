@@ -102,8 +102,7 @@ class PowerSpectrum:
                 )
             if self.power.shape[0] != n_bins:
                 raise ValueError(
-                    f"power must have first dimension n_bins = {n_bins}, "
-                    f"got {self.power.shape[0]}."
+                    f"power must have first dimension n_bins = {n_bins}, got {self.power.shape[0]}."
                 )
         if self.bin_avg is not None and len(self.bin_avg) != n_bins:
             raise ValueError(
@@ -111,8 +110,7 @@ class PowerSpectrum:
             )
         if self.nsamples is not None and len(self.nsamples) != n_bins:
             raise ValueError(
-                f"nsamples must have length n_bins = {n_bins}, "
-                f"got {len(self.nsamples)}."
+                f"nsamples must have length n_bins = {n_bins}, got {len(self.nsamples)}."
             )
         if self.variance is not None and self.variance.shape[0] != n_bins:
             raise ValueError(
@@ -767,9 +765,7 @@ def _field_average(
 
     with np.errstate(invalid="ignore"):
         rl = (
-            np.bincount(
-                indx, weights=np.real(field.flatten()), minlength=len(sumweights) + 2
-            )[1:-1]
+            np.bincount(indx, weights=np.real(field.flatten()), minlength=len(sumweights) + 2)[1:-1]
             / sumweights
         )
         if field.dtype.kind == "c":
