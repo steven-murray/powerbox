@@ -119,10 +119,11 @@ def fft(
         transform.
     ret_cubegrid : bool, optional
         Whether to return the entire grid of frequency magnitudes.
-    nthreads : bool or int, optional
-        If set to False, uses numpy's FFT routine. If set to None, uses pyFFTW with
-        number of threads equal to the number of available CPUs. If int, uses pyFFTW
-        with number of threads equal to the input value.
+    nthreads : int, optional
+        Number of threads for pyFFTW. If set to None, uses pyFFTW with the number of
+        threads equal to the number of available CPUs. If set to 0 or 1, uses numpy's
+        FFT routine instead. If set to an integer greater than 1, uses pyFFTW with that
+        many threads.
     backend : FFTBackend, optional
         The backend to use for the FFT. If not provided, the backend is chosen based on
         the value of nthreads.
@@ -231,10 +232,11 @@ def ifft(
         numpy ifft. This affects only the phases of the result.
     ret_cubegrid : bool, optional
         Whether to return the entire grid of real-space co-ordinate magnitudes.
-    nthreads : bool or int, optional
-        If set to False, uses numpy's FFT routine. If set to None, uses pyFFTW with
-        number of threads equal to the number of available CPUs. If int, uses pyFFTW
-        with number of threads equal to the input value.
+    nthreads : int, optional
+        Number of threads for pyFFTW. If set to None, uses pyFFTW with the number of
+        threads equal to the number of available CPUs. If set to 0 or 1, uses numpy's
+        FFT routine instead. If set to an integer greater than 1, uses pyFFTW with that
+        many threads.
     backend : FFTBackend, optional
         The backend to use for the FFT. If not provided, the backend is chosen based on
         the value of nthreads.

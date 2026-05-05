@@ -1250,10 +1250,11 @@ def get_power(
         modes completely. If callable, a function that takes in a a list containing
         arrays of wavemodes [k1, k2, k3, ...] as well as kmag (optional), and returns an array
         of weights of shape (len(k1), len(k2), len(k3), ... ) for a res_ndim = 1.
-    nthreads : bool or int, optional
-        If set to False, uses numpy's FFT routine. If set to None, uses pyFFTW with
-        number of threads equal to the number of available CPUs. If int, uses pyFFTW
-        with number of threads equal to the input value.
+    nthreads : int, optional
+        Number of threads for pyFFTW. If set to None, uses pyFFTW with the number of
+        threads equal to the number of available CPUs. If set to 0 or 1, uses numpy's
+        FFT routine instead. If set to an integer greater than 1, uses pyFFTW with that
+        many threads.
     prefactor_fnc : callable, optional
         A function that takes in a list containing arrays of wavemodes [k1, k2, k3, ...]
         and returns an array of the same size. This function is applied on the FT before

@@ -79,10 +79,11 @@ class PowerBox:
         A random seed to define the initial conditions. If not set, it will remain
         random, and each call to eg. :meth:`delta_x()` will produce a *different*
         realisation.
-    nthreads : bool or int, optional
-        If set to False, uses numpy's FFT routine. If set to None, uses pyFFTW with
-        number of threads equal to the number of available CPUs. If int, uses pyFFTW
-        with number of threads equal to the input value.
+    nthreads : int, optional
+        Number of threads for pyFFTW. If set to None, uses pyFFTW with the number of
+        threads equal to the number of available CPUs. If set to 0 or 1, uses numpy's
+        FFT routine instead. If set to an integer greater than 1, uses pyFFTW with that
+        many threads.
 
     Notes
     -----
@@ -140,7 +141,7 @@ class PowerBox:
         b: float = 1.0,
         vol_normalised_power: bool = True,
         seed: int | None = None,
-        nthreads: bool | int | None = None,
+        nthreads: int | None = None,
     ) -> None:
         self.N = N
         self.dim = dim

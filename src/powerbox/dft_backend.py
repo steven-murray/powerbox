@@ -115,12 +115,17 @@ class FFTW(FFTBackend):
 
 
 @cache
-def get_fft_backend(nthreads: bool | int | None = None) -> FFTW | NumpyFFT:
+def get_fft_backend(nthreads: int | None = None) -> FFTW | NumpyFFT:
     """Choose a backend based on nthreads.
 
     Will return the Numpy backend if nthreads is None, otherwise the FFTW backend with
     the given number of threads.
     """
+    # Handle bool explicitly: False → 0 (numpy backend), True → 1 (numpy backend).
+    # This avoids silently treating True/False as integer thread counts.
+    if isinstance(nthreads, bool):
+        nthreads = int(nthreads)
+
     if nthreads is None or nthreads > 1:
         try:
             fftbackend = FFTW(nthreads=nthreads)
