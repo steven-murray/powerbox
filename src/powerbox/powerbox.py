@@ -44,6 +44,33 @@ def _make_hermitian(mag, pha):
     return mag * (np.cos(pha) + 1j * np.sin(pha))
 
 
+def _ifft_centered(
+    field: np.ndarray,
+    boxlength: float,
+    a: float,
+    b: float,
+    backend,
+) -> tuple[np.ndarray, list[np.ndarray]]:
+    """Inverse-transform centered Fourier coefficients onto the centered real grid."""
+    n = field.shape[0]
+    if n % 2 == 0:
+        return dft.ifft(field, L=boxlength, a=a, b=b, backend=backend)
+
+    dim = field.ndim
+    dx = boxlength / n
+    phase_1d = np.exp(-1j * b * backend.fftfreq(n, d=dx, b=b) * dx / 2)
+    phase = phase_1d
+    for _ in range(1, dim):
+        phase = np.multiply.outer(phase, phase_1d)
+
+    lk = 2 * np.pi / (dx * b)
+    volume = lk**dim
+    normalisation = np.sqrt(np.abs(b) / (2 * np.pi) ** (1 + a)) ** dim
+
+    ft = volume * backend.ifftn(backend.ifftshift(field * phase)) * normalisation
+    return backend.fftshift(ft), [backend.fftfreq(n, d=lk / n, b=b)] * dim
+
+
 class PowerBox:
     r"""
     Generate real- and fourier-space Gaussian fields with a given power spectrum.
@@ -243,9 +270,9 @@ class PowerBox:
         dk[...] = self.delta_k()
         dk[...] = (
             self.V
-            * dft.ifft(
+            * _ifft_centered(
                 dk,
-                L=self.boxlength,
+                boxlength=self.boxlength,
                 a=self.fourier_a,
                 b=self.fourier_b,
                 backend=self.fftbackend,
@@ -384,9 +411,9 @@ class LogNormalPowerBox(PowerBox):
         pa = self.fftbackend.empty((self.N,) * self.dim)
         pa[...] = self.power_array()
         return self.V * np.real(
-            dft.ifft(
+            _ifft_centered(
                 pa,
-                L=self.boxlength,
+                boxlength=self.boxlength,
                 a=self.fourier_a,
                 b=self.fourier_b,
                 backend=self.fftbackend,
@@ -431,9 +458,9 @@ class LogNormalPowerBox(PowerBox):
         dk[...] = self.delta_k()
         dk[...] = (
             np.sqrt(self.V)
-            * dft.ifft(
+            * _ifft_centered(
                 dk,
-                L=self.boxlength,
+                boxlength=self.boxlength,
                 a=self.fourier_a,
                 b=self.fourier_b,
                 backend=self.fftbackend,
