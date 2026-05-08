@@ -51,7 +51,34 @@ def _ifft_centered(
     b: float,
     backend,
 ) -> tuple[np.ndarray, list[np.ndarray]]:
-    """Inverse-transform centered Fourier coefficients onto the centered real grid."""
+    """Inverse-transform centered Fourier coefficients onto the centered real grid.
+
+    Parameters
+    ----------
+    field : np.ndarray
+        Centered Fourier-space array. Must have equal extents on all axes (cubic grid).
+    boxlength : float
+        Physical length of the box on a side.
+    a, b : float
+        Fourier convention parameters (see :mod:`powerbox.dft`).
+    backend : FFT backend
+        Backend providing ``fftfreq``, ``ifftn``, ``ifftshift``, and ``fftshift``.
+
+    Returns
+    -------
+    (result, coords) : tuple
+        ``result`` is the inverse-transformed (and fftshifted) array; ``coords`` is a
+        list of 1-D coordinate arrays (one per axis).
+
+    Raises
+    ------
+    ValueError
+        If ``field`` does not have equal extents on every axis.
+    """
+    if len(set(field.shape)) != 1:
+        raise ValueError(
+            f"_ifft_centered requires a cubic (equal-sided) grid, got shape {field.shape}"
+        )
     n = field.shape[0]
     if n % 2 == 0:
         return dft.ifft(field, L=boxlength, a=a, b=b, backend=backend)

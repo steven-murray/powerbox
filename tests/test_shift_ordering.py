@@ -5,7 +5,8 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from powerbox import LogNormalPowerBox, PowerBox, dft
+from powerbox import LogNormalPowerBox, PowerBox
+from powerbox.powerbox import _ifft_centered
 
 FOURIER_CONVENTIONS = [
     pytest.param(1.0, 1.0, id="cosmology-convention"),
@@ -14,35 +15,10 @@ FOURIER_CONVENTIONS = [
 
 
 def _expected_shifted_ifft(box: PowerBox, field: np.ndarray, scale: float = 1.0) -> np.ndarray:
-    n = field.shape[0]
-    if n % 2 == 0:
-        return (
-            scale
-            * dft.ifft(
-                field,
-                L=box.boxlength,
-                a=box.fourier_a,
-                b=box.fourier_b,
-                backend=box.fftbackend,
-            )[0]
-        ).real
-
-    dx = box.boxlength / n
-    phase_1d = np.exp(-1j * box.fourier_b * box.kvec * dx / 2)
-    phase = phase_1d
-    for _ in range(1, field.ndim):
-        phase = np.multiply.outer(phase, phase_1d)
-
-    lk = 2 * np.pi / (dx * box.fourier_b)
-    normalisation = (
-        np.sqrt(np.abs(box.fourier_b) / (2 * np.pi) ** (1 + box.fourier_a)) ** field.ndim
-    )
-    transformed = (
-        lk**field.ndim
-        * box.fftbackend.ifftn(box.fftbackend.ifftshift(field * phase))
-        * normalisation
-    )
-    return scale * box.fftbackend.fftshift(transformed).real
+    return (
+        scale
+        * _ifft_centered(field, box.boxlength, box.fourier_a, box.fourier_b, box.fftbackend)[0]
+    ).real
 
 
 def _expected_powerbox_delta_x(box: PowerBox) -> np.ndarray:
