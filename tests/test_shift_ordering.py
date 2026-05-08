@@ -123,3 +123,13 @@ def test_lognormal_delta_x_unshifts_delta_k(n: int, a: float, b: float) -> None:
     )
 
     np.testing.assert_allclose(actual_box.delta_x(), _expected_lognormal_delta_x(expected_box))
+
+
+def test_ifft_centered_rejects_non_cubic_grid() -> None:
+    """_ifft_centered must raise ValueError for non-equal-sided arrays."""
+    from powerbox import dft
+
+    backend = dft.get_fft_backend(1)
+    non_cubic = np.ones((4, 5), dtype=complex)
+    with pytest.raises(ValueError, match="cubic"):
+        _ifft_centered(non_cubic, boxlength=1.0, a=1.0, b=1.0, backend=backend)
