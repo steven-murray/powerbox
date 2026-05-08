@@ -83,6 +83,31 @@ def test_powerbox_delta_x_unshifts_delta_k(n: int, a: float, b: float) -> None:
     np.testing.assert_allclose(actual_box.delta_x(), _expected_powerbox_delta_x(expected_box))
 
 
+@pytest.mark.parametrize("dim", [1, 3])
+@pytest.mark.parametrize(("a", "b"), FOURIER_CONVENTIONS)
+def test_powerbox_delta_x_handles_other_dimensions(dim: int, a: float, b: float) -> None:
+    expected_box = PowerBox(
+        17,
+        lambda k: 1.0 / (1.0 + k**2),
+        dim=dim,
+        boxlength=3.0,
+        seed=1234,
+        a=a,
+        b=b,
+    )
+    actual_box = PowerBox(
+        17,
+        lambda k: 1.0 / (1.0 + k**2),
+        dim=dim,
+        boxlength=3.0,
+        seed=1234,
+        a=a,
+        b=b,
+    )
+
+    np.testing.assert_allclose(actual_box.delta_x(), _expected_powerbox_delta_x(expected_box))
+
+
 @pytest.mark.parametrize("n", [32, 33])
 @pytest.mark.parametrize(("a", "b"), FOURIER_CONVENTIONS)
 def test_lognormal_correlation_array_unshifts_power_array(n: int, a: float, b: float) -> None:
