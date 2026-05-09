@@ -9,6 +9,7 @@ subclassing :class:`PowerBox` and over-writing the same methods as are over-writ
 
 from __future__ import annotations
 
+import itertools
 import warnings
 
 import numpy as np
@@ -42,60 +43,6 @@ def _make_hermitian(mag, pha):
     mag = (mag + mag[revidx]) / np.sqrt(2)
     pha = (pha - pha[revidx]) / 2 + np.pi
     return mag * (np.cos(pha) + 1j * np.sin(pha))
-
-
-def _ifft_centered(
-    field: np.ndarray,
-    boxlength: float,
-    a: float,
-    b: float,
-    backend,
-) -> tuple[np.ndarray, list[np.ndarray]]:
-    """Inverse-transform centered Fourier coefficients onto the centered real grid.
-
-    Parameters
-    ----------
-    field : np.ndarray
-        Centered Fourier-space array. Must have equal extents on all axes (cubic grid).
-    boxlength : float
-        Physical length of the box on a side.
-    a, b : float
-        Fourier convention parameters (see :mod:`powerbox.dft`).
-    backend : FFT backend
-        Backend providing ``fftfreq``, ``ifftn``, ``ifftshift``, and ``fftshift``.
-
-    Returns
-    -------
-    (result, coords) : tuple
-        ``result`` is the inverse-transformed (and fftshifted) array; ``coords`` is a
-        list of 1-D coordinate arrays (one per axis).
-
-    Raises
-    ------
-    ValueError
-        If ``field`` does not have equal extents on every axis.
-    """
-    if len(set(field.shape)) != 1:
-        raise ValueError(
-            f"_ifft_centered requires a cubic (equal-sided) grid, got shape {field.shape}"
-        )
-    n = field.shape[0]
-    if n % 2 == 0:
-        return dft.ifft(field, L=boxlength, a=a, b=b, backend=backend)
-
-    dim = field.ndim
-    dx = boxlength / n
-    phase_1d = np.exp(-1j * b * backend.fftfreq(n, d=dx, b=b) * dx / 2)
-    phase = phase_1d
-    for _ in range(1, dim):
-        phase = np.multiply.outer(phase, phase_1d)
-
-    lk = 2 * np.pi / (dx * b)
-    volume = lk**dim
-    normalisation = np.sqrt(np.abs(b) / (2 * np.pi) ** (1 + a)) ** dim
-
-    ft = volume * backend.ifftn(backend.ifftshift(field * phase)) * normalisation
-    return backend.fftshift(ft), [backend.fftfreq(n, d=lk / n, b=b)] * dim
 
 
 class PowerBox:
@@ -235,7 +182,7 @@ class PowerBox:
 
     def k(self):
         """Return the full grid of wavenumber magnitudes."""
-        return _magnitude_grid(self.kvec, self.dim)
+        return _magnitude_grid([self.kvec] * self.dim)
 
     @property
     def kvec(self):
@@ -245,7 +192,7 @@ class PowerBox:
     @property
     def r(self):
         """The radial position of every point in the grid."""
-        return _magnitude_grid(self.x, self.dim)
+        return _magnitude_grid([self.x] * self.dim)
 
     @property
     def x(self):
@@ -262,6 +209,23 @@ class PowerBox:
         if self._even:
             cutidx = (slice(None, -1),) * self.dim
             dk = dk[cutidx]
+
+            N = self.N
+            # After cutting, every element whose index is 0 along any axis
+            # loses its Hermitian partner (which was at index N, now removed).
+            # Re-enforce dk[j] = dk[(N-j)%N]* on each such boundary slice by
+            # iterating over each axis and symmetrising its j=0 face in-place.
+            for ax in range(self.dim):
+                face_ranges = [range(N)] * (self.dim - 1)
+                for t in itertools.product(*face_ranges):
+                    full = list(t)
+                    full.insert(ax, 0)
+                    full = tuple(full)
+                    neg = tuple((N - i) % N for i in full)
+                    if neg > full:
+                        dk[neg] = np.conj(dk[full])
+                    elif neg == full:
+                        dk[full] = dk[full].real
 
         return dk
 
@@ -297,9 +261,9 @@ class PowerBox:
         dk[...] = self.delta_k()
         dk[...] = (
             self.V
-            * _ifft_centered(
+            * dft.ifft(
                 dk,
-                boxlength=self.boxlength,
+                L=self.boxlength,
                 a=self.fourier_a,
                 b=self.fourier_b,
                 backend=self.fftbackend,
@@ -438,9 +402,9 @@ class LogNormalPowerBox(PowerBox):
         pa = self.fftbackend.empty((self.N,) * self.dim)
         pa[...] = self.power_array()
         return self.V * np.real(
-            _ifft_centered(
+            dft.ifft(
                 pa,
-                boxlength=self.boxlength,
+                L=self.boxlength,
                 a=self.fourier_a,
                 b=self.fourier_b,
                 backend=self.fftbackend,
@@ -485,9 +449,9 @@ class LogNormalPowerBox(PowerBox):
         dk[...] = self.delta_k()
         dk[...] = (
             np.sqrt(self.V)
-            * _ifft_centered(
+            * dft.ifft(
                 dk,
-                boxlength=self.boxlength,
+                L=self.boxlength,
                 a=self.fourier_a,
                 b=self.fourier_b,
                 backend=self.fftbackend,

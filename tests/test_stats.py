@@ -19,9 +19,8 @@ def test_resolution() -> None:
         pb = PowerBox(
             64 * 2**i,
             dim=2,
-            pk=lambda k: 1.0 * k**-2.0,
+            pk=lambda k: 1.0 * (k + 1) ** -2.0,
             boxlength=1.0,
-            angular_freq=True,
         )
         var[i] = np.var(gaussian_filter(pb.delta_x(), sigma=2**i, mode="wrap"))
     print(var / var[0])

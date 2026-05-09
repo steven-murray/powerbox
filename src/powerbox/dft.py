@@ -34,10 +34,13 @@ returned are descending, rather than ascending.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
+
 __all__ = ["fft", "fftfreq", "fftshift", "ifft", "ifftshift"]
 
 # To avoid MKL-related bugs, numpy needs to be imported after pyfftw: see https://github.com/pyFFTW/pyFFTW/issues/40
 import numpy as np
+import numpy.typing as npt
 
 from .dft_backend import get_fft_backend
 
@@ -68,13 +71,12 @@ fftfreq.__doc__ = get_fft_backend().fftfreq.__doc__
 
 def fft(
     X,
-    L=None,
-    Lk=None,
+    L: float | np.typing.ArrayLike | None = None,
+    Lk: float | np.typing.ArrayLike | None = None,
     a: float = 0,
     b: float = 2 * np.pi,
-    left_edge=None,
-    axes=None,
-    ret_cubegrid: bool = False,
+    x0: float | tuple[float, ...] = 0,
+    axes: Sequence[int] | None = None,
     nthreads=None,
     backend=None,
 ):
@@ -88,8 +90,8 @@ def fft(
 
     Default parameters have the same normalising conventions as ``numpy.fft.fftn``.
 
-    The output object always has the zero in the centre, with monotonically increasing
-    spectral arguments.
+    The output object always has the zero frequency in the centre, with monotonically
+    increasingspectral arguments.
 
     Parameters
     ----------
@@ -110,15 +112,17 @@ def fft(
     a,b : float, optional
         These define the Fourier convention used. See :mod:`powerbox.dft` for details.
         The defaults return the standard DFT as defined in :mod:`numpy.fft`.
-    left_edge : float or array-like, optional
-        The co-ordinate at the left-edge for each dimension that is being transformed.
-        By default, sets the left edge to -L/2, so that the input is centred before
-        transforming (i.e. equivalent to ``fftshift(fft(fftshift(X)))``)
+    x0 : float or tuple[float, ...], optional
+        The co-ordinate of the first sample for each dimension that is being transformed.
+        This is useful when using the fft to approximate a continuous fourier transform
+        of a function defined on a finite support, and the precise phases of the result
+        are important. By the Fourier shift theorem, changing this argument simply
+        changes the phases of the result, but does not affect the magnitudes. For a
+        standard DFT to approximate a continuous fourier transform, the first sample is
+        assumed to be at 0.
     axes : sequence of ints, optional
         The axes to take the transform over. The default is to use all axes for the
         transform.
-    ret_cubegrid : bool, optional
-        Whether to return the entire grid of frequency magnitudes.
     nthreads : int, optional
         Number of threads for pyFFTW. If set to None, uses pyFFTW with the number of
         threads equal to the number of available CPUs. If set to 0 or 1, uses numpy's
@@ -135,16 +139,12 @@ def fft(
     freq : list of arrays
         The frequencies in each dimension, consistent with the Fourier conventions
         specified.
-    grid : array
-        Only returned if ``ret_cubegrid`` is ``True``. An array with shape given by
-        ``axes`` specifying the magnitude of the frequencies at each point of the
-        fourier transform.
     """
     if backend is None:
         backend = get_fft_backend(nthreads)
 
     if axes is None:
-        axes = list(range(len(X.shape)))
+        axes = tuple(range(X.ndim))
 
     N = np.array([X.shape[axis] for axis in axes])
 
@@ -158,8 +158,6 @@ def fft(
         if np.isscalar(Lk):
             Lk = Lk * np.ones(len(axes))
         L = N * 2 * np.pi / (Lk * b)  # Take account of the fourier convention.
-
-    left_edge = _set_left_edge(left_edge, axes, L)
 
     V = float(np.prod(L))  # Volume of box
     Vx = V / np.prod(N)  # Volume of cell
@@ -175,8 +173,18 @@ def fft(
     freq = [backend.fftfreq(n, d=d, b=b) for n, d in zip(N, dx, strict=True)]
 
     # Adjust phases of the result to align with the left edge properly.
-    ft = _adjust_phase(ft, left_edge, freq, axes, b)
-    return _retfunc(ft, freq, axes, ret_cubegrid)
+    # In the default case, don't adjust phases at all -- i.e. by default let this
+    # function do the same thing as np.fft. When the fft is interpreted as an
+    # approximation to a continuous Fourier transform, the first bin *centre* is at zero,
+    # (which makes the left edge at -dx/2). This is a bit weird, but the standard
+    # convention really doesn't care about the continuous FT, so it doesn't matter.
+    # We allow the user to set left_edge in case their objective really is to take a FT
+    # of some discretized function between some finiite boundaries.
+    if x0 != 0:
+        bin_centre = _set_x0(x0, axes)
+        _adjust_phase(ft, bin_centre, freq, axes, b)
+
+    return ft, freq
 
 
 def ifft(
@@ -185,12 +193,12 @@ def ifft(
     L=None,
     a: float = 0,
     b: float = 2 * np.pi,
-    axes=None,
-    left_edge=None,
-    ret_cubegrid: bool = False,
+    axes: Sequence[int] | None = None,
+    x0: float | tuple[float, ...] = 0,
     nthreads=None,
     backend=None,
-):
+    bb: float | None = None,
+) -> tuple[npt.NDArray[complex], list[np.ndarray]]:
     r"""
     Arbitrary-dimension nice inverse Fourier Transform.
 
@@ -226,12 +234,11 @@ def ifft(
     axes : sequence of ints, optional
         The axes to take the transform over. The default is to use all axes for the
         transform.
-    left_edge : float or array-like, optional
-        The co-ordinate at the left-edge (in k-space) for each dimension that is being
-        transformed. By default, sets the left edge to -Lk/2, equivalent to the standard
-        numpy ifft. This affects only the phases of the result.
-    ret_cubegrid : bool, optional
-        Whether to return the entire grid of real-space co-ordinate magnitudes.
+    x0 : float or array-like, optional
+        The co-ordinate of the first sample (in real-space) for each dimension that is being
+        transformed. This affects only the phases of the result. By default, don't apply
+        any additional phase shift to the result of the standard numpy ifft. This is
+        equivalent to the first sample being at x=0.
     nthreads : int, optional
         Number of threads for pyFFTW. If set to None, uses pyFFTW with the number of
         threads equal to the number of available CPUs. If set to 0 or 1, uses numpy's
@@ -248,10 +255,6 @@ def ifft(
     freq : list of arrays
         The real-space co-ordinate grid in each dimension, consistent with the Fourier
         conventions specified.
-    grid : array
-        Only returned if ``ret_cubegrid`` is ``True``. An array with shape given by
-        ``axes`` specifying the magnitude of the real-space co-ordinates at each point
-        of the inverse fourier transform.
     """
     if backend is None:
         backend = get_fft_backend(nthreads)
@@ -274,49 +277,55 @@ def ifft(
     elif np.isscalar(Lk):
         Lk = [Lk] * len(axes)
 
+    dx = np.array([2 * np.pi / (lk * b) for lk in Lk])
     Lk = np.array(Lk)
-    left_edge = _set_left_edge(left_edge, axes, Lk)
 
     V = np.prod(Lk)
     dk = np.array([float(lk) / float(n) for lk, n in zip(Lk, N, strict=True)])
 
+    if x0 != 0:
+        X = X.astype(complex)  # Ensure we can apply the phase shift without erroring if X is real.
+        x0 = _set_x0(x0, axes)
+        if bb is None:
+            bb = b
+        freq = [backend.fftfreq(n, d=d, b=bb) for n, d in zip(N, dx, strict=True)]
+        _adjust_phase(X, x0, freq, axes, -bb)
+
+    X = backend.ifftshift(X, axes=axes)
     ft = V * backend.ifftn(X, axes=axes) * np.sqrt(np.abs(b) / (2 * np.pi) ** (1 + a)) ** len(axes)
-    ft = backend.ifftshift(ft, axes=axes)
 
     freq = [backend.fftfreq(n, d=d, b=b) for n, d in zip(N, dk, strict=True)]
 
-    ft = _adjust_phase(ft, left_edge, freq, axes, -b)
-    return _retfunc(ft, freq, axes, ret_cubegrid)
+    return ft, freq
 
 
-def _adjust_phase(ft, left_edge, freq, axes, b: float):
-    for i, (ledge, fq) in enumerate(zip(left_edge, freq, strict=True)):
-        xp = np.exp(-b * 1j * fq * ledge)
+def _adjust_phase(
+    ft: np.ndarray, x0: tuple[float, ...], freq: list[np.ndarray], axes: tuple[int, ...], b: float
+):
+    """Apply a phase shift to the Fourier transform to adjust for the left edge.
+
+    The default DFT assumes that the first sample is at x=0. If the first sample is at
+    some other co-ordinate, then the Fourier shift theorem tells us that the Fourier
+    transform is multiplied by a phase factor of exp(-i b k x0), where k is the
+    frequency and x0 is the co-ordinate of the first sample. This function applies this
+    phase shift to the Fourier transform.
+    """
+    for i, (ledge, fq) in enumerate(zip(x0, freq, strict=True)):
+        phase = np.exp(-b * 1j * fq * ledge)
         obj = (
             *([None] * axes[i]),
             slice(None, None, None),
             *([None] * (ft.ndim - axes[i] - 1)),
         )
-        ft *= xp[obj]
-    return ft
+        ft *= phase[obj]
 
 
-def _set_left_edge(left_edge, axes, L):
-    if left_edge is None:
-        left_edge = [-length / 2.0 for length in L]
-    elif np.isscalar(left_edge):
-        left_edge = [left_edge] * len(axes)
+def _set_x0(x0: float | tuple[float, ...], axes: tuple[int, ...]) -> tuple[float, ...]:
+    if np.isscalar(x0):
+        return (x0,) * len(axes)
     else:
-        assert len(left_edge) == len(axes)
-
-    return left_edge
-
-
-def _retfunc(ft, freq, axes, ret_cubegrid: bool):
-    if not ret_cubegrid:
-        return ft, freq
-    grid = freq[0] ** 2
-    for i in range(1, len(axes)):
-        grid = np.add.outer(grid, freq[i] ** 2)
-
-    return ft, freq, np.sqrt(grid)
+        if len(x0) != len(axes):
+            raise ValueError(
+                "x0 must be a scalar or have the same length as the number of dimensions."
+            )
+        return tuple(xx for xx in x0)
