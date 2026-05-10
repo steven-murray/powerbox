@@ -165,3 +165,16 @@ def test_get_fft_backend_bool_returns_numpy(nthreads) -> None:
 
     backend = get_fft_backend(nthreads)
     assert isinstance(backend, NumpyFFT)
+
+
+def test_bad_x0_raises():
+    """Test that passing an x0 of the wrong shape raises an error."""
+    with pytest.raises(ValueError, match="x0 must be a scalar or have the same length"):
+        fft(np.array([1, 2, 3]), L=10, a=0, b=1, x0=(0, 1))
+
+
+def test_multidim_x0():
+    res = fft(np.array([[1, 2], [3, 4]]), L=10, a=0, b=1, x0=(0, 0))[0]
+    res2 = fft(np.array([[1, 2], [3, 4]]), L=10, a=0, b=1)[0]
+
+    assert np.allclose(res, res2)
