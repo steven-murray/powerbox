@@ -7,6 +7,7 @@ import numpy as np
 import pytest
 
 from powerbox import (
+    LogNormalPowerBox,
     PowerBox,
     PowerSpectrum,
     get_power,
@@ -321,3 +322,33 @@ def test_powerspectrum_validation_variance_shape():
             nsamples=nsamples,
             variance=np.ones(5),
         )
+
+
+@pytest.mark.parametrize("boxtype", [PowerBox, LogNormalPowerBox])
+@pytest.mark.parametrize("ncells", [100, 101])
+def test_power_normalization(boxtype, ncells):
+    """Test that we recover the correct power spectrum for different box types.
+
+    Inspired by https://github.com/steven-murray/powerbox/issues/66.
+    """
+    import numpy as np
+
+    import powerbox.dft as dft
+    from powerbox.tools import get_power
+
+    def pkfunc(k):
+        return (1 + k) ** -2
+
+    nrealizations = 40
+    p = []
+    for i in range(nrealizations):
+        pb = boxtype(ncells, dim=2, pk=pkfunc, boxlength=1.0, ensure_physical=False, seed=i)
+
+        pcls = get_power(dft.fftshift(pb.delta_x()), pb.boxlength, bins_upto_boxlen=True)
+        p.append(pcls.power)
+
+    pmean = np.mean(p, axis=0)
+    pstd = np.std(p, axis=0)
+
+    zscore = np.abs(pmean[1:] - pkfunc(pcls.bin_centres[1:])) / (pstd[1:] / np.sqrt(nrealizations))
+    np.testing.assert_allclose(zscore, 0, atol=5.0)
