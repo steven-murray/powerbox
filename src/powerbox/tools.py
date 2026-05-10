@@ -385,11 +385,8 @@ def angular_average(
     return res, bins, var, sumweights
 
 
-def _magnitude_grid(x, dim: int | None = None) -> np.ndarray:
-    if dim is not None:
-        return np.sqrt(np.sum(np.meshgrid(*([x**2] * dim), indexing="ij"), axis=0))
-    else:
-        return np.sqrt(np.sum(np.meshgrid(*([X**2 for X in x]), indexing="ij"), axis=0))
+def _magnitude_grid(x: list[np.ndarray]) -> np.ndarray:
+    return np.sqrt(np.sum(np.meshgrid(*([X**2 for X in x]), indexing="ij"), axis=0))
 
 
 def _get_binweights(
@@ -1485,7 +1482,7 @@ def get_power(
     V = np.prod(boxlength)
 
     # Calculate the n-D power spectrum and align it with the k from powerbox.
-    FT, freq, _k = dft.fft(deltax, L=boxlength, a=a, b=b, ret_cubegrid=True, nthreads=nthreads)
+    FT, freq = dft.fft(deltax, L=boxlength, a=a, b=b, nthreads=nthreads)
 
     FT2 = (
         dft.fft(deltax2, L=boxlength, a=a, b=b, nthreads=nthreads)[0] if deltax2 is not None else FT
