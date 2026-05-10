@@ -14,6 +14,8 @@
 - do not modify regression artifacts or data snapshots unless explicitly asked
 - do not run full test suites or expensive notebook/doc executions without approval
 - do not introduce API-breaking renames or default changes without explicit confirmation
+- do not ignore ruff errors by using `# noqa` on those lines.
+- do not modify the ruff linting rules in pyproject.toml without explicit confirmation
 
 ### Commands
 
