@@ -79,6 +79,27 @@ def test_discrete_power_lognormal() -> None:
     get_power(sample, pb.boxlength, N=pb.N, deltax2=sample, dimensionless=False)
 
 
+def test_discrete_power_gaussian_non_cubic() -> None:
+    pb = PowerBox(
+        N=(96, 128),
+        dim=2,
+        boxlength=(80.0, 140.0),
+        pk=lambda u: 0.1 * (1 + u) ** -1.5,
+        ensure_physical=True,
+        seed=1212,
+    )
+
+    box = pb.delta_x()
+    sample = pb.create_discrete_sample(nbar=800.0, delta_x=box, min_at_zero=True)
+    result = get_power(sample, pb.boxlength, N=pb.N)
+
+    assert sample.shape[1] == pb.dim
+    assert np.all(sample >= 0)
+    assert np.all(sample[:, 0] < pb.boxlength[0])
+    assert np.all(sample[:, 1] < pb.boxlength[1])
+    assert np.all(np.isfinite(result.power))
+
+
 if __name__ == "__main__":
     test_discrete_power_gaussian()
     test_discrete_power_lognormal()

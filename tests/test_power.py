@@ -19,6 +19,117 @@ from powerbox import (
 get_power = partial(get_power, bins_upto_boxlen=True)
 
 
+def test_scalar_inputs_preserve_scalar_public_attributes() -> None:
+    """Scalar constructor inputs keep the historical public attribute shapes."""
+    pb = PowerBox(16, dim=2, pk=lambda k: (1 + k) ** -2.0, boxlength=4.0, seed=1234)
+
+    assert np.isscalar(pb.N)
+    assert np.isscalar(pb.boxlength)
+    assert isinstance(pb.x, np.ndarray)
+    assert isinstance(pb.kvec, np.ndarray)
+    assert pb.delta_x().shape == (16, 16)
+
+
+def test_tuple_inputs_expose_axis_aware_geometry() -> None:
+    """Tuple inputs produce per-axis public geometry for non-cubic boxes."""
+    pb = PowerBox(
+        (15, 18),
+        dim=2,
+        pk=lambda k: (1 + k) ** -2.0,
+        boxlength=(3.0, 9.0),
+        seed=1234,
+    )
+
+    assert pb.N == (15, 18)
+    assert pb.boxlength == (3.0, 9.0)
+    assert isinstance(pb.x, tuple)
+    assert isinstance(pb.kvec, tuple)
+    assert len(pb.x) == len(pb.kvec) == pb.dim
+    assert pb.x[0].shape == (15,)
+    assert pb.x[1].shape == (18,)
+    assert pb.kvec[0].shape == (15,)
+    assert pb.kvec[1].shape == (18,)
+    assert pb.delta_x().shape == (15, 18)
+
+
+@pytest.mark.parametrize(
+    ("shape", "boxlength"),
+    [
+        ((48, 72), (120.0, 180.0)),
+        ((49, 72), (120.0, 180.0)),
+        ((48, 71), (120.0, 180.0)),
+        ((49, 71), (120.0, 180.0)),
+    ],
+)
+def test_non_cubic_powerbox_power_normalization(shape, boxlength) -> None:
+    """Non-cubic Gaussian fields recover the input power over mixed odd/even shapes."""
+    import powerbox.dft as dft
+
+    def pkfunc(k):
+        return (1 + k) ** -2
+
+    nrealizations = 20
+    power = []
+
+    for seed in range(nrealizations):
+        pb = PowerBox(
+            shape,
+            dim=2,
+            pk=pkfunc,
+            boxlength=boxlength,
+            ensure_physical=False,
+            seed=seed,
+        )
+        power.append(get_power(dft.fftshift(pb.delta_x()), pb.boxlength).power)
+
+    pmean = np.mean(power, axis=0)
+    pstd = np.std(power, axis=0)
+    expected = pkfunc(get_power(dft.fftshift(pb.delta_x()), pb.boxlength).bin_centres)
+    mask = np.isfinite(pstd[1:]) & (pstd[1:] > 0)
+    zscore = np.abs(pmean[1:][mask] - expected[1:][mask]) / (
+        pstd[1:][mask] / np.sqrt(nrealizations)
+    )
+    np.testing.assert_allclose(zscore, 0, atol=6.0)
+
+
+@pytest.mark.parametrize(
+    ("shape", "boxlength"),
+    [
+        ((47, 68), (120.0, 180.0)),
+        ((48, 67), (120.0, 180.0)),
+    ],
+)
+def test_non_cubic_lognormal_power_normalization(shape, boxlength) -> None:
+    """Non-cubic lognormal fields recover the input power."""
+    import powerbox.dft as dft
+
+    def pkfunc(k):
+        return (1 + k) ** -2
+
+    nrealizations = 15
+    power = []
+
+    for seed in range(nrealizations):
+        pb = LogNormalPowerBox(
+            shape,
+            dim=2,
+            pk=pkfunc,
+            boxlength=boxlength,
+            ensure_physical=False,
+            seed=seed,
+        )
+        power.append(get_power(dft.fftshift(pb.delta_x()), pb.boxlength).power)
+
+    pmean = np.mean(power, axis=0)
+    pstd = np.std(power, axis=0)
+    expected = pkfunc(get_power(dft.fftshift(pb.delta_x()), pb.boxlength).bin_centres)
+    mask = np.isfinite(pstd[1:]) & (pstd[1:] > 0)
+    zscore = np.abs(pmean[1:][mask] - expected[1:][mask]) / (
+        pstd[1:][mask] / np.sqrt(nrealizations)
+    )
+    np.testing.assert_allclose(zscore, 0, atol=6.0)
+
+
 def test_power1d() -> None:
     p = [0] * 40
     for i in range(40):

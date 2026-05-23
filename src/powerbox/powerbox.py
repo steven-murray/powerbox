@@ -10,7 +10,9 @@ subclassing :class:`PowerBox` and over-writing the same methods as are over-writ
 from __future__ import annotations
 
 import itertools
+import numbers
 import warnings
+from collections.abc import Sequence
 
 import numpy as np
 
@@ -45,24 +47,65 @@ def _make_hermitian(mag, pha):
     return mag * (np.cos(pha) + 1j * np.sin(pha))
 
 
+def _normalize_axis_counts(
+    N: int | Sequence[int], dim: int
+) -> tuple[int | tuple[int, ...], tuple[int, ...]]:
+    """Normalize grid counts to a per-axis tuple while preserving scalar public input."""
+    if isinstance(N, numbers.Integral):
+        scalar = int(N)
+        return scalar, (scalar,) * dim
+
+    values = tuple(N)
+    if len(values) != dim:
+        raise ValueError(f"N must be a scalar or have length {dim}.")
+
+    if not all(isinstance(value, numbers.Integral) for value in values):
+        raise TypeError("N entries must be integers.")
+
+    normalized = tuple(int(value) for value in values)
+    return normalized, normalized
+
+
+def _normalize_axis_lengths(
+    boxlength: float | Sequence[float], dim: int
+) -> tuple[float | tuple[float, ...], tuple[float, ...]]:
+    """Normalize box lengths to a per-axis tuple while preserving scalar public input."""
+    if isinstance(boxlength, numbers.Real):
+        scalar = float(boxlength)
+        return scalar, (scalar,) * dim
+
+    values = tuple(boxlength)
+    if len(values) != dim:
+        raise ValueError(f"boxlength must be a scalar or have length {dim}.")
+
+    if not all(isinstance(value, numbers.Real) for value in values):
+        raise TypeError("boxlength entries must be real numbers.")
+
+    normalized = tuple(float(value) for value in values)
+    return normalized, normalized
+
+
 class PowerBox:
     r"""
     Generate real- and fourier-space Gaussian fields with a given power spectrum.
 
     Parameters
     ----------
-    N : int
-        Number of grid-points on a side for the resulting box (equivalently, number of
-        wavenumbers to use).
+    N : int or sequence of int
+        Number of grid-points on each side of the resulting box (equivalently, number of
+        wavenumbers to use). If a scalar, the same number is used along every axis. If a
+        sequence, it must have length ``dim``.
     pk : callable
         A callable of a single (vector) variable `k`, which is the isotropic power
         spectrum. The relationship of the `k` of which this is a function to the
         real-space co-ordinates, `x`, is determined by the parameters ``a,b``.
     dim : int, default 2
         Number of dimensions of resulting box.
-    boxlength : float, default 1.0
-        Length of the final signal on a side. This may have arbitrary units, so long
-        as `pk` is a function of a variable which has the inverse units.
+    boxlength : float or sequence of float, default 1.0
+        Length of the final signal along each axis. This may have arbitrary units, so
+        long as `pk` is a function of a variable which has the inverse units. If a
+        scalar, the same length is used along every axis. If a sequence, it must have
+        length ``dim``.
     ensure_physical : bool, optional
         Interpreting the power spectrum as a spectrum of density fluctuations, the
         minimum physical value of the real-space field, :meth:`delta_x`, is -1. With
@@ -105,6 +148,11 @@ class PowerBox:
     enables its direct interpretation as an overdensity field, and this interpretation
     is enforced in the :meth:`make_discrete_sample` method.
 
+    When scalar ``N`` and scalar ``boxlength`` are provided, the public attributes
+    ``N``, ``boxlength``, ``x``, and ``kvec`` retain their historical scalar/1-D forms.
+    When either quantity is specified per-axis, ``x`` and ``kvec`` return tuples of
+    1-D arrays, one for each axis.
+
     .. note:: None of the n-dimensional arrays that are created within the class are
               stored, due to the inefficiency in memory consumption that this would
               imply. Thus, each large array is created and *returned* by their
@@ -129,14 +177,20 @@ class PowerBox:
     >>> import matplotlib.pyplot as plt
     >>> pb = PowerBox(1000, lambda k : k**-7./5.)
     >>> plt.imshow(pb.delta_x())
+
+    To create a 2D non-cubic box with different resolutions and side lengths:
+
+    >>> pb = PowerBox((128, 192), lambda k: (1 + k) ** -2.0, dim=2, boxlength=(200.0, 600.0))
+    >>> field = pb.delta_x()
+    >>> x, y = pb.x
     """
 
     def __init__(
         self,
-        N: int,
+        N: int | Sequence[int],
         pk,
         dim: int = 2,
-        boxlength: float = 1.0,
+        boxlength: float | Sequence[float] = 1.0,
         ensure_physical: bool = False,
         a: float = 1.0,
         b: float = 1.0,
@@ -144,14 +198,15 @@ class PowerBox:
         seed: int | None = None,
         nthreads: int | None = None,
     ) -> None:
-        self.N = N
         self.dim = dim
-        self.boxlength = boxlength
-        self.L = boxlength
+        self.N, self._N = _normalize_axis_counts(N, dim)
+        self.boxlength, self._boxlength = _normalize_axis_lengths(boxlength, dim)
+        self.L = self.boxlength
+        self._scalar_geometry = np.isscalar(self.N) and np.isscalar(self.boxlength)
         self.fourier_a = a
         self.fourier_b = b
         self.vol_normalised_power = vol_normalised_power
-        self.V = self.boxlength**self.dim
+        self.V = float(np.prod(self._boxlength))
         self.fftbackend = dft.get_fft_backend(nthreads)
 
         if self.vol_normalised_power:
@@ -160,7 +215,7 @@ class PowerBox:
             self.pk = pk
 
         self.ensure_physical = ensure_physical
-        self.Ntot = self.N**self.dim
+        self.Ntot = int(np.prod(self._N))
 
         self.seed = seed
         if seed is None:
@@ -170,58 +225,85 @@ class PowerBox:
             # the Generator API required by modern NumPy.
             self.rng = np.random.Generator(np.random.MT19937(seed))
 
-        if N % 2 == 0:
-            self._even = True
-        else:
-            self._even = False
+        self._even_axes = tuple(axis_n % 2 == 0 for axis_n in self._N)
+        self._hermitian_shape = tuple(
+            axis_n + 1 if is_even else axis_n
+            for axis_n, is_even in zip(self._N, self._even_axes, strict=True)
+        )
 
-        self.n = N + 1 if self._even else N
+        dx = tuple(length / axis_n for length, axis_n in zip(self._boxlength, self._N, strict=True))
+        self.dx = dx[0] if self._scalar_geometry else dx
 
-        # Get the grid-size for the final real-space box.
-        self.dx = float(boxlength) / N
+    @property
+    def _kvec_axes(self) -> tuple[np.ndarray, ...]:
+        """The vector of wavenumbers along each axis."""
+        return tuple(
+            self.fftbackend.fftfreq(axis_n, d=axis_dx, b=self.fourier_b)
+            for axis_n, axis_dx in zip(self._N, self._axis_dx, strict=True)
+        )
+
+    @property
+    def _x_axes(self) -> tuple[np.ndarray, ...]:
+        """The co-ordinates of the grid along each axis."""
+        return tuple(
+            np.arange(-length / 2, length / 2, axis_dx)[:axis_n]
+            for length, axis_dx, axis_n in zip(self._boxlength, self._axis_dx, self._N, strict=True)
+        )
+
+    @property
+    def _axis_dx(self) -> tuple[float, ...]:
+        """Per-axis cell sizes."""
+        return tuple(
+            length / axis_n for length, axis_n in zip(self._boxlength, self._N, strict=True)
+        )
 
     def k(self):
         """Return the full grid of wavenumber magnitudes."""
-        return _magnitude_grid([self.kvec] * self.dim)
+        return _magnitude_grid(list(self._kvec_axes))
 
     @property
     def kvec(self):
-        """The vector of wavenumbers along a side."""
-        return self.fftbackend.fftfreq(self.N, d=self.dx, b=self.fourier_b)
+        """The wavenumber vector along a side or a tuple of per-axis vectors."""
+        return self._kvec_axes[0] if self._scalar_geometry else self._kvec_axes
 
     @property
     def r(self):
         """The radial position of every point in the grid."""
-        return _magnitude_grid([self.x] * self.dim)
+        return _magnitude_grid(list(self._x_axes))
 
     @property
     def x(self):
-        """The co-ordinates of the grid along a side."""
-        return np.arange(-self.boxlength / 2, self.boxlength / 2, self.dx)[: self.N]
+        """The grid co-ordinates along a side or a tuple of per-axis co-ordinates."""
+        return self._x_axes[0] if self._scalar_geometry else self._x_axes
 
     def gauss_hermitian(self):
         """Return a random array with Gaussian magnitudes and Hermitian symmetry."""
-        mag = self.rng.normal(0, 1, size=[self.n] * self.dim)
-        pha = 2 * np.pi * self.rng.uniform(size=[self.n] * self.dim)
+        mag = self.rng.normal(0, 1, size=self._hermitian_shape)
+        pha = 2 * np.pi * self.rng.uniform(size=self._hermitian_shape)
 
         dk = _make_hermitian(mag, pha)
 
-        if self._even:
-            cutidx = (slice(None, -1),) * self.dim
+        if any(self._even_axes):
+            cutidx = tuple(slice(None, -1 if is_even else None) for is_even in self._even_axes)
             dk = dk[cutidx]
 
-            N = self.N
             # After cutting, every element whose index is 0 along any axis
             # loses its Hermitian partner (which was at index N, now removed).
             # Re-enforce dk[j] = dk[(N-j)%N]* on each such boundary slice by
             # iterating over each axis and symmetrising its j=0 face in-place.
-            for ax in range(self.dim):
-                face_ranges = [range(N)] * (self.dim - 1)
+            for ax, is_even in enumerate(self._even_axes):
+                if not is_even:
+                    continue
+
+                face_ranges = [range(axis_n) for i, axis_n in enumerate(self._N) if i != ax]
                 for t in itertools.product(*face_ranges):
                     full = list(t)
                     full.insert(ax, 0)
                     full = tuple(full)
-                    neg = tuple((N - i) % N for i in full)
+                    neg = tuple(
+                        (axis_n - i) % axis_n if is_even else axis_n - 1 - i
+                        for i, axis_n, is_even in zip(full, self._N, self._even_axes, strict=True)
+                    )
                     if neg > full:
                         dk[neg] = np.conj(dk[full])
                     elif neg == full:
@@ -257,13 +339,13 @@ class PowerBox:
         # Here we multiply by V because the inverse Fourier transform of the
         # dimensionless power has units of 1/V, and we require a unitless
         # quantity for delta_x.
-        dk = self.fftbackend.empty((self.N,) * self.dim, dtype="complex128")
+        dk = self.fftbackend.empty(self._N, dtype="complex128")
         dk[...] = self.delta_k()
         dk[...] = (
             self.V
             * dft.ifft(
                 dk,
-                L=self.boxlength,
+                L=self._boxlength,
                 a=self.fourier_a,
                 b=self.fourier_b,
                 backend=self.fftbackend,
@@ -328,23 +410,25 @@ class PowerBox:
         else:
             dx = delta_x
 
-        dx = (dx + 1) * self.dx**self.dim * nbar
+        dx = (dx + 1) * np.prod(self._axis_dx) * nbar
         n = dx
 
         self.n_per_cell = self.rng.poisson(n)
 
         # Get all source positions
-        args = [self.x] * self.dim
+        args = self._x_axes
         X = np.meshgrid(*args, indexing="ij")
 
         tracer_positions = np.array([x.flatten() for x in X]).T
         tracer_positions = tracer_positions.repeat(self.n_per_cell.flatten(), axis=0)
 
         if randomise_in_cell:
-            tracer_positions += self.rng.uniform(size=(np.sum(self.n_per_cell), self.dim)) * self.dx
+            tracer_positions += self.rng.uniform(
+                size=(np.sum(self.n_per_cell), self.dim)
+            ) * np.asarray(self._axis_dx)
 
         if min_at_zero:
-            tracer_positions += self.boxlength / 2.0
+            tracer_positions += np.asarray(self._boxlength) / 2.0
 
         if store_pos:
             self.tracer_positions = tracer_positions
@@ -356,7 +440,8 @@ class LogNormalPowerBox(PowerBox):
     r"""Calculate Log-Normal density fields with given power spectra.
 
     See the documentation of :class:`PowerBox` for a detailed explanation of the
-    arguments, as this class has exactly the same arguments.
+    arguments, as this class has exactly the same arguments, including scalar or
+    per-axis ``N`` and ``boxlength`` inputs.
 
     This class calculates an (over-)density field of arbitrary dimension given an input
     isotropic power spectrum. In this case, the field has a log-normal distribution of
@@ -399,12 +484,12 @@ class LogNormalPowerBox(PowerBox):
 
     def correlation_array(self):
         """Return the correlation function from the input power on the grid."""
-        pa = self.fftbackend.empty((self.N,) * self.dim)
+        pa = self.fftbackend.empty(self._N)
         pa[...] = self.power_array()
         return self.V * np.real(
             dft.ifft(
                 pa,
-                L=self.boxlength,
+                L=self._boxlength,
                 a=self.fourier_a,
                 b=self.fourier_b,
                 backend=self.fftbackend,
@@ -417,12 +502,12 @@ class LogNormalPowerBox(PowerBox):
 
     def gaussian_power_array(self):
         """Power spectrum required for a Gaussian field to produce the input power."""
-        gca = self.fftbackend.empty((self.N,) * self.dim)
+        gca = self.fftbackend.empty(self._N)
         gca[...] = self.gaussian_correlation_array()
         gpa = np.abs(
             dft.fft(
                 gca,
-                L=self.boxlength,
+                L=self._boxlength,
                 a=self.fourier_a,
                 b=self.fourier_b,
                 backend=self.fftbackend,
@@ -445,13 +530,13 @@ class LogNormalPowerBox(PowerBox):
 
     def delta_x(self):
         """Return the real-space over-density field from the input power spectrum."""
-        dk = self.fftbackend.empty((self.N,) * self.dim, dtype="complex128")
+        dk = self.fftbackend.empty(self._N, dtype="complex128")
         dk[...] = self.delta_k()
         dk[...] = (
             np.sqrt(self.V)
             * dft.ifft(
                 dk,
-                L=self.boxlength,
+                L=self._boxlength,
                 a=self.fourier_a,
                 b=self.fourier_b,
                 backend=self.fftbackend,

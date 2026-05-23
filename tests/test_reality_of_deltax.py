@@ -25,6 +25,25 @@ def test_deltax_is_real(ndim, ncells, ab):
     np.testing.assert_allclose(deltax.imag, 0, atol=1e-12)
 
 
+@pytest.mark.parametrize("shape", [(16, 17), (17, 16), (16, 17, 18), (17, 16, 19)])
+@pytest.mark.parametrize("ab", [(0, 1), (0, 2 * np.pi)])
+def test_non_cubic_deltax_is_real(shape, ab):
+    """Mixed odd/even non-cubic delta_x realizations remain real."""
+    boxlength = tuple(float(index + 2) for index in range(len(shape)))
+    pb = PowerBox(pk=lambda k: 1, boxlength=boxlength, N=shape, dim=len(shape), seed=1234)
+
+    dk = pb.delta_k()
+
+    deltax = ifft(
+        dk,
+        L=boxlength,
+        a=ab[0],
+        b=ab[1],
+    )[0]
+
+    np.testing.assert_allclose(deltax.imag, 0, atol=1e-12)
+
+
 @pytest.mark.parametrize("ncells", [4, 5])
 def test_hermitianity_2d(ncells):
     """Test that the gauss_hermitian method produces a Hermitian array in 2D.
