@@ -79,6 +79,44 @@ def test_discrete_power_lognormal() -> None:
     get_power(sample, pb.boxlength, N=pb.N, deltax2=sample, dimensionless=False)
 
 
+def test_discrete_power_gaussian_non_cubic() -> None:
+    pb = PowerBox(
+        N=(96, 128),
+        dim=2,
+        boxlength=(80.0, 140.0),
+        pk=lambda u: 0.1 * (1 + u) ** -1.5,
+        ensure_physical=True,
+        seed=1212,
+    )
+
+    box = pb.delta_x()
+    sample = pb.create_discrete_sample(nbar=800.0, delta_x=box, min_at_zero=True)
+    result = get_power(sample, pb.boxlength, N=pb.N)
+
+    assert sample.shape[1] == pb.dim
+    assert np.all(sample >= 0)
+    assert np.all(sample[:, 0] < pb.boxlength[0])
+    assert np.all(sample[:, 1] < pb.boxlength[1])
+    assert np.all(np.isfinite(result.power))
+
+
+def test_create_discrete_sample_warns_and_stores_positions() -> None:
+    pb = PowerBox(
+        N=(24, 32),
+        dim=2,
+        boxlength=(20.0, 35.0),
+        pk=lambda u: 0.1 * (1 + u) ** -1.5,
+        ensure_physical=True,
+    )
+
+    with pytest.warns(UserWarning, match="You Should provide `seed`"):
+        sample = pb.create_discrete_sample(nbar=50.0, store_pos=True, min_at_zero=True)
+
+    assert hasattr(pb, "tracer_positions")
+    np.testing.assert_allclose(sample, pb.tracer_positions)
+    assert np.all(sample >= 0)
+
+
 if __name__ == "__main__":
     test_discrete_power_gaussian()
     test_discrete_power_lognormal()

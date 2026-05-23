@@ -8,6 +8,7 @@ Other examples can be found in the :doc:`API documentation <api>` for each objec
    :maxdepth: 2
 
    demos/getting_started
+   demos/cuboid_boxes
    demos/algorithm
    demos/cosmological_fields
    demos/dft
