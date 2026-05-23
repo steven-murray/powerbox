@@ -30,9 +30,43 @@ def test_scalar_inputs_preserve_scalar_public_attributes() -> None:
     assert pb.delta_x().shape == (16, 16)
 
 
+def test_lognormal_scalar_inputs_preserve_scalar_public_attributes() -> None:
+    """LogNormalPowerBox keeps the historical scalar public attribute shapes."""
+    pb = LogNormalPowerBox(16, dim=2, pk=lambda k: (1 + k) ** -2.0, boxlength=4.0, seed=1234)
+
+    assert np.isscalar(pb.N)
+    assert np.isscalar(pb.boxlength)
+    assert isinstance(pb.x, np.ndarray)
+    assert isinstance(pb.kvec, np.ndarray)
+    assert pb.delta_x().shape == (16, 16)
+
+
 def test_tuple_inputs_expose_axis_aware_geometry() -> None:
     """Tuple inputs produce per-axis public geometry for non-cubic boxes."""
     pb = PowerBox(
+        (15, 18),
+        dim=2,
+        pk=lambda k: (1 + k) ** -2.0,
+        boxlength=(3.0, 9.0),
+        seed=1234,
+    )
+
+    assert pb.N == (15, 18)
+    assert pb.boxlength == (3.0, 9.0)
+    assert isinstance(pb.x, tuple)
+    assert isinstance(pb.kvec, tuple)
+    assert len(pb.x) == len(pb.kvec) == pb.dim
+    assert pb.x[0].shape == (15,)
+    assert pb.x[1].shape == (18,)
+    assert pb.kvec[0].shape == (15,)
+    assert pb.kvec[1].shape == (18,)
+    assert pb.delta_x().shape == (15, 18)
+    assert pb.r.shape == (15, 18)
+
+
+def test_lognormal_tuple_inputs_expose_axis_aware_geometry() -> None:
+    """LogNormalPowerBox exposes the same per-axis geometry API as PowerBox."""
+    pb = LogNormalPowerBox(
         (15, 18),
         dim=2,
         pk=lambda k: (1 + k) ** -2.0,

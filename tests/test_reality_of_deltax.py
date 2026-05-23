@@ -11,7 +11,7 @@ from powerbox.dft import ifft
 @pytest.mark.parametrize("ncells", [16, 17])
 @pytest.mark.parametrize("ab", [(0, 1), (0, 2 * np.pi)])
 def test_deltax_is_real(ndim, ncells, ab):
-    pb = PowerBox(pk=lambda k: 1, boxlength=1, N=ncells, dim=ndim, seed=1234)
+    pb = PowerBox(pk=lambda k: 1, boxlength=1, N=ncells, dim=ndim, seed=1234, a=ab[0], b=ab[1])
 
     dk = pb.delta_k()
 
@@ -30,7 +30,15 @@ def test_deltax_is_real(ndim, ncells, ab):
 def test_non_cubic_deltax_is_real(shape, ab):
     """Mixed odd/even non-cubic delta_x realizations remain real."""
     boxlength = tuple(float(index + 2) for index in range(len(shape)))
-    pb = PowerBox(pk=lambda k: 1, boxlength=boxlength, N=shape, dim=len(shape), seed=1234)
+    pb = PowerBox(
+        pk=lambda k: 1,
+        boxlength=boxlength,
+        N=shape,
+        dim=len(shape),
+        seed=1234,
+        a=ab[0],
+        b=ab[1],
+    )
 
     dk = pb.delta_k()
 

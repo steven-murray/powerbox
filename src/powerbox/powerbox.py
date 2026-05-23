@@ -85,6 +85,13 @@ def _normalize_axis_lengths(
     return normalized, normalized
 
 
+def _format_public_axis_value(
+    values: tuple[int, ...] | tuple[float, ...], scalar_geometry: bool
+) -> int | float | tuple[int, ...] | tuple[float, ...]:
+    """Format canonical per-axis geometry for the public scalar-compatible API."""
+    return values[0] if scalar_geometry else values
+
+
 class PowerBox:
     r"""
     Generate real- and fourier-space Gaussian fields with a given power spectrum.
@@ -199,14 +206,23 @@ class PowerBox:
         nthreads: int | None = None,
     ) -> None:
         self.dim = dim
-        self.N, self._N = _normalize_axis_counts(N, dim)
-        self.boxlength, self._boxlength = _normalize_axis_lengths(boxlength, dim)
+        self._scalar_geometry = isinstance(N, numbers.Integral) and isinstance(
+            boxlength, numbers.Real
+        )
+        _, self._N_axes = _normalize_axis_counts(N, dim)
+        _, self._L_axes = _normalize_axis_lengths(boxlength, dim)
+        self._dx_axes = tuple(
+            length / axis_n for length, axis_n in zip(self._L_axes, self._N_axes, strict=True)
+        )
+
+        self.N = _format_public_axis_value(self._N_axes, self._scalar_geometry)
+        self.boxlength = _format_public_axis_value(self._L_axes, self._scalar_geometry)
+        self.dx = _format_public_axis_value(self._dx_axes, self._scalar_geometry)
         self.L = self.boxlength
-        self._scalar_geometry = np.isscalar(self.N) and np.isscalar(self.boxlength)
         self.fourier_a = a
         self.fourier_b = b
         self.vol_normalised_power = vol_normalised_power
-        self.V = float(np.prod(self._boxlength))
+        self.V = float(np.prod(self._L_axes))
         self.fftbackend = dft.get_fft_backend(nthreads)
 
         if self.vol_normalised_power:
@@ -215,7 +231,7 @@ class PowerBox:
             self.pk = pk
 
         self.ensure_physical = ensure_physical
-        self.Ntot = int(np.prod(self._N))
+        self.Ntot = int(np.prod(self._N_axes))
 
         self.seed = seed
         if seed is None:
@@ -225,21 +241,18 @@ class PowerBox:
             # the Generator API required by modern NumPy.
             self.rng = np.random.Generator(np.random.MT19937(seed))
 
-        self._even_axes = tuple(axis_n % 2 == 0 for axis_n in self._N)
+        self._even_axes = tuple(axis_n % 2 == 0 for axis_n in self._N_axes)
         self._hermitian_shape = tuple(
             axis_n + 1 if is_even else axis_n
-            for axis_n, is_even in zip(self._N, self._even_axes, strict=True)
+            for axis_n, is_even in zip(self._N_axes, self._even_axes, strict=True)
         )
-
-        dx = tuple(length / axis_n for length, axis_n in zip(self._boxlength, self._N, strict=True))
-        self.dx = dx[0] if self._scalar_geometry else dx
 
     @property
     def _kvec_axes(self) -> tuple[np.ndarray, ...]:
         """The vector of wavenumbers along each axis."""
         return tuple(
             self.fftbackend.fftfreq(axis_n, d=axis_dx, b=self.fourier_b)
-            for axis_n, axis_dx in zip(self._N, self._axis_dx, strict=True)
+            for axis_n, axis_dx in zip(self._N_axes, self._dx_axes, strict=True)
         )
 
     @property
@@ -247,14 +260,9 @@ class PowerBox:
         """The co-ordinates of the grid along each axis."""
         return tuple(
             np.arange(-length / 2, length / 2, axis_dx)[:axis_n]
-            for length, axis_dx, axis_n in zip(self._boxlength, self._axis_dx, self._N, strict=True)
-        )
-
-    @property
-    def _axis_dx(self) -> tuple[float, ...]:
-        """Per-axis cell sizes."""
-        return tuple(
-            length / axis_n for length, axis_n in zip(self._boxlength, self._N, strict=True)
+            for length, axis_dx, axis_n in zip(
+                self._L_axes, self._dx_axes, self._N_axes, strict=True
+            )
         )
 
     def k(self):
@@ -276,6 +284,36 @@ class PowerBox:
         """The grid co-ordinates along a side or a tuple of per-axis co-ordinates."""
         return self._x_axes[0] if self._scalar_geometry else self._x_axes
 
+    def _hermitian_partner_indices(self, idx: tuple[int, ...]) -> tuple[int, ...]:
+        """Return the Hermitian partner index for a point in the cut Fourier array.
+
+        Even-length axes use wrapped modular indexing because the removed terminal cell
+        is the periodic partner of index zero. Odd-length axes retain a true midpoint, so
+        their partners are mirrored directly about the central element.
+        """
+        return tuple(
+            (axis_n - i) % axis_n if is_even else axis_n - 1 - i
+            for i, axis_n, is_even in zip(idx, self._N_axes, self._even_axes, strict=True)
+        )
+
+    def _enforce_boundary_symmetry(self, dk: np.ndarray) -> None:
+        """Restore Hermitian symmetry on the zero faces of even-sized axes after cutting."""
+        for ax, is_even in enumerate(self._even_axes):
+            if not is_even:
+                continue
+
+            face_ranges = [range(axis_n) for i, axis_n in enumerate(self._N_axes) if i != ax]
+            for t in itertools.product(*face_ranges):
+                full = list(t)
+                full.insert(ax, 0)
+                full_idx = tuple(full)
+                neg_idx = self._hermitian_partner_indices(full_idx)
+
+                if neg_idx > full_idx:
+                    dk[neg_idx] = np.conj(dk[full_idx])
+                elif neg_idx == full_idx:
+                    dk[full_idx] = dk[full_idx].real
+
     def gauss_hermitian(self):
         """Return a random array with Gaussian magnitudes and Hermitian symmetry."""
         mag = self.rng.normal(0, 1, size=self._hermitian_shape)
@@ -286,28 +324,7 @@ class PowerBox:
         if any(self._even_axes):
             cutidx = tuple(slice(None, -1 if is_even else None) for is_even in self._even_axes)
             dk = dk[cutidx]
-
-            # After cutting, every element whose index is 0 along any axis
-            # loses its Hermitian partner (which was at index N, now removed).
-            # Re-enforce dk[j] = dk[(N-j)%N]* on each such boundary slice by
-            # iterating over each axis and symmetrising its j=0 face in-place.
-            for ax, is_even in enumerate(self._even_axes):
-                if not is_even:
-                    continue
-
-                face_ranges = [range(axis_n) for i, axis_n in enumerate(self._N) if i != ax]
-                for t in itertools.product(*face_ranges):
-                    full = list(t)
-                    full.insert(ax, 0)
-                    full = tuple(full)
-                    neg = tuple(
-                        (axis_n - i) % axis_n if is_even else axis_n - 1 - i
-                        for i, axis_n, is_even in zip(full, self._N, self._even_axes, strict=True)
-                    )
-                    if neg > full:
-                        dk[neg] = np.conj(dk[full])
-                    elif neg == full:
-                        dk[full] = dk[full].real
+            self._enforce_boundary_symmetry(dk)
 
         return dk
 
@@ -339,13 +356,13 @@ class PowerBox:
         # Here we multiply by V because the inverse Fourier transform of the
         # dimensionless power has units of 1/V, and we require a unitless
         # quantity for delta_x.
-        dk = self.fftbackend.empty(self._N, dtype="complex128")
+        dk = self.fftbackend.empty(self._N_axes, dtype="complex128")
         dk[...] = self.delta_k()
         dk[...] = (
             self.V
             * dft.ifft(
                 dk,
-                L=self._boxlength,
+                L=self._L_axes,
                 a=self.fourier_a,
                 b=self.fourier_b,
                 backend=self.fftbackend,
@@ -410,7 +427,7 @@ class PowerBox:
         else:
             dx = delta_x
 
-        dx = (dx + 1) * np.prod(self._axis_dx) * nbar
+        dx = (dx + 1) * np.prod(self._dx_axes) * nbar
         n = dx
 
         self.n_per_cell = self.rng.poisson(n)
@@ -425,10 +442,10 @@ class PowerBox:
         if randomise_in_cell:
             tracer_positions += self.rng.uniform(
                 size=(np.sum(self.n_per_cell), self.dim)
-            ) * np.asarray(self._axis_dx)
+            ) * np.asarray(self._dx_axes)
 
         if min_at_zero:
-            tracer_positions += np.asarray(self._boxlength) / 2.0
+            tracer_positions += np.asarray(self._L_axes) / 2.0
 
         if store_pos:
             self.tracer_positions = tracer_positions
@@ -484,12 +501,12 @@ class LogNormalPowerBox(PowerBox):
 
     def correlation_array(self):
         """Return the correlation function from the input power on the grid."""
-        pa = self.fftbackend.empty(self._N)
+        pa = self.fftbackend.empty(self._N_axes)
         pa[...] = self.power_array()
         return self.V * np.real(
             dft.ifft(
                 pa,
-                L=self._boxlength,
+                L=self._L_axes,
                 a=self.fourier_a,
                 b=self.fourier_b,
                 backend=self.fftbackend,
@@ -502,12 +519,12 @@ class LogNormalPowerBox(PowerBox):
 
     def gaussian_power_array(self):
         """Power spectrum required for a Gaussian field to produce the input power."""
-        gca = self.fftbackend.empty(self._N)
+        gca = self.fftbackend.empty(self._N_axes)
         gca[...] = self.gaussian_correlation_array()
         gpa = np.abs(
             dft.fft(
                 gca,
-                L=self._boxlength,
+                L=self._L_axes,
                 a=self.fourier_a,
                 b=self.fourier_b,
                 backend=self.fftbackend,
@@ -530,13 +547,13 @@ class LogNormalPowerBox(PowerBox):
 
     def delta_x(self):
         """Return the real-space over-density field from the input power spectrum."""
-        dk = self.fftbackend.empty(self._N, dtype="complex128")
+        dk = self.fftbackend.empty(self._N_axes, dtype="complex128")
         dk[...] = self.delta_k()
         dk[...] = (
             np.sqrt(self.V)
             * dft.ifft(
                 dk,
-                L=self._boxlength,
+                L=self._L_axes,
                 a=self.fourier_a,
                 b=self.fourier_b,
                 backend=self.fftbackend,
