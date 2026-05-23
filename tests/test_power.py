@@ -50,6 +50,44 @@ def test_tuple_inputs_expose_axis_aware_geometry() -> None:
     assert pb.kvec[0].shape == (15,)
     assert pb.kvec[1].shape == (18,)
     assert pb.delta_x().shape == (15, 18)
+    assert pb.r.shape == (15, 18)
+
+
+@pytest.mark.parametrize(
+    ("N", "boxlength", "error", "match"),
+    [
+        ((15,), (3.0, 9.0), ValueError, "N must be a scalar or have length 2"),
+        ((15, 18.5), (3.0, 9.0), TypeError, "N entries must be integers"),
+        ((15, 18), (3.0,), ValueError, "boxlength must be a scalar or have length 2"),
+        ((15, 18), (3.0, "bad"), TypeError, "boxlength entries must be real numbers"),
+    ],
+)
+def test_tuple_input_validation(N, boxlength, error, match) -> None:
+    """Tuple-valued geometry inputs validate length and element types."""
+    with pytest.raises(error, match=match):
+        PowerBox(N, dim=2, pk=lambda k: (1 + k) ** -2.0, boxlength=boxlength)
+
+
+def test_non_volume_normalized_powerbox_uses_input_power_directly() -> None:
+    """Disabling volume normalization leaves the power callable unchanged."""
+    pb = PowerBox(
+        16,
+        dim=2,
+        pk=lambda k: k + 1.0,
+        boxlength=4.0,
+        seed=1234,
+        vol_normalised_power=False,
+    )
+
+    np.testing.assert_allclose(pb.pk(np.array([1.5, 2.5])), np.array([2.5, 3.5]))
+
+
+def test_negative_power_raises() -> None:
+    """Negative input power remains a hard error."""
+    pb = PowerBox(16, dim=2, pk=lambda k: -np.ones_like(k), boxlength=4.0, seed=1234)
+
+    with pytest.raises(ValueError, match="returned negative values"):
+        pb.delta_k()
 
 
 @pytest.mark.parametrize(
