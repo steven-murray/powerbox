@@ -41,6 +41,25 @@ def test_lognormal_scalar_inputs_preserve_scalar_public_attributes() -> None:
     assert pb.delta_x().shape == (16, 16)
 
 
+@pytest.mark.parametrize(
+    ("N", "boxlength"),
+    [
+        (np.int64(16), np.float64(4.0)),
+        (np.array(16), np.array(4.0)),
+    ],
+)
+def test_numpy_scalar_inputs_preserve_scalar_public_attributes(N, boxlength) -> None:
+    """NumPy scalar-like geometry inputs preserve the scalar public API."""
+    pb = PowerBox(N, dim=2, pk=lambda k: (1 + k) ** -2.0, boxlength=boxlength, seed=1234)
+
+    assert np.isscalar(pb.N)
+    assert np.isscalar(pb.boxlength)
+    assert np.isscalar(pb.dx)
+    assert isinstance(pb.x, np.ndarray)
+    assert isinstance(pb.kvec, np.ndarray)
+    assert pb.delta_x().shape == (16, 16)
+
+
 def test_tuple_inputs_expose_axis_aware_geometry() -> None:
     """Tuple inputs produce per-axis public geometry for non-cubic boxes."""
     pb = PowerBox(

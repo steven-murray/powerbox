@@ -51,8 +51,8 @@ def _normalize_axis_counts(
     N: int | Sequence[int], dim: int
 ) -> tuple[int | tuple[int, ...], tuple[int, ...]]:
     """Normalize grid counts to a per-axis tuple while preserving scalar public input."""
-    if isinstance(N, numbers.Integral):
-        scalar = int(N)
+    if np.isscalar(N) or np.ndim(N) == 0:
+        scalar = int(np.asarray(N).item())
         return scalar, (scalar,) * dim
 
     values = tuple(N)
@@ -70,8 +70,8 @@ def _normalize_axis_lengths(
     boxlength: float | Sequence[float], dim: int
 ) -> tuple[float | tuple[float, ...], tuple[float, ...]]:
     """Normalize box lengths to a per-axis tuple while preserving scalar public input."""
-    if isinstance(boxlength, numbers.Real):
-        scalar = float(boxlength)
+    if np.isscalar(boxlength) or np.ndim(boxlength) == 0:
+        scalar = float(np.asarray(boxlength).item())
         return scalar, (scalar,) * dim
 
     values = tuple(boxlength)
@@ -206,17 +206,21 @@ class PowerBox:
         nthreads: int | None = None,
     ) -> None:
         self.dim = dim
-        self._scalar_geometry = isinstance(N, numbers.Integral) and isinstance(
-            boxlength, numbers.Real
-        )
-        _, self._N_axes = _normalize_axis_counts(N, dim)
-        _, self._L_axes = _normalize_axis_lengths(boxlength, dim)
+        public_N, self._N_axes = _normalize_axis_counts(N, dim)
+        public_boxlength, self._L_axes = _normalize_axis_lengths(boxlength, dim)
+        self._scalar_geometry = np.isscalar(public_N) and np.isscalar(public_boxlength)
         self._dx_axes = tuple(
             length / axis_n for length, axis_n in zip(self._L_axes, self._N_axes, strict=True)
         )
 
-        self.N = _format_public_axis_value(self._N_axes, self._scalar_geometry)
-        self.boxlength = _format_public_axis_value(self._L_axes, self._scalar_geometry)
+        self.N = (
+            public_N if self._scalar_geometry else _format_public_axis_value(self._N_axes, False)
+        )
+        self.boxlength = (
+            public_boxlength
+            if self._scalar_geometry
+            else _format_public_axis_value(self._L_axes, False)
+        )
         self.dx = _format_public_axis_value(self._dx_axes, self._scalar_geometry)
         self.L = self.boxlength
         self.fourier_a = a
@@ -298,11 +302,13 @@ class PowerBox:
 
     def _enforce_boundary_symmetry(self, dk: np.ndarray) -> None:
         """Restore Hermitian symmetry on the zero faces of even-sized axes after cutting."""
+        axis_ranges = tuple(range(axis_n) for axis_n in self._N_axes)
+
         for ax, is_even in enumerate(self._even_axes):
             if not is_even:
                 continue
 
-            face_ranges = [range(axis_n) for i, axis_n in enumerate(self._N_axes) if i != ax]
+            face_ranges = [axis_range for i, axis_range in enumerate(axis_ranges) if i != ax]
             for t in itertools.product(*face_ranges):
                 full = list(t)
                 full.insert(ax, 0)
