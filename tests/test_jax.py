@@ -15,6 +15,7 @@ jnp = pytest.importorskip("jax.numpy")
 jpb = importlib.import_module("powerbox.jax")
 jdft = importlib.import_module("powerbox.jax.dft")
 jtools = importlib.import_module("powerbox.jax.tools")
+ndft = importlib.import_module("powerbox.dft")
 
 
 def _assert_full_hermitian(arr: np.ndarray) -> None:
@@ -444,3 +445,87 @@ def test_jax_get_power_validation_branches() -> None:
     result = jpb.get_power(field, 2.0, res_ndim=0)
     assert result.bin_edges.size == 0
     assert result.bin_centres.size == 0
+
+
+def test_dft_default_length_branches_are_exercised() -> None:
+    x = np.random.default_rng(1).normal(size=(6, 8))
+
+    # fft default L path (L and Lk both omitted)
+    f_default, _ = ndft.fft(x, axes=(0, 1), a=0, b=2 * np.pi, nthreads=1)
+    assert f_default.shape == x.shape
+
+    # fft scalar Lk path
+    f_lk, _ = ndft.fft(x, Lk=3.0, axes=(0, 1), a=0, b=2 * np.pi, nthreads=1)
+    assert f_lk.shape == x.shape
+
+    # ifft default Lk path
+    x_ifft, _ = ndft.ifft(f_default, axes=(0, 1), a=0, b=2 * np.pi, nthreads=1)
+    assert x_ifft.shape == x.shape
+
+    # irfft scalar Lk path
+    reduced = np.fft.rfftn(x)
+    reduced = np.fft.fftshift(reduced, axes=(0,))
+    x_irfft, _ = ndft.irfft(reduced, Lk=3.0, axes=(0, 1), N=x.shape, a=0, b=2 * np.pi, nthreads=1)
+    assert x_irfft.shape == x.shape
+
+
+def test_jax_tools_additional_branch_coverage() -> None:
+    # PowerSpectrum validation for secondary optional arrays.
+    with pytest.raises(ValueError, match="bin_avg must have length"):
+        jtools.PowerSpectrum(
+            power=jnp.ones(2),
+            bin_edges=jnp.array([0.0, 1.0, 2.0]),
+            bin_centres=jnp.array([0.5, 1.5]),
+            bin_avg=jnp.ones(3),
+        )
+
+    with pytest.raises(ValueError, match="nsamples must have length"):
+        jtools.PowerSpectrum(
+            power=jnp.ones(2),
+            bin_edges=jnp.array([0.0, 1.0, 2.0]),
+            bin_centres=jnp.array([0.5, 1.5]),
+            nsamples=jnp.ones(3),
+        )
+
+    with pytest.raises(ValueError, match="variance must have first dimension"):
+        jtools.PowerSpectrum(
+            power=jnp.ones(2),
+            bin_edges=jnp.array([0.0, 1.0, 2.0]),
+            bin_centres=jnp.array([0.5, 1.5]),
+            variance=jnp.ones((3,)),
+        )
+
+    # _getbins log branch and _resolve_bins_upto_boxlen warning branch.
+    coords = jnp.abs(jnp.arange(1, 10, dtype=float)).reshape(3, 3)
+    bins = jtools._getbins(4, coords, log=True, bins_upto_boxlen=True)
+    assert bins.shape == (5,)
+    with pytest.warns(FutureWarning, match="In the future"):
+        assert jtools._resolve_bins_upto_boxlen(4, None) is False
+
+    # Complex averaging path and scalar-weights variance path.
+    indx = jnp.array([1, 1, 2, 2])
+    complex_avg = jtools._field_average(
+        indx, jnp.array([1 + 2j, 3 + 4j, 5 + 6j, 7 + 8j]), 1.0, jnp.array([2.0, 2.0])
+    )
+    assert complex_avg.dtype.kind == "c"
+    var = jtools._field_variance(
+        indx,
+        jnp.array([1.0, 3.0, 5.0, 7.0]),
+        jnp.array([2.0, 6.0]),
+        1.0,
+        jnp.array([2.0, 2.0]),
+    )
+    assert np.all(np.isfinite(np.asarray(var)))
+
+    # angular_average_nd branch where full-rank weights are sliced by leading index.
+    field = jnp.arange(24.0).reshape(3, 4, 2)
+    weights = jnp.ones_like(field)
+    coords_nd = [jnp.linspace(-1.0, 1.0, 3), jnp.linspace(-1.5, 1.5, 4)]
+    with pytest.warns(UserWarning, match="One or more radial bins had no cells within it."):
+        out, outbins, outvar, outwght = jtools.angular_average_nd(
+            field, coords_nd, bins=3, ndims_to_avg=2, weights=weights, bins_upto_boxlen=True
+        )
+    assert out.shape[1:] == (2,)
+    assert outbins.shape == out.shape
+    assert outvar is None
+    assert outwght.shape == out.shape
