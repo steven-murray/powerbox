@@ -10,19 +10,20 @@ real development machine. It serves two purposes:
 Benchmark setup
 ---------------
 
-The benchmark script is ``docs/demos/benchmark_backends.py``. It measures the median of
-two timed runs after one warm-up run for each configuration, using cubic boxes with
-shapes ``(N,)*dim`` and ``boxlength=100``. The current size ladders are
+The benchmark script is ``docs/demos/benchmark_backends.py``. It records both a
+``cold`` timing (first run, including any one-time setup such as JAX compilation) and a
+``warm`` timing (median of repeated post-warmup runs) for each configuration, using
+cubic boxes with shapes ``(N,)*dim`` and ``boxlength=100``. The current size ladders are
 ``[4096, 16384, 65536, 262144]`` in 1D, ``[64, 128, 256, 512]`` in 2D, and
 ``[16, 32, 64, 96]`` in 3D.
 
-The four compared backends are:
+The compared backend variants are:
 
 - ``numpy`` using ``powerbox.PowerBox(..., nthreads=1)`` and ``powerbox.get_power(..., nthreads=1)``;
 - ``fftw`` using ``powerbox.PowerBox(..., nthreads=1)`` and
   ``powerbox.get_power(..., nthreads=1)``;
-- ``jax-cpu`` using ``powerbox.jax`` pinned to the JAX CPU device;
-- ``jax-gpu`` using ``powerbox.jax`` pinned to the JAX CUDA device.
+- ``jax-cpu-eager`` / ``jax-gpu-eager`` using ``usejit=False``;
+- ``jax-cpu-jit`` / ``jax-gpu-jit`` using ``usejit=True``.
 
 The FFTW series is intentionally single-threaded for these problem sizes. On this
 machine, the pyFFTW interface overhead and thread-management cost dominate before
@@ -85,8 +86,11 @@ FFTW?" on a typical development machine.
 Notes
 -----
 
-- The JAX timings here are eager-mode timings for the current milestone-1 implementation,
-  not JIT-compiled kernels.
+- The generated plots use warm timings. Cold timings are saved in
+  ``backend_benchmark_results.json`` to quantify one-time JIT compilation costs.
+- In the public JAX API, ``delta_x()`` selects JIT automatically for large boxes and
+  falls back to eager execution for smaller ones; repeated eager-default calls emit a
+  one-time warning.
 - The GPU line is particularly useful as a development target: if future JAX refactors
   regress it noticeably, rerunning the benchmark script should reveal that quickly.
 - The raw metadata and timing table are written to

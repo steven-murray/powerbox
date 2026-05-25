@@ -37,6 +37,7 @@ fftw = [
 ]
 jax = [
     "jax>=0.4.35",
+    "attrs>=26.0.0",
 ]
 
 [dependency-groups]
@@ -45,6 +46,7 @@ tests = [
     "flake8",
     "pytest",
     "pytest-cov",
+    "attrs>=26.0.0",
     "scipy",
     "pyfftw",
     "jax>=0.4.35",
