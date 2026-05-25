@@ -19,14 +19,25 @@ from powerbox import (
 get_power = partial(get_power, bins_upto_boxlen=True)
 
 
-def test_scalar_inputs_preserve_scalar_public_attributes() -> None:
-    """Scalar constructor inputs keep the historical public attribute shapes."""
+def _assert_reasonable_power_recovery(zscore: np.ndarray) -> None:
+    """Require that power-recovery z-scores stay near 3-sigma overall."""
+    frac_above_three_sigma = np.count_nonzero(zscore > 3.0) / zscore.size
+    assert frac_above_three_sigma <= 0.1, zscore
+    assert np.max(zscore) < 5.0, zscore
+
+
+def test_scalar_inputs_expand_to_tuple_geometry() -> None:
+    """Scalar constructor inputs are normalized to tuple-valued reduced geometry."""
     pb = PowerBox(16, dim=2, pk=lambda k: (1 + k) ** -2.0, boxlength=4.0, seed=1234)
 
-    assert np.isscalar(pb.N)
-    assert np.isscalar(pb.boxlength)
-    assert isinstance(pb.x, np.ndarray)
-    assert isinstance(pb.kvec, np.ndarray)
+    assert pb.N == (16, 16)
+    assert pb.boxlength == (4.0, 4.0)
+    assert isinstance(pb.x, tuple)
+    assert isinstance(pb.kvec, tuple)
+    assert pb.x[0].shape == (16,)
+    assert pb.x[1].shape == (16,)
+    assert pb.kvec[0].shape == (16,)
+    assert pb.kvec[1].shape == (9,)
     assert pb.delta_x().shape == (16, 16)
 
 
@@ -48,7 +59,7 @@ def test_tuple_inputs_expose_axis_aware_geometry() -> None:
     assert pb.x[0].shape == (15,)
     assert pb.x[1].shape == (18,)
     assert pb.kvec[0].shape == (15,)
-    assert pb.kvec[1].shape == (18,)
+    assert pb.kvec[1].shape == (10,)
     assert pb.delta_x().shape == (15, 18)
     assert pb.r.shape == (15, 18)
 
@@ -127,7 +138,7 @@ def test_non_cubic_powerbox_power_normalization(shape, boxlength) -> None:
     zscore = np.abs(pmean[1:][mask] - expected[1:][mask]) / (
         pstd[1:][mask] / np.sqrt(nrealizations)
     )
-    np.testing.assert_allclose(zscore, 0, atol=6.0)
+    _assert_reasonable_power_recovery(zscore)
 
 
 @pytest.mark.parametrize(
@@ -165,7 +176,7 @@ def test_non_cubic_lognormal_power_normalization(shape, boxlength) -> None:
     zscore = np.abs(pmean[1:][mask] - expected[1:][mask]) / (
         pstd[1:][mask] / np.sqrt(nrealizations)
     )
-    np.testing.assert_allclose(zscore, 0, atol=6.0)
+    _assert_reasonable_power_recovery(zscore)
 
 
 def test_power1d() -> None:
@@ -500,4 +511,4 @@ def test_power_normalization(boxtype, ncells):
     pstd = np.std(p, axis=0)
 
     zscore = np.abs(pmean[1:] - pkfunc(pcls.bin_centres[1:])) / (pstd[1:] / np.sqrt(nrealizations))
-    np.testing.assert_allclose(zscore, 0, atol=5.0)
+    _assert_reasonable_power_recovery(zscore)

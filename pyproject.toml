@@ -35,6 +35,9 @@ readme = {file = ["README.rst"]}
 fftw = [
     'pyfftw'
 ]
+jax = [
+    "jax>=0.4.35",
+]
 
 [dependency-groups]
 tests = [
@@ -44,6 +47,7 @@ tests = [
     "pytest-cov",
     "scipy",
     "pyfftw",
+    "jax>=0.4.35",
 ]
 docs = [
     "sphinx",

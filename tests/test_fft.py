@@ -133,6 +133,19 @@ if HAVE_FFTW_MULTITHREAD:
     NTHREADS_TO_CHECK += (2,)
 
 
+@pytest.mark.skipif(not HAVE_FFTW, reason="pyFFTW not installed")
+def test_fftw_backend_enables_interface_cache() -> None:
+    """The FFTW backend should enable the pyFFTW interface cache for plan reuse."""
+    import pyfftw
+
+    pyfftw.interfaces.cache.disable()
+    assert not pyfftw.interfaces.cache.is_enabled()
+
+    FFTW(nthreads=1)
+
+    assert pyfftw.interfaces.cache.is_enabled()
+
+
 @pytest.mark.parametrize(("a", "b", "ainv", "binv"), ABCOMBOS)
 @pytest.mark.parametrize("nthreads", NTHREADS_TO_CHECK)
 def test_mixed_2d_bf(g2d, a, b, ainv, binv, nthreads) -> None:

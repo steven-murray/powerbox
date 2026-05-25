@@ -36,7 +36,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 
-__all__ = ["fft", "fftfreq", "fftshift", "ifft", "ifftshift"]
+__all__ = ["fft", "fftfreq", "fftshift", "ifft", "ifftshift", "irfft", "rfftfreq"]
 
 # To avoid MKL-related bugs, numpy needs to be imported after pyfftw: see https://github.com/pyFFTW/pyFFTW/issues/40
 import numpy as np
@@ -67,6 +67,14 @@ def fftfreq(x, *args, **kwargs):  # noqa: D103
 
 
 fftfreq.__doc__ = get_fft_backend().fftfreq.__doc__
+
+
+def rfftfreq(x, *args, **kwargs):  # noqa: D103
+    backend = kwargs.pop("backend", get_fft_backend(kwargs.pop("nthreads", None)))
+    return backend.rfftfreq(x, *args, **kwargs)
+
+
+rfftfreq.__doc__ = get_fft_backend().rfftfreq.__doc__
 
 
 def fft(
@@ -142,6 +150,7 @@ def fft(
     """
     if backend is None:
         backend = get_fft_backend(nthreads)
+    xp = getattr(backend, "xp", np)
 
     if axes is None:
         axes = tuple(range(X.ndim))
@@ -165,7 +174,7 @@ def fft(
     ft = (
         Vx
         * backend.fftshift(backend.fftn(X, axes=axes), axes=axes)
-        * np.sqrt(np.abs(b) / (2 * np.pi) ** (1 - a)) ** len(axes)
+        * xp.sqrt(xp.abs(b) / (2 * xp.pi) ** (1 - a)) ** len(axes)
     )
 
     dx = np.array([float(length) / float(n) for length, n in zip(L, N, strict=True)])
@@ -182,7 +191,7 @@ def fft(
     # of some discretized function between some finiite boundaries.
     if x0 != 0:
         bin_centre = _set_x0(x0, axes)
-        _adjust_phase(ft, bin_centre, freq, axes, b)
+        ft = _adjust_phase(ft, bin_centre, freq, axes, b, xp)
 
     return ft, freq
 
@@ -258,9 +267,10 @@ def ifft(
     """
     if backend is None:
         backend = get_fft_backend(nthreads)
+    xp = getattr(backend, "xp", np)
 
     if axes is None:
-        axes = list(range(len(X.shape)))
+        axes = tuple(range(len(X.shape)))
 
     N = np.array([X.shape[axis] for axis in axes])
 
@@ -289,10 +299,110 @@ def ifft(
         if bb is None:
             bb = b
         freq = [backend.fftfreq(n, d=d, b=bb) for n, d in zip(N, dx, strict=True)]
-        _adjust_phase(X, x0, freq, axes, -bb)
+        X = _adjust_phase(X, x0, freq, axes, -bb, xp)
 
     X = backend.ifftshift(X, axes=axes)
-    ft = V * backend.ifftn(X, axes=axes) * np.sqrt(np.abs(b) / (2 * np.pi) ** (1 + a)) ** len(axes)
+    ft = V * backend.ifftn(X, axes=axes) * xp.sqrt(xp.abs(b) / (2 * xp.pi) ** (1 + a)) ** len(axes)
+
+    freq = [backend.fftfreq(n, d=d, b=b) for n, d in zip(N, dk, strict=True)]
+
+    return ft, freq
+
+
+def irfft(
+    X,
+    Lk=None,
+    L=None,
+    a: float = 0,
+    b: float = 2 * np.pi,
+    axes: Sequence[int] | None = None,
+    x0: float | tuple[float, ...] = 0,
+    nthreads=None,
+    backend=None,
+    bb: float | None = None,
+    N: int | Sequence[int] | None = None,
+):
+    r"""
+    Arbitrary-dimension nice inverse Fourier Transform for half-Hermitian spectra.
+
+    This function is the real-FFT analogue of :func:`ifft`. The input spectrum is
+    assumed to be stored in ``rfftn`` layout: all transformed axes except the final
+    one are centred, and the final transformed axis contains only the non-negative
+    frequencies in the standard ``rfftn`` order.
+
+    Parameters
+    ----------
+    X, Lk, L, a, b, axes, x0, nthreads, backend, bb
+        As for :func:`ifft`.
+    N : int or sequence of int, optional
+        Real-space output shape along the transformed axes. This should be provided
+        whenever the final transformed axis has odd length, because the half-spectrum
+        shape alone cannot distinguish odd from even real-space sizes.
+
+    Returns
+    -------
+    ft : array
+        The inverse transform of ``X``, normalised to be consistent with the continuous
+        transform.
+    freq : list of arrays
+        The real-space co-ordinate grid in each transformed dimension.
+    """
+    if backend is None:
+        backend = get_fft_backend(nthreads)
+    xp = getattr(backend, "xp", np)
+
+    if axes is None:
+        axes = tuple(range(len(X.shape)))
+
+    if N is None:
+        real_shape = [X.shape[axis] for axis in axes[:-1]]
+        real_shape.append(2 * (X.shape[axes[-1]] - 1))
+    elif np.isscalar(N):
+        real_shape = [int(N)] * len(axes)
+    else:
+        real_shape = [int(n) for n in N]
+        if len(real_shape) != len(axes):
+            raise ValueError("N must be a scalar or have the same length as the number of axes.")
+
+    N = np.array(real_shape)
+
+    if Lk is None and L is None:
+        Lk = 1
+    elif L is not None:
+        if np.isscalar(L):
+            L = np.array([L] * len(axes))
+
+        dx = L / N
+        Lk = 2 * np.pi / (dx * b)
+    elif np.isscalar(Lk):
+        Lk = [Lk] * len(axes)
+
+    dx = np.array([2 * np.pi / (lk * b) for lk in Lk])
+    Lk = np.array(Lk)
+
+    V = np.prod(Lk)
+    dk = np.array([float(lk) / float(n) for lk, n in zip(Lk, N, strict=True)])
+
+    fft_axes = axes[:-1]
+    freq = [
+        backend.fftfreq(n, d=d, b=bb if bb is not None else b)
+        for n, d in zip(N[:-1], dx[:-1], strict=True)
+    ]
+    freq.append(backend.rfftfreq(N[-1], d=dx[-1], b=bb if bb is not None else b))
+
+    if x0 != 0:
+        X = X.astype(complex)
+        x0 = _set_x0(x0, axes)
+        X = _adjust_phase(X, x0, freq, axes, -(bb if bb is not None else b), xp)
+
+    if fft_axes:
+        X = backend.ifftshift(X, axes=fft_axes)
+
+    ft = (
+        V
+        * backend.irfftn(X, s=tuple(int(n) for n in N), axes=axes)
+        * xp.sqrt(xp.abs(b) / (2 * xp.pi) ** (1 + a)) ** len(axes)
+    )
 
     freq = [backend.fftfreq(n, d=d, b=b) for n, d in zip(N, dk, strict=True)]
 
@@ -300,7 +410,12 @@ def ifft(
 
 
 def _adjust_phase(
-    ft: np.ndarray, x0: tuple[float, ...], freq: list[np.ndarray], axes: tuple[int, ...], b: float
+    ft: np.ndarray,
+    x0: tuple[float, ...],
+    freq: list[np.ndarray],
+    axes: tuple[int, ...],
+    b: float,
+    xp=np,
 ):
     """Apply a phase shift to the Fourier transform to adjust for the left edge.
 
@@ -311,13 +426,15 @@ def _adjust_phase(
     phase shift to the Fourier transform.
     """
     for i, (ledge, fq) in enumerate(zip(x0, freq, strict=True)):
-        phase = np.exp(-b * 1j * fq * ledge)
+        phase = xp.exp(-b * 1j * fq * ledge)
         obj = (
             *([None] * axes[i]),
             slice(None, None, None),
             *([None] * (ft.ndim - axes[i] - 1)),
         )
-        ft *= phase[obj]
+        ft = ft * phase[obj]
+
+    return ft
 
 
 def _set_x0(x0: float | tuple[float, ...], axes: tuple[int, ...]) -> tuple[float, ...]:
