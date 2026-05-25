@@ -1,4 +1,4 @@
-"""Tests that deltax is real under different assumptions."""
+"""Tests of the hermitian helpers."""
 
 import itertools
 
@@ -22,7 +22,7 @@ def test_deltax_is_real(ndim, ncells, ab):
         L=1,
         a=ab[0],
         b=ab[1],
-        N=pb.N,
+        N=pb.shape,
     )[0]
 
     assert np.isrealobj(deltax)
@@ -35,9 +35,8 @@ def test_non_cubic_deltax_is_real(shape, ab):
     boxlength = tuple(float(index + 2) for index in range(len(shape)))
     pb = PowerBox(
         pk=lambda k: 1,
-        boxlength=boxlength,
-        N=shape,
-        dim=len(shape),
+        size=boxlength,
+        shape=shape,
         seed=1234,
         a=ab[0],
         b=ab[1],
@@ -50,7 +49,7 @@ def test_non_cubic_deltax_is_real(shape, ab):
         L=boxlength,
         a=ab[0],
         b=ab[1],
-        N=pb.N,
+        N=pb.shape,
     )[0]
 
     assert np.isrealobj(deltax)
@@ -83,10 +82,9 @@ def _assert_full_hermitian(arr):
 def test_reduced_gaussian_modes_preserve_real_self_conjugate_modes(shape):
     """The reduced ``irfftn`` spectrum keeps only valid self-conjugate real modes."""
     pb = PowerBox(
-        N=shape,
-        dim=len(shape),
+        shape=shape,
         pk=lambda k: (1 + k) ** (-2.0),
-        boxlength=tuple(float(axis + 2) for axis in range(len(shape))),
+        size=tuple(float(axis + 2) for axis in range(len(shape))),
         seed=42,
         ensure_physical=False,
     )
@@ -104,10 +102,9 @@ def test_reduced_gaussian_modes_preserve_real_self_conjugate_modes(shape):
 def test_reduced_gaussian_modes_boundary_surfaces_are_hermitian(shape):
     """Self-conjugate reduced-spectrum surfaces remain Hermitian in lower dimensions."""
     pb = PowerBox(
-        N=shape,
-        dim=len(shape),
+        shape=shape,
         pk=lambda k: (1 + k) ** (-2.0),
-        boxlength=tuple(float(axis + 2) for axis in range(len(shape))),
+        size=tuple(float(axis + 2) for axis in range(len(shape))),
         seed=52,
         ensure_physical=False,
     )
@@ -128,10 +125,9 @@ def test_reduced_gaussian_modes_boundary_surfaces_are_hermitian(shape):
 def test_gauss_hermitian_returns_reduced_hermitian_modes(shape):
     """The public Gaussian mode sampler returns reduced Hermitian rFFT modes."""
     pb = PowerBox(
-        N=shape,
-        dim=len(shape),
+        shape=shape,
         pk=lambda k: (1 + k) ** (-2.0),
-        boxlength=tuple(float(axis + 2) for axis in range(len(shape))),
+        size=tuple(float(axis + 2) for axis in range(len(shape))),
         seed=42,
         ensure_physical=False,
     )

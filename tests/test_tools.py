@@ -528,10 +528,10 @@ def test_logbins() -> None:
 
 
 def test_cross_power_identity() -> None:
-    pb = PowerBox(200, dim=2, pk=lambda k: 1.0 * k**-2.0, boxlength=1.0, b=1)
+    pb = PowerBox(shape=(200, 200), pk=lambda k: 1.0 * k**-2.0, boxlength=1.0, b=1)
     dx = pb.delta_x()
-    p = get_power(dx, pb.boxlength, b=1).power
-    p_cross = get_power(dx, pb.boxlength, b=1, deltax2=dx).power
+    p = get_power(dx, pb.size, b=1).power
+    p_cross = get_power(dx, pb.size, b=1, deltax2=dx).power
     np.testing.assert_allclose(p, p_cross)
     p = get_power(dx, [1, 1], b=1).power
     p_cross = get_power(dx, [1, 1], b=1, deltax2=dx).power
@@ -705,10 +705,10 @@ class TestInterpSimilarToNoInterp:
 
 def test_get_power_2d_sumweights_is_1d() -> None:
     """When res_ndim < dim, sumweights should be collapsed to 1D."""
-    pb = PowerBox(64, dim=3, pk=lambda k: k**-2.0, boxlength=1.0, b=1)
+    pb = PowerBox(shape=(64, 64, 64), pk=lambda k: k**-2.0, b=1)
     dx = pb.delta_x()
 
-    result = get_power(dx, pb.boxlength, b=1, res_ndim=2)
+    result = get_power(dx, pb.size, b=1, res_ndim=2)
 
     # p has shape (n_bins, n_remaining) but nsamples should be 1D
     assert result.nsamples.ndim == 1, (

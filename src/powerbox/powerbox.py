@@ -10,17 +10,21 @@ subclassing :class:`PowerBox` and over-writing the same methods as are over-writ
 from __future__ import annotations
 
 import warnings
-from collections.abc import Sequence
+from collections.abc import Callable
+from functools import cached_property
 
+import attrs
 import numpy as np
+from attrs import validators as vld
 
 from . import dft
 from ._fft_layout import full_spectrum_to_rfft, irfft_to_field
-from ._geometry import tuplify_type
 from ._hermitianity import hermitianize_rfft_array
+from .dft_backend import FFTBackend
 from .tools import _magnitude_grid
 
 
+@attrs.define(kw_only=True, slots=False, frozen=True)
 class PowerBox:
     r"""
     Generate real- and fourier-space Gaussian fields with a given power spectrum.
@@ -121,55 +125,176 @@ class PowerBox:
     >>> x, y = pb.x
     """
 
-    def __init__(
-        self,
-        N: int | Sequence[int],
-        pk,
-        dim: int = 2,
-        boxlength: float | Sequence[float] = 1.0,
-        ensure_physical: bool = False,
-        a: float = 1.0,
-        b: float = 1.0,
-        vol_normalised_power: bool = True,
-        seed: int | None = None,
-        nthreads: int | None = None,
-    ) -> None:
-        self.dim = dim
-        self.N = tuplify_type(int, N, dim, "N")
-        self.boxlength = tuplify_type(float, boxlength, dim, "boxlength")
-        self.L = self.boxlength
-        self.fourier_a = a
-        self.fourier_b = b
-        self.vol_normalised_power = vol_normalised_power
-        self.V = float(np.prod(self.boxlength))
-        self.fftbackend = dft.get_fft_backend(nthreads)
+    N: int | None = attrs.field(
+        default=None, converter=attrs.converters.optional(int), validator=vld.optional(vld.gt(0))
+    )
+    _dim: int | None = attrs.field(
+        converter=attrs.converters.optional(int), default=None, validator=vld.optional(vld.gt(0))
+    )
+    shape: tuple[int, ...] = attrs.field(converter=lambda x: tuple(int(i) for i in x))
 
-        if self.vol_normalised_power:
-            self.pk = lambda k: pk(k) / self.V
+    _pk: Callable[[np.ndarray], np.ndarray] = attrs.field(repr=False)
+
+    _boxlength: float | None = attrs.field(
+        default=None, converter=attrs.converters.optional(float), validator=vld.optional(vld.gt(0))
+    )
+    size: tuple[float, ...] = attrs.field(converter=lambda x: tuple(float(i) for i in x))
+
+    ensure_physical: bool = attrs.field(default=False, converter=bool)
+    fourier_a: float = attrs.field(default=1.0, converter=float, alias="a")
+    fourier_b: float = attrs.field(default=1.0, converter=float, alias="b")
+    vol_normalised_power: bool = attrs.field(default=True, converter=bool)
+    nthreads: int | None = attrs.field(
+        default=None, converter=attrs.converters.optional(int), validator=vld.optional(vld.gt(0))
+    )
+    seed: int | None = attrs.field(default=None, converter=attrs.converters.optional(int))
+
+    fftbackend: FFTBackend = attrs.field()
+
+    @N.validator
+    def _validate_N(self, attribute: attrs.Attribute, value: int | None) -> None:
+        """Validate the N parameter."""
+        if value is not None:
+            warnings.warn(
+                "The `N` parameter is deprecated in favor of `shape`. Support for `N` "
+                "will be removed in v1.2.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+
+    @shape.default
+    def _shape_default(self) -> tuple[int, ...]:
+        """Default the shape parameter to the value of N."""
+        if self.N is None:
+            raise ValueError("You must provide 'shape'")
+        elif self._dim is None:
+            # If using N, have two dimensions by default
+            return (self.N, self.N)
         else:
-            self.pk = pk
+            return (self.N,) * self._dim
 
-        self.ensure_physical = ensure_physical
-        self.Ntot = int(np.prod(self.N))
+    @shape.validator
+    def _validate_shape(self, attribute: attrs.Attribute, value: tuple[int, ...]) -> None:
+        """Validate the shape parameter."""
+        if self._dim is not None and len(value) != self._dim:
+            raise ValueError(f"shape must have same length as dim ({self._dim}), but got {value}.")
+        if self.N is not None and any(axis_n != self.N for axis_n in value):
+            raise ValueError(f"Don't provide both N and shape. Got N={self.N} and shape={value}.")
+        for axis_n in value:
+            if axis_n <= 0:
+                raise ValueError("All elements of shape must be positive integers.")
 
-        self.seed = seed
-        if seed is None:
-            self.rng = np.random.default_rng()
-        else:
-            # Keep seeded realizations close to historical behavior while using
-            # the Generator API required by modern NumPy.
-            self.rng = np.random.Generator(np.random.MT19937(seed))
+    @property
+    def dim(self) -> int:
+        """The number of spatial dimensions."""
+        return len(self.shape)
 
-        self.dx = tuple(
-            length / axis_n for length, axis_n in zip(self.boxlength, self.N, strict=True)
+    @_boxlength.validator
+    def _validate_boxlength(self, attribute: attrs.Attribute, value: float | None) -> None:
+        """Validate the boxlength parameter."""
+        if value is not None:
+            warnings.warn(
+                "The `boxlength` parameter is deprecated in favor of `size`. Support "
+                "for `boxlength` will be removed in v1.2.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+
+    @size.default
+    def _size_default(self) -> tuple[float, ...]:
+        """Default the size parameter to the value of boxlength."""
+        if self._boxlength is None:
+            return (1.0,) * self.dim
+        return (float(self._boxlength),) * self.dim
+
+    @size.validator
+    def _validate_size(self, attribute: attrs.Attribute, value: tuple[float, ...]) -> None:
+        """Validate the size parameter."""
+        if self._boxlength is not None and any(length != self._boxlength for length in value):
+            raise ValueError(
+                f"Don't provide both boxlength and size. Got boxlength={self._boxlength} "
+                f"and size={value}."
+            )
+        for length in value:
+            if length <= 0:
+                raise ValueError("All elements of size must be positive real numbers.")
+        if len(value) != self.dim:
+            raise ValueError(f"size must have same length as dim ({self.dim}), but got {value}.")
+
+    @property
+    def L(self) -> tuple[float, ...]:
+        """Alias for ``boxlength``."""
+        warnings.warn(
+            "The `L` attribute is deprecated and will be removed in v1.2. Use `boxlength` instead.",
+            DeprecationWarning,
+            stacklevel=2,
         )
+        return self.size
+
+    def pk(self, k: np.ndarray) -> np.ndarray:
+        """Return the input power spectrum evaluated at k."""
+        if self.vol_normalised_power:
+            return self._pk(k) / self.volume
+        return self._pk(k)
+
+    @property
+    def volume(self) -> float:
+        """The physical volume of the box."""
+        return float(np.prod(self.size))
+
+    @property
+    def V(self) -> float:
+        """The physical volume of the box.
+
+        Deprecated alias for `volume`. Will be removed in v1.2. Use `volume` instead.
+        """
+        warnings.warn(
+            "The `V` attribute is deprecated and will be removed in v1.2. Use `volume` instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self.volume
+
+    @property
+    def total_ncells(self) -> int:
+        """The total number of grid cells in the box."""
+        return int(np.prod(self.shape))
+
+    @property
+    def Ntot(self) -> int:
+        """The total number of grid cells in the box.
+
+        Deprecated alias for `total_ncells`. Will be removed in v1.2. Use `total_ncells`
+        instead.
+        """
+        warnings.warn(
+            "The `Ntot` attribute is deprecated and will be removed in v1.2. Use "
+            "`total_ncells` instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self.total_ncells
+
+    @property
+    def dx(self) -> tuple[float, ...]:
+        """The physical grid spacing along each axis."""
+        return tuple(length / axis_n for length, axis_n in zip(self.size, self.shape, strict=True))
+
+    @fftbackend.default
+    def _default_fftbackend(self) -> FFTBackend:
+        return dft.get_fft_backend(self.nthreads)
+
+    @cached_property
+    def rng(self) -> np.random.Generator:
+        """The random number generator used for creating the fields."""
+        return np.random.default_rng(self.seed)
 
     @property
     def x(self) -> tuple[np.ndarray, ...]:
         """The co-ordinates of the grid along each axis."""
         return tuple(
             np.arange(-length / 2, length / 2, axis_dx)[:axis_n]
-            for length, axis_dx, axis_n in zip(self.boxlength, self.dx, self.N, strict=True)
+            for length, axis_dx, axis_n in zip(self.size, self.dx, self.shape, strict=True)
         )
 
     @property
@@ -177,15 +302,15 @@ class PowerBox:
         """The reduced wavenumber vectors for the half-Hermitian spectrum."""
         axes = [
             self.fftbackend.fftfreq(axis_n, d=axis_dx, b=self.fourier_b)
-            for axis_n, axis_dx in zip(self.N[:-1], self.dx[:-1], strict=True)
+            for axis_n, axis_dx in zip(self.shape[:-1], self.dx[:-1], strict=True)
         ]
-        axes.append(self.fftbackend.rfftfreq(self.N[-1], d=self.dx[-1], b=self.fourier_b))
+        axes.append(self.fftbackend.rfftfreq(self.shape[-1], d=self.dx[-1], b=self.fourier_b))
         return tuple(axes)
 
     @property
     def _rfft_shape(self) -> tuple[int, ...]:
         """Shape of the half-Hermitian spectrum compatible with ``irfftn``."""
-        return (*self.N[:-1], self.N[-1] // 2 + 1)
+        return (*self.shape[:-1], self.shape[-1] // 2 + 1)
 
     def _irfft_to_field(self, spectrum, scale: float):
         """Transform a reduced half-spectrum into a real-space field."""
@@ -193,10 +318,10 @@ class PowerBox:
             spectrum,
             scale=scale,
             irfft_function=dft.irfft,
-            L=self.boxlength,
+            L=self.size,
             a=self.fourier_a,
             b=self.fourier_b,
-            N=self.N,
+            N=self.shape,
             backend=self.fftbackend,
         )
 
@@ -225,7 +350,7 @@ class PowerBox:
             + 1j * self.rng.normal(0, 1, size=self._rfft_shape)
         ) / np.sqrt(2)
 
-        hermitianize_rfft_array(modes, has_nyquist=self.N[-1] % 2 == 0)
+        hermitianize_rfft_array(modes, has_nyquist=self.shape[-1] % 2 == 0)
 
         return modes
 
@@ -258,7 +383,7 @@ class PowerBox:
         # dimensionless power has units of 1/V, and we require a unitless
         # quantity for delta_x.
         dk = self.delta_k() if delta_k is None else delta_k
-        dk = self._irfft_to_field(dk, scale=self.V)
+        dk = self._irfft_to_field(dk, scale=self.volume)
 
         if self.ensure_physical:
             np.clip(dk, -1, np.inf, dk)
@@ -270,7 +395,6 @@ class PowerBox:
         nbar: float,
         randomise_in_cell: bool = True,
         min_at_zero: bool = False,
-        store_pos: bool = False,
         delta_x=None,
     ):
         r"""Create a sample of tracers of the underlying density distribution.
@@ -288,9 +412,6 @@ class PowerBox:
         min_at_zero : bool, optional
             Whether to make the lower corner of the box at the origin, otherwise the
             centre of the box is at the origin.
-        store_pos : bool, optional
-            Whether to store the sample of tracers as an instance variable
-            ``tracer_positions``.
         delta_x : numpy.ndarray
             Field from which to draw discrete samples. This is likely the
             output of a previous call to `delta_x()`, but could in principle be
@@ -320,25 +441,22 @@ class PowerBox:
         dx = (dx + 1) * np.prod(self.dx) * nbar
         n = dx
 
-        self.n_per_cell = self.rng.poisson(n)
+        n_per_cell = self.rng.poisson(n)
 
         # Get all source positions
         args = self.x
         X = np.meshgrid(*args, indexing="ij")
 
         tracer_positions = np.array([x.flatten() for x in X]).T
-        tracer_positions = tracer_positions.repeat(self.n_per_cell.flatten(), axis=0)
+        tracer_positions = tracer_positions.repeat(n_per_cell.flatten(), axis=0)
 
         if randomise_in_cell:
-            tracer_positions += self.rng.uniform(
-                size=(np.sum(self.n_per_cell), self.dim)
-            ) * np.asarray(self.dx)
+            tracer_positions += self.rng.uniform(size=(np.sum(n_per_cell), self.dim)) * np.asarray(
+                self.dx
+            )
 
         if min_at_zero:
-            tracer_positions += np.asarray(self.boxlength) / 2.0
-
-        if store_pos:
-            self.tracer_positions = tracer_positions
+            tracer_positions += np.asarray(self.size) / 2.0
 
         return tracer_positions
 
@@ -389,24 +507,24 @@ class LogNormalPowerBox(PowerBox):
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
 
-    def correlation_array(self):
+    def correlation_array(self) -> np.ndarray:
         """Return the correlation function from the input power on the grid."""
         pa = self.power_array()
-        return self._irfft_to_field(pa, scale=self.V)
+        return self._irfft_to_field(pa, scale=self.volume)
 
-    def gaussian_correlation_array(self):
+    def gaussian_correlation_array(self) -> np.ndarray:
         """Correlation required for a Gaussian field to produce the input power."""
         return np.log(1 + self.correlation_array())
 
-    def gaussian_power_array(self):
+    def gaussian_power_array(self) -> np.ndarray:
         """Power spectrum required for a Gaussian field to produce the input power."""
-        gca = self.fftbackend.empty(self.N)
+        gca = self.fftbackend.empty(self.shape)
         gca[...] = self.gaussian_correlation_array()
         gpa = np.abs(
             self._full_spectrum_to_rfft(
                 dft.fft(
                     gca,
-                    L=self.boxlength,
+                    L=self.size,
                     a=self.fourier_a,
                     b=self.fourier_b,
                     backend=self.fftbackend,
@@ -416,7 +534,7 @@ class LogNormalPowerBox(PowerBox):
         gpa[self.k() == 0] = 0
         return gpa
 
-    def delta_k(self):
+    def delta_k(self) -> np.ndarray:
         """
         Return a realization of ``delta_k``.
 
@@ -428,10 +546,10 @@ class LogNormalPowerBox(PowerBox):
         gh[...] = np.sqrt(p) * gh
         return gh
 
-    def delta_x(self):
+    def delta_x(self) -> np.ndarray:
         """Return the real-space over-density field from the input power spectrum."""
         dk = self.delta_k()
-        dk = self._irfft_to_field(dk, scale=np.sqrt(self.V))
+        dk = self._irfft_to_field(dk, scale=np.sqrt(self.volume))
 
         sg = np.var(dk)
         return np.exp(dk - sg / 2) - 1
