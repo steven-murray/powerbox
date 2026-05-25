@@ -84,8 +84,8 @@ def test_jax_powerbox_jit_delta_x_matches_eager_delta_x() -> None:
     )
 
     key = jax.random.key(22)
-    eager = pb.delta_x(key=key)
-    compiled = pb.jit_delta_x(key=key)
+    eager = pb._delta_x_eager(key=key)
+    compiled = pb.delta_x(key=key)
 
     np.testing.assert_allclose(np.asarray(compiled), np.asarray(eager), rtol=1e-7, atol=1e-7)
 
@@ -100,8 +100,8 @@ def test_jax_lognormal_jit_delta_x_matches_eager_delta_x() -> None:
     )
 
     key = jax.random.key(24)
-    eager = pb.delta_x(key=key)
-    compiled = pb.jit_delta_x(key=key)
+    eager = pb._delta_x_eager(key=key)
+    compiled = pb.delta_x(key=key)
 
     np.testing.assert_allclose(np.asarray(compiled), np.asarray(eager), rtol=1e-7, atol=1e-7)
 
@@ -115,7 +115,7 @@ def test_jax_jit_delta_x_requires_key_if_not_provided_anywhere() -> None:
     )
 
     with pytest.raises(ValueError, match="PRNG key"):
-        pb.jit_delta_x()
+        pb.delta_x()
 
 
 def test_jax_lognormal_correlation_array_matches_irfft_of_power() -> None:

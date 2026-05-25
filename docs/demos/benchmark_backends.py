@@ -170,7 +170,7 @@ def _benchmark_jax_generation(
 
         key_iter = iter(keys[1:])
 
-        delta_x = pb.jit_delta_x if use_jit else pb.delta_x
+        delta_x = pb.delta_x if use_jit else pb._delta_x_eager
 
         def run() -> jax.Array:
             return delta_x(key=next(key_iter))

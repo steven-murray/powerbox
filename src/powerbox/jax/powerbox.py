@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable, Sequence
+from functools import cached_property
 
 import jax
 import jax.numpy as jnp
@@ -82,8 +83,6 @@ class PowerBox:
         self.V = float(np.prod(self.boxlength))
         self.fftbackend = JaxFFT()
         self.key = key
-        self._delta_x_kernel: Callable[[jax.Array], jax.Array] | None = None
-
         if self.vol_normalised_power:
             self.pk = lambda k: pk(k) / self.V
         else:
@@ -201,40 +200,31 @@ class PowerBox:
             raise ValueError("The power spectrum function has returned negative values.")
         return jnp.sqrt(power) * self.gauss_hermitian(key=key)
 
-    def delta_x(self, key: jax.Array | None = None) -> jax.Array:
-        """Return the realized real-space field from the input power spectrum."""
+    def _delta_x_eager(self, key: jax.Array | None = None) -> jax.Array:
+        """Return the realized real-space field without JIT compilation."""
         dk = jnp.sqrt(self._power_array_rfft()) * self._gaussian_modes_rfft(key=key)
         field = self._irfft_to_field(dk, scale=self.V)
         if self.ensure_physical:
             field = jnp.clip(field, -1, jnp.inf)
         return field
 
-    def _get_delta_x_kernel(self) -> Callable[[jax.Array], jax.Array]:
+    @cached_property
+    def _delta_x_kernel(self) -> Callable[[jax.Array], jax.Array]:
         """Return a cached JIT-compiled kernel for :meth:`delta_x`."""
-        if self._delta_x_kernel is None:
 
-            @jax.jit
-            def _kernel(run_key: jax.Array) -> jax.Array:
-                return self.delta_x(key=run_key)
+        @jax.jit
+        def _kernel(run_key: jax.Array) -> jax.Array:
+            return self._delta_x_eager(key=run_key)
 
-            self._delta_x_kernel = _kernel
+        return _kernel
 
-        return self._delta_x_kernel
+    def delta_x(self, key: jax.Array | None = None) -> jax.Array:
+        """Return the realized real-space field from the input power spectrum."""
+        return self._delta_x_kernel(self._resolve_key(key))
 
     def jit_delta_x(self, key: jax.Array | None = None) -> jax.Array:
-        """Return ``delta_x`` using a cached JIT-compiled execution path.
-
-        Parameters
-        ----------
-        key : jax.Array, optional
-            PRNG key for this realization. If omitted, the constructor key is used.
-
-        Returns
-        -------
-        jax.Array
-            Real-space field realization.
-        """
-        return self._get_delta_x_kernel()(self._resolve_key(key))
+        """Backward-compatible alias for the JIT-backed :meth:`delta_x`."""
+        return self.delta_x(key=key)
 
     def create_discrete_sample(
         self,
@@ -280,10 +270,14 @@ class LogNormalPowerBox(PowerBox):
         """Return a realization of the Gaussianized Fourier-space field."""
         return jnp.sqrt(self.gaussian_power_array()) * self.gauss_hermitian(key=key)
 
-    def delta_x(self, key: jax.Array | None = None) -> jax.Array:
-        """Return the realized lognormal over-density field."""
+    def _delta_x_eager(self, key: jax.Array | None = None) -> jax.Array:
+        """Return the realized lognormal over-density field without JIT compilation."""
         dk = jnp.sqrt(self.gaussian_power_array())
         dk = dk * self._gaussian_modes_rfft(key=key)
         field = self._irfft_to_field(dk, scale=jnp.sqrt(self.V))
         sigma_g = jnp.var(field)
         return jnp.exp(field - sigma_g / 2) - 1
+
+    def delta_x(self, key: jax.Array | None = None) -> jax.Array:
+        """Return the realized lognormal over-density field."""
+        return self._delta_x_kernel(self._resolve_key(key))
