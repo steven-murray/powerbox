@@ -9,7 +9,6 @@ from contextlib import nullcontext
 
 import numpy as np
 import pytest
-from attrs.exceptions import FrozenInstanceError
 
 jax = pytest.importorskip("jax")
 jax.config.update("jax_enable_x64", True)
@@ -191,10 +190,10 @@ def test_jax_powerbox_instances_are_frozen() -> None:
         key=jax.random.key(29),
     )
 
-    with pytest.raises(FrozenInstanceError):
+    with pytest.raises(AttributeError):
         pb.usejit = False
 
-    with pytest.raises(FrozenInstanceError):
+    with pytest.raises(AttributeError):
         pb.boxlength = (1.0, 1.0)
 
 
