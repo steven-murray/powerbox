@@ -46,6 +46,7 @@ tests = [
     "flake8",
     "pytest",
     "pytest-cov",
+    "attrs>=26.0.0",
     "scipy",
     "pyfftw",
     "jax>=0.4.35",
