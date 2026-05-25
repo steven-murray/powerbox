@@ -13,6 +13,8 @@ jax = pytest.importorskip("jax")
 jax.config.update("jax_enable_x64", True)
 jnp = pytest.importorskip("jax.numpy")
 jpb = importlib.import_module("powerbox.jax")
+jdft = importlib.import_module("powerbox.jax.dft")
+jtools = importlib.import_module("powerbox.jax.tools")
 
 
 def _assert_full_hermitian(arr: np.ndarray) -> None:
@@ -313,3 +315,132 @@ def test_jax_rejects_non_integer_scalar_n() -> None:
             boxlength=4.0,
             key=jax.random.key(6),
         )
+
+
+def test_jax_powerbox_rejects_bad_tuple_lengths() -> None:
+    with pytest.raises(ValueError, match="length 2"):
+        jpb.PowerBox(
+            (16,),
+            dim=2,
+            pk=lambda k: (1 + k) ** -2.0,
+            boxlength=(4.0, 5.0),
+            key=jax.random.key(14),
+        )
+
+    with pytest.raises(ValueError, match="length 2"):
+        jpb.PowerBox(
+            (16, 18),
+            dim=2,
+            pk=lambda k: (1 + k) ** -2.0,
+            boxlength=(4.0,),
+            key=jax.random.key(15),
+        )
+
+
+def test_jax_powerbox_delta_k_rejects_negative_power() -> None:
+    pb = jpb.PowerBox(
+        (8, 10),
+        dim=2,
+        pk=lambda k: -jnp.ones_like(k),
+        boxlength=(4.0, 5.0),
+        key=jax.random.key(16),
+    )
+    with pytest.raises(ValueError, match="negative values"):
+        pb.delta_k()
+
+
+def test_jax_dft_frequency_wrappers_are_callable() -> None:
+    field = jnp.arange(8.0).reshape(2, 4)
+    shifted = jpb.fftshift(field)
+    unshifted = jpb.ifftshift(shifted)
+    np.testing.assert_allclose(np.asarray(unshifted), np.asarray(field))
+
+    k = jdft.fftfreq(8, d=0.5, b=1)
+    kr = jdft.rfftfreq(8, d=0.5, b=1)
+    assert np.asarray(k).shape == (8,)
+    assert np.asarray(kr).shape == (5,)
+
+
+def test_jax_irfft_supports_inferred_and_scalar_n() -> None:
+    full = np.random.default_rng(0).normal(size=(6, 8))
+    reduced = np.fft.rfftn(full)
+    reduced = np.fft.fftshift(reduced, axes=(0,))
+
+    rec_default, _ = jdft.irfft(reduced, axes=(0, 1), a=0, b=2 * np.pi)
+    rec_scalar_n, _ = jdft.irfft(reduced, axes=(0, 1), N=8, a=0, b=2 * np.pi)
+    rec_x0, _ = jdft.irfft(reduced, axes=(0, 1), x0=(0.2, -0.1), a=0, b=2 * np.pi)
+
+    assert np.asarray(rec_default).shape == full.shape
+    assert np.asarray(rec_scalar_n).shape == (8, 8)
+    assert np.asarray(rec_x0).shape == full.shape
+
+    with pytest.raises(ValueError, match="same length"):
+        jdft.irfft(reduced, axes=(0, 1), N=(6, 8, 10), a=0, b=2 * np.pi)
+
+
+def test_jax_tooling_validation_branches() -> None:
+    with pytest.raises(ValueError, match="n_bins \\+ 1"):
+        jtools.PowerSpectrum(
+            power=jnp.ones(3),
+            bin_edges=jnp.array([0.0, 1.0, 2.0]),
+            bin_centres=jnp.array([0.5, 1.5, 2.5]),
+        )
+
+    with pytest.raises(ValueError, match="strictly positive"):
+        jtools._bin_centres_from_edges(jnp.array([0.0, 1.0, 2.0]), log_bins=True)
+
+    with pytest.raises(ValueError, match="same shape as the averaged"):
+        jtools._resolve_radial_weights(
+            [jnp.arange(4.0), jnp.arange(5.0)],
+            jnp.ones((4, 5)),
+            jnp.ones((2, 2)),
+            ignore_zero_mode=False,
+        )
+
+    with pytest.raises(ValueError, match="coords and weights must have the same shape"):
+        jtools._get_binweights(
+            jnp.ones((4, 5)),
+            jnp.ones((4, 4)),
+            bins=4,
+            bins_upto_boxlen=True,
+        )
+
+    with pytest.raises(NotImplementedError, match="complex field"):
+        jtools._field_variance(
+            indx=jnp.array([1, 1, 2, 2]),
+            field=jnp.array([1 + 0j, 2 + 0j, 3 + 0j, 4 + 0j]),
+            average=jnp.array([1.5, 3.5]),
+            weights=1.0,
+            v1=jnp.array([2.0, 2.0]),
+        )
+
+    field = jnp.arange(16.0).reshape(4, 4)
+    coords = [jnp.linspace(-1.0, 1.0, 4), jnp.linspace(-2.0, 2.0, 4)]
+    with pytest.raises(NotImplementedError, match="interpolation-based averaging"):
+        jtools.angular_average(field, coords, bins=4, interpolation_method="linear")
+    with pytest.raises(ValueError, match=r"same length as field\.ndim"):
+        jtools.angular_average(field, [coords[0]], bins=4)
+    with pytest.raises(ValueError, match="same shape as the field"):
+        jtools.angular_average(field, jnp.ones((3, 3)), bins=4)
+
+    with pytest.raises(ValueError, match=r"between 1 and field\.ndim"):
+        jtools.angular_average_nd(field, coords, bins=4, ndims_to_avg=0)
+    with pytest.raises(NotImplementedError, match="interpolation-based averaging"):
+        jtools.angular_average_nd(field, coords, bins=4, interpolation_method="linear")
+
+    with pytest.raises(ValueError, match="kmag must be provided"):
+        jtools.ignore_zero_absk(coords, None)
+
+
+def test_jax_get_power_validation_branches() -> None:
+    field = jnp.arange(16.0).reshape(4, 4)
+    with pytest.raises(ValueError, match="same shape"):
+        jpb.get_power(field, 2.0, deltax2=jnp.arange(9.0).reshape(3, 3))
+    with pytest.raises(ValueError, match="res_ndim must be between"):
+        jpb.get_power(field, 2.0, res_ndim=-1)
+    with pytest.raises(ValueError, match="res_ndim must be between"):
+        jpb.get_power(field, 2.0, res_ndim=3)
+
+    result = jpb.get_power(field, 2.0, res_ndim=0)
+    assert result.bin_edges.size == 0
+    assert result.bin_centres.size == 0

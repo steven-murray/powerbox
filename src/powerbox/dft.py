@@ -276,7 +276,7 @@ def ifft(
 
     # Get the box volume if given the real-space box volume
     if Lk is None and L is None:
-        Lk = 1
+        Lk = [1] * len(axes)
     elif L is not None:
         if np.isscalar(L):
             L = np.array([L] * len(axes))
@@ -367,7 +367,7 @@ def irfft(
     N = np.array(real_shape)
 
     if Lk is None and L is None:
-        Lk = 1
+        Lk = [1] * len(axes)
     elif L is not None:
         if np.isscalar(L):
             L = np.array([L] * len(axes))
