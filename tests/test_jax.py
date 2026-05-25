@@ -9,6 +9,7 @@ from contextlib import nullcontext
 
 import numpy as np
 import pytest
+from attrs.exceptions import FrozenInstanceError
 
 jax = pytest.importorskip("jax")
 jax.config.update("jax_enable_x64", True)
@@ -179,6 +180,22 @@ def test_jax_explicit_eager_mode_does_not_warn_on_repeated_calls() -> None:
         pb.delta_x()
 
     assert record == []
+
+
+def test_jax_powerbox_instances_are_frozen() -> None:
+    pb = jpb.PowerBox(
+        (8, 8),
+        dim=2,
+        pk=lambda k: (1 + k) ** -2.0,
+        boxlength=4.0,
+        key=jax.random.key(29),
+    )
+
+    with pytest.raises(FrozenInstanceError):
+        pb.usejit = False
+
+    with pytest.raises(FrozenInstanceError):
+        pb.boxlength = (1.0, 1.0)
 
 
 def test_jax_lognormal_correlation_array_matches_irfft_of_power() -> None:

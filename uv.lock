@@ -1667,6 +1667,7 @@ fftw = [
     { name = "pyfftw" },
 ]
 jax = [
+    { name = "attrs" },
     { name = "jax" },
 ]
 
@@ -1718,6 +1719,7 @@ tests = [
 
 [package.metadata]
 requires-dist = [
+    { name = "attrs", marker = "extra == 'jax'", specifier = ">=26.0.0" },
     { name = "jax", marker = "extra == 'jax'", specifier = ">=0.4.35" },
     { name = "numpy", specifier = ">=2.2" },
     { name = "pyfftw", marker = "extra == 'fftw'" },

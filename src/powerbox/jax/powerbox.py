@@ -6,6 +6,7 @@ import warnings
 from collections.abc import Callable, Sequence
 from functools import cached_property
 
+import attrs
 import jax
 import jax.numpy as jnp
 import numpy as np
@@ -28,6 +29,7 @@ def _sample_gaussian_hermitian_fft(axis_lengths: tuple[int, ...], key: jax.Array
     return jnp.fft.fftshift(jnp.fft.fftn(noise)) / jnp.sqrt(jnp.prod(jnp.array(axis_lengths)))
 
 
+@attrs.define(frozen=True, slots=False)
 class PowerBox:
     r"""Generate JAX-backed Gaussian fields with a given isotropic power spectrum.
 
@@ -61,50 +63,53 @@ class PowerBox:
     -----
     Geometry is normalized to per-axis tuples, matching the NumPy implementation's
     reduced-spectrum API. Unlike the NumPy implementation, random-state handling is
-    explicit through JAX PRNG keys. ``delta_x()`` always uses the public JIT policy,
-    while a private eager path remains available for benchmarking and comparison.
+    explicit through JAX PRNG keys. Instances are frozen after construction so cached
+    JIT kernels remain valid. ``delta_x()`` uses the configured JIT policy, while a
+    private eager path remains available for benchmarking and comparison.
     """
 
-    def __init__(
-        self,
-        N: int | Sequence[int],
-        pk: Callable[[jax.Array], jax.Array],
-        dim: int = 2,
-        boxlength: float | Sequence[float] = 1.0,
-        ensure_physical: bool = False,
-        a: float = 1.0,
-        b: float = 1.0,
-        vol_normalised_power: bool = True,
-        nthreads: int | None = None,
-        key: jax.Array | None = None,
-        usejit: bool | None = None,
-    ) -> None:
-        del nthreads
+    N: int | Sequence[int]
+    pk: Callable[[jax.Array], jax.Array] = attrs.field(repr=False)
+    dim: int = 2
+    boxlength: float | Sequence[float] = 1.0
+    ensure_physical: bool = False
+    a: float = 1.0
+    b: float = 1.0
+    vol_normalised_power: bool = True
+    nthreads: int | None = None
+    key: jax.Array | None = None
+    usejit: bool | None = None
+    L: tuple[float, ...] = attrs.field(init=False)
+    V: float = attrs.field(init=False)
+    fftbackend: JaxFFT = attrs.field(init=False, repr=False)
+    Ntot: int = attrs.field(init=False)
+    dx: tuple[float, ...] = attrs.field(init=False)
+    _usejit_requested: bool = attrs.field(init=False, repr=False)
+    _delta_x_calls: int = attrs.field(init=False, repr=False)
+    _delta_x_warning_emitted: bool = attrs.field(init=False, repr=False)
 
-        self.dim = dim
-        self.N = tuplify_type(int, N, dim, "N")
-        self.boxlength = tuplify_type(float, boxlength, dim, "boxlength")
-        self.L = self.boxlength
-        self.fourier_a = a
-        self.fourier_b = b
-        self.vol_normalised_power = vol_normalised_power
-        self.V = float(np.prod(self.boxlength))
-        self.fftbackend = JaxFFT()
-        self.key = key
-        if self.vol_normalised_power:
-            self.pk = lambda k: pk(k) / self.V
-        else:
-            self.pk = pk
-
-        self.ensure_physical = ensure_physical
-        self.Ntot = int(np.prod(self.N))
-        self._usejit_requested = usejit is not None
-        self.usejit = self._resolve_usejit(usejit)
-        self._delta_x_calls = 0
-        self._delta_x_warning_emitted = False
-        self.dx = tuple(
-            length / axis_n for length, axis_n in zip(self.boxlength, self.N, strict=True)
+    def __attrs_post_init__(self) -> None:
+        """Normalize constructor inputs and initialize cached state."""
+        original_pk = self.pk
+        object.__setattr__(self, "N", tuplify_type(int, self.N, self.dim, "N"))
+        object.__setattr__(
+            self, "boxlength", tuplify_type(float, self.boxlength, self.dim, "boxlength")
         )
+        object.__setattr__(self, "L", self.boxlength)
+        object.__setattr__(self, "V", float(np.prod(self.boxlength)))
+        object.__setattr__(self, "fftbackend", JaxFFT())
+        object.__setattr__(self, "Ntot", int(np.prod(self.N)))
+        object.__setattr__(self, "_usejit_requested", self.usejit is not None)
+        object.__setattr__(self, "usejit", self._resolve_usejit(self.usejit))
+        object.__setattr__(self, "_delta_x_calls", 0)
+        object.__setattr__(self, "_delta_x_warning_emitted", False)
+        object.__setattr__(
+            self,
+            "dx",
+            tuple(length / axis_n for length, axis_n in zip(self.boxlength, self.N, strict=True)),
+        )
+        if self.vol_normalised_power:
+            object.__setattr__(self, "pk", lambda k: original_pk(k) / self.V)
 
     @property
     def x(self) -> tuple[jax.Array, ...]:
@@ -118,10 +123,10 @@ class PowerBox:
     def kvec(self) -> tuple[jax.Array, ...]:
         """The reduced wavenumber vectors for the half-Hermitian spectrum."""
         axes = [
-            self.fftbackend.fftfreq(axis_n, d=axis_dx, b=self.fourier_b)
+            self.fftbackend.fftfreq(axis_n, d=axis_dx, b=self.b)
             for axis_n, axis_dx in zip(self.N[:-1], self.dx[:-1], strict=True)
         ]
-        axes.append(self.fftbackend.rfftfreq(self.N[-1], d=self.dx[-1], b=self.fourier_b))
+        axes.append(self.fftbackend.rfftfreq(self.N[-1], d=self.dx[-1], b=self.b))
         return tuple(axes)
 
     @property
@@ -188,8 +193,8 @@ class PowerBox:
             scale=scale,
             irfft_function=dft.irfft,
             L=self.boxlength,
-            a=self.fourier_a,
-            b=self.fourier_b,
+            a=self.a,
+            b=self.b,
             N=self.N,
             backend=self.fftbackend,
         )
@@ -238,7 +243,7 @@ class PowerBox:
 
     def delta_x(self, key: jax.Array | None = None) -> jax.Array:
         """Return the realized real-space field using the configured execution policy."""
-        self._delta_x_calls += 1
+        object.__setattr__(self, "_delta_x_calls", self._delta_x_calls + 1)
         if (
             not self.usejit
             and not self._usejit_requested
@@ -250,7 +255,7 @@ class PowerBox:
                 "Repeated calls may be much slower than usejit=True.",
                 stacklevel=2,
             )
-            self._delta_x_warning_emitted = True
+            object.__setattr__(self, "_delta_x_warning_emitted", True)
 
         run_key = self._resolve_key(key)
         if self.usejit:
@@ -290,8 +295,8 @@ class LogNormalPowerBox(PowerBox):
                 dft.fft(
                     self.gaussian_correlation_array(),
                     L=self.boxlength,
-                    a=self.fourier_a,
-                    b=self.fourier_b,
+                    a=self.a,
+                    b=self.b,
                 )[0]
             )
         )
