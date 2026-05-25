@@ -8,40 +8,11 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 
+from .._fft_layout import full_spectrum_to_rfft, irfft_to_field
+from .._geometry import tuplify_type
 from ..dft_backend import JaxFFT
 from . import dft
 from .tools import _magnitude_grid
-
-
-def _tuplify_type(
-    tp: type[int | float],
-    obj: int | float | Sequence[int | float],
-    dim: int,
-    name: str,
-) -> tuple[int | float, ...]:
-    """Normalize scalar or per-axis inputs to tuples with basic type validation."""
-    if tp is int:
-
-        def convert(value: int | float) -> int:
-            if not float(value).is_integer():
-                raise TypeError(f"{name} entries must be integers.")
-            return int(value)
-
-    else:
-
-        def convert(value: int | float) -> float:
-            try:
-                return float(value)
-            except (TypeError, ValueError) as exc:
-                raise TypeError(f"{name} entries must be real numbers.") from exc
-
-    if np.isscalar(obj) or np.ndim(obj) == 0:
-        return (convert(obj),) * dim
-
-    if len(obj) != dim:
-        raise ValueError(f"{name} must be a scalar or have length {dim}.")
-
-    return tuple(convert(value) for value in obj)
 
 
 def _sample_gaussian_hermitian_fft(axis_lengths: tuple[int, ...], key: jax.Array) -> jax.Array:
@@ -50,7 +21,7 @@ def _sample_gaussian_hermitian_fft(axis_lengths: tuple[int, ...], key: jax.Array
         return jax.random.normal(key, ())
 
     noise = jax.random.normal(key, shape=axis_lengths)
-    return jnp.fft.fftshift(jnp.fft.fftn(noise)) / jnp.sqrt(np.prod(axis_lengths))
+    return jnp.fft.fftshift(jnp.fft.fftn(noise)) / jnp.sqrt(jnp.prod(jnp.array(axis_lengths)))
 
 
 class PowerBox:
@@ -102,8 +73,8 @@ class PowerBox:
         del nthreads
 
         self.dim = dim
-        self.N = _tuplify_type(int, N, dim, "N")
-        self.boxlength = _tuplify_type(float, boxlength, dim, "boxlength")
+        self.N = tuplify_type(int, N, dim, "N")
+        self.boxlength = tuplify_type(float, boxlength, dim, "boxlength")
         self.L = self.boxlength
         self.fourier_a = a
         self.fourier_b = b
@@ -185,20 +156,24 @@ class PowerBox:
 
     def _full_spectrum_to_rfft(self, spectrum: jax.Array) -> jax.Array:
         """Convert a centred full spectrum to the reduced ``irfftn`` layout."""
-        reduced = self.fftbackend.ifftshift(spectrum, axes=(-1,))
-        return reduced[(slice(None),) * (self.dim - 1) + (slice(None, self._rfft_shape[-1]),)]
+        return full_spectrum_to_rfft(
+            spectrum,
+            dim=self.dim,
+            rfft_last_axis_size=self._rfft_shape[-1],
+            backend=self.fftbackend,
+        )
 
     def _irfft_to_field(self, spectrum: jax.Array, scale: float) -> jax.Array:
         """Transform a reduced half-spectrum into a real-space field."""
-        return (
-            scale
-            * dft.irfft(
-                spectrum,
-                L=self.boxlength,
-                a=self.fourier_a,
-                b=self.fourier_b,
-                N=self.N,
-            )[0]
+        return irfft_to_field(
+            spectrum,
+            scale=scale,
+            irfft_function=dft.irfft,
+            L=self.boxlength,
+            a=self.fourier_a,
+            b=self.fourier_b,
+            N=self.N,
+            backend=self.fftbackend,
         )
 
     def k(self) -> jax.Array:

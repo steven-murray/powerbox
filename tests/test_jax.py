@@ -368,12 +368,13 @@ def test_jax_irfft_supports_inferred_and_scalar_n() -> None:
     reduced = np.fft.fftshift(reduced, axes=(0,))
 
     rec_default, _ = jdft.irfft(reduced, axes=(0, 1), a=0, b=2 * np.pi)
-    rec_scalar_n, _ = jdft.irfft(reduced, axes=(0, 1), N=8, a=0, b=2 * np.pi)
     rec_x0, _ = jdft.irfft(reduced, axes=(0, 1), x0=(0.2, -0.1), a=0, b=2 * np.pi)
 
     assert np.asarray(rec_default).shape == full.shape
-    assert np.asarray(rec_scalar_n).shape == (8, 8)
     assert np.asarray(rec_x0).shape == full.shape
+
+    with pytest.raises(ValueError, match="inconsistent with the reduced spectrum shape"):
+        jdft.irfft(reduced, axes=(0, 1), N=8, a=0, b=2 * np.pi)
 
     with pytest.raises(ValueError, match="same length"):
         jdft.irfft(reduced, axes=(0, 1), N=(6, 8, 10), a=0, b=2 * np.pi)

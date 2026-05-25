@@ -353,18 +353,12 @@ def irfft(
 
     if axes is None:
         axes = tuple(range(len(X.shape)))
+    axes = tuple(axis % X.ndim for axis in axes)
 
-    if N is None:
-        real_shape = [X.shape[axis] for axis in axes[:-1]]
-        real_shape.append(2 * (X.shape[axes[-1]] - 1))
-    elif np.isscalar(N):
-        real_shape = [int(N)] * len(axes)
-    else:
-        real_shape = [int(n) for n in N]
-        if len(real_shape) != len(axes):
-            raise ValueError("N must be a scalar or have the same length as the number of axes.")
-
+    real_shape, n_from_user = _normalize_irfft_real_shape(X, axes, N)
     N = np.array(real_shape)
+    if n_from_user:
+        _validate_irfft_shape_consistency(X, axes, N)
 
     if Lk is None and L is None:
         Lk = [1] * len(axes)
@@ -407,6 +401,51 @@ def irfft(
     freq = [backend.fftfreq(n, d=d, b=b) for n, d in zip(N, dk, strict=True)]
 
     return ft, freq
+
+
+def _normalize_irfft_real_shape(
+    X: np.ndarray,
+    axes: tuple[int, ...],
+    N: int | Sequence[int] | None,
+) -> tuple[list[int], bool]:
+    """Normalize user-provided real-space output shape for :func:`irfft`."""
+    if N is None:
+        inferred_shape = [X.shape[axis] for axis in axes[:-1]]
+        inferred_shape.append(2 * (X.shape[axes[-1]] - 1))
+        return inferred_shape, False
+
+    if np.isscalar(N):
+        return [int(N)] * len(axes), True
+
+    real_shape = [int(n) for n in N]
+    if len(real_shape) != len(axes):
+        raise ValueError("N must be a scalar or have the same length as the number of axes.")
+    return real_shape, True
+
+
+def _validate_irfft_shape_consistency(
+    X: np.ndarray,
+    axes: tuple[int, ...],
+    real_shape: np.ndarray,
+) -> None:
+    """Validate user-provided ``N`` against reduced-spectrum dimensions."""
+    for i, axis in enumerate(axes[:-1]):
+        expected = X.shape[axis]
+        if int(real_shape[i]) != expected:
+            raise ValueError(
+                "N is inconsistent with the reduced spectrum shape: "
+                f"axis {axis} has reduced-spectrum length {expected} but N specifies "
+                f"{int(real_shape[i])}."
+            )
+
+    reduced_last = X.shape[axes[-1]]
+    expected_reduced_last = int(real_shape[-1]) // 2 + 1
+    if expected_reduced_last != reduced_last:
+        raise ValueError(
+            "N is inconsistent with the reduced spectrum shape: "
+            f"final reduced axis has length {reduced_last}, but N[-1]={int(real_shape[-1])} "
+            f"implies {expected_reduced_last}."
+        )
 
 
 def _adjust_phase(

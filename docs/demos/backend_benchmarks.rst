@@ -4,8 +4,8 @@ Backend benchmark scaling
 This page tracks the current performance of the NumPy and JAX implementations on a
 real development machine. It serves two purposes:
 
-1. document the current speed trade-offs across backends;
-2. provide a reproducible profiling baseline as the JAX implementation evolves.
+1. documents the current speed trade-offs across backends;
+2. provides a reproducible profiling baseline as the JAX implementation evolves.
 
 Benchmark setup
 ---------------
@@ -61,7 +61,7 @@ becomes more competitive once plan reuse has a chance to matter, and the JAX bac
 most interesting in the larger 2D and 3D cases.
 
 .. figure:: ../_static/backend_benchmark_generation.png
-   :alt: Scaling plot for gaussian field generation across numpy, fftw, jax-cpu, and jax-gpu.
+   :alt: Scaling plot for Gaussian field generation across NumPy, FFTW, JAX-CPU, and JAX-GPU.
    :align: center
 
    Median runtime for generating Gaussian fields with ``PowerBox`` / ``powerbox.jax.PowerBox``.
@@ -76,7 +76,7 @@ is meant to answer the practical question "what happens if I switch this workflo
 FFTW?" on a typical development machine.
 
 .. figure:: ../_static/backend_benchmark_power.png
-   :alt: Scaling plot for fully averaged power spectrum estimation across numpy, fftw, jax-cpu, and jax-gpu.
+   :alt: Scaling plot for fully averaged power spectrum estimation across NumPy, FFTW, JAX-CPU, and JAX-GPU.
    :align: center
 
    Median runtime for fully averaged power-spectrum estimation with ``get_power`` /
