@@ -1673,6 +1673,7 @@ jax = [
 
 [package.dev-dependencies]
 dev = [
+    { name = "attrs" },
     { name = "flake8" },
     { name = "hmf" },
     { name = "ipykernel" },
@@ -1708,6 +1709,7 @@ docs = [
     { name = "sphinx-rtd-theme" },
 ]
 tests = [
+    { name = "attrs" },
     { name = "flake8" },
     { name = "jax" },
     { name = "pyfftw" },
@@ -1728,6 +1730,7 @@ provides-extras = ["fftw", "jax"]
 
 [package.metadata.requires-dev]
 dev = [
+    { name = "attrs", specifier = ">=26.0.0" },
     { name = "flake8" },
     { name = "hmf" },
     { name = "ipykernel" },
@@ -1761,6 +1764,7 @@ docs = [
     { name = "sphinx-rtd-theme" },
 ]
 tests = [
+    { name = "attrs", specifier = ">=26.0.0" },
     { name = "flake8" },
     { name = "jax", specifier = ">=0.4.35" },
     { name = "pyfftw" },
