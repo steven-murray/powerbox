@@ -82,6 +82,7 @@ class PowerBox:
         self.V = float(np.prod(self.boxlength))
         self.fftbackend = JaxFFT()
         self.key = key
+        self._delta_x_kernel: Callable[[jax.Array], jax.Array] | None = None
 
         if self.vol_normalised_power:
             self.pk = lambda k: pk(k) / self.V
@@ -207,6 +208,33 @@ class PowerBox:
         if self.ensure_physical:
             field = jnp.clip(field, -1, jnp.inf)
         return field
+
+    def _get_delta_x_kernel(self) -> Callable[[jax.Array], jax.Array]:
+        """Return a cached JIT-compiled kernel for :meth:`delta_x`."""
+        if self._delta_x_kernel is None:
+
+            @jax.jit
+            def _kernel(run_key: jax.Array) -> jax.Array:
+                return self.delta_x(key=run_key)
+
+            self._delta_x_kernel = _kernel
+
+        return self._delta_x_kernel
+
+    def jit_delta_x(self, key: jax.Array | None = None) -> jax.Array:
+        """Return ``delta_x`` using a cached JIT-compiled execution path.
+
+        Parameters
+        ----------
+        key : jax.Array, optional
+            PRNG key for this realization. If omitted, the constructor key is used.
+
+        Returns
+        -------
+        jax.Array
+            Real-space field realization.
+        """
+        return self._get_delta_x_kernel()(self._resolve_key(key))
 
     def create_discrete_sample(
         self,

@@ -74,6 +74,50 @@ def test_jax_tuple_geometry_public_attributes_for_lognormal() -> None:
     np.testing.assert_array_less(-1 - 1e-12, np.asarray(pb.delta_x()))
 
 
+def test_jax_powerbox_jit_delta_x_matches_eager_delta_x() -> None:
+    pb = jpb.PowerBox(
+        (16, 18),
+        dim=2,
+        pk=lambda k: (1 + k) ** -2.0,
+        boxlength=(4.0, 6.0),
+        key=jax.random.key(21),
+    )
+
+    key = jax.random.key(22)
+    eager = pb.delta_x(key=key)
+    compiled = pb.jit_delta_x(key=key)
+
+    np.testing.assert_allclose(np.asarray(compiled), np.asarray(eager), rtol=1e-7, atol=1e-7)
+
+
+def test_jax_lognormal_jit_delta_x_matches_eager_delta_x() -> None:
+    pb = jpb.LogNormalPowerBox(
+        (16, 18),
+        dim=2,
+        pk=lambda k: (1 + k) ** -2.0,
+        boxlength=(4.0, 6.0),
+        key=jax.random.key(23),
+    )
+
+    key = jax.random.key(24)
+    eager = pb.delta_x(key=key)
+    compiled = pb.jit_delta_x(key=key)
+
+    np.testing.assert_allclose(np.asarray(compiled), np.asarray(eager), rtol=1e-7, atol=1e-7)
+
+
+def test_jax_jit_delta_x_requires_key_if_not_provided_anywhere() -> None:
+    pb = jpb.PowerBox(
+        (8, 10),
+        dim=2,
+        pk=lambda k: (1 + k) ** -2.0,
+        boxlength=(4.0, 5.0),
+    )
+
+    with pytest.raises(ValueError, match="PRNG key"):
+        pb.jit_delta_x()
+
+
 def test_jax_lognormal_correlation_array_matches_irfft_of_power() -> None:
     pb = jpb.LogNormalPowerBox(
         (16, 18),

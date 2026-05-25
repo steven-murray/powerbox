@@ -87,8 +87,12 @@ def _gpu_name() -> str | None:
     return lines[0] if lines else None
 
 
-def _time_numpy(fn: Callable[[], Any]) -> float:
-    """Return the median runtime of a NumPy/FFTW benchmark callable."""
+def _time_numpy(fn: Callable[[], Any]) -> dict[str, float]:
+    """Return cold and warm runtimes for a NumPy/FFTW benchmark callable."""
+    start = time.perf_counter()
+    fn()
+    cold_seconds = time.perf_counter() - start
+
     for _ in range(WARMUPS):
         fn()
 
@@ -97,14 +101,20 @@ def _time_numpy(fn: Callable[[], Any]) -> float:
         start = time.perf_counter()
         fn()
         timings.append(time.perf_counter() - start)
-    return statistics.median(timings)
+
+    return {"cold_seconds": cold_seconds, "warm_seconds": statistics.median(timings)}
 
 
-def _time_jax(fn: Callable[[], Any]) -> float:
-    """Return the median runtime of a JAX benchmark callable."""
+def _time_jax(fn: Callable[[], Any]) -> dict[str, float]:
+    """Return cold and warm runtimes for a JAX benchmark callable."""
+    start = time.perf_counter()
+    cold_result = fn()
+    jax.block_until_ready(cold_result)
+    cold_seconds = time.perf_counter() - start
+
     for _ in range(WARMUPS):
-        result = fn()
-        jax.block_until_ready(result)
+        warmup_result = fn()
+        jax.block_until_ready(warmup_result)
 
     timings: list[float] = []
     for _ in range(REPEATS):
@@ -112,10 +122,11 @@ def _time_jax(fn: Callable[[], Any]) -> float:
         result = fn()
         jax.block_until_ready(result)
         timings.append(time.perf_counter() - start)
-    return statistics.median(timings)
+
+    return {"cold_seconds": cold_seconds, "warm_seconds": statistics.median(timings)}
 
 
-def _benchmark_numpy_generation(dim: int, n: int) -> float:
+def _benchmark_numpy_generation(dim: int, n: int) -> dict[str, float]:
     """Benchmark Gaussian field generation with the NumPy FFT backend."""
     pb = PowerBox(
         n,
@@ -128,7 +139,7 @@ def _benchmark_numpy_generation(dim: int, n: int) -> float:
     return _time_numpy(pb.delta_x)
 
 
-def _benchmark_fftw_generation(dim: int, n: int) -> float:
+def _benchmark_fftw_generation(dim: int, n: int) -> dict[str, float]:
     """Benchmark Gaussian field generation with the FFTW backend."""
     pb = PowerBox(
         n,
@@ -141,10 +152,12 @@ def _benchmark_fftw_generation(dim: int, n: int) -> float:
     return _time_numpy(pb.delta_x)
 
 
-def _benchmark_jax_generation(dim: int, n: int, device_kind: str) -> float:
+def _benchmark_jax_generation(
+    dim: int, n: int, device_kind: str, use_jit: bool
+) -> dict[str, float]:
     """Benchmark Gaussian field generation with JAX on the requested device."""
     device = jax.devices(device_kind)[0]
-    keys = jax.random.split(jax.random.key(1234), WARMUPS + REPEATS + 1)
+    keys = jax.random.split(jax.random.key(1234), WARMUPS + REPEATS + 2)
 
     with jax.default_device(device):
         pb = jpb.PowerBox(
@@ -157,13 +170,15 @@ def _benchmark_jax_generation(dim: int, n: int, device_kind: str) -> float:
 
         key_iter = iter(keys[1:])
 
+        delta_x = pb.jit_delta_x if use_jit else pb.delta_x
+
         def run() -> jax.Array:
-            return pb.delta_x(key=next(key_iter))
+            return delta_x(key=next(key_iter))
 
         return _time_jax(run)
 
 
-def _benchmark_numpy_power(dim: int, n: int) -> float:
+def _benchmark_numpy_power(dim: int, n: int) -> dict[str, float]:
     """Benchmark fully averaged power-spectrum estimation with NumPy FFT."""
     field = PowerBox(
         n,
@@ -180,7 +195,7 @@ def _benchmark_numpy_power(dim: int, n: int) -> float:
     return _time_numpy(run)
 
 
-def _benchmark_fftw_power(dim: int, n: int) -> float:
+def _benchmark_fftw_power(dim: int, n: int) -> dict[str, float]:
     """Benchmark fully averaged power-spectrum estimation with FFTW."""
     field = PowerBox(
         n,
@@ -197,7 +212,7 @@ def _benchmark_fftw_power(dim: int, n: int) -> float:
     return _time_numpy(run)
 
 
-def _benchmark_jax_power(dim: int, n: int, device_kind: str) -> float:
+def _benchmark_jax_power(dim: int, n: int, device_kind: str) -> dict[str, float]:
     """Benchmark fully averaged power-spectrum estimation with JAX."""
     device = jax.devices(device_kind)[0]
 
@@ -227,11 +242,18 @@ def _collect_results() -> list[dict[str, Any]]:
         have_fftw = False
 
     gpu_available = bool(jax.devices("gpu"))
-    backends: list[tuple[str, Callable[[int, int], float], Callable[[int, int], float]]] = [
+    backends: list[
+        tuple[str, Callable[[int, int], dict[str, float]], Callable[[int, int], dict[str, float]]]
+    ] = [
         ("numpy", _benchmark_numpy_generation, _benchmark_numpy_power),
         (
-            "jax-cpu",
-            lambda dim, n: _benchmark_jax_generation(dim, n, "cpu"),
+            "jax-cpu-eager",
+            lambda dim, n: _benchmark_jax_generation(dim, n, "cpu", False),
+            lambda dim, n: _benchmark_jax_power(dim, n, "cpu"),
+        ),
+        (
+            "jax-cpu-jit",
+            lambda dim, n: _benchmark_jax_generation(dim, n, "cpu", True),
             lambda dim, n: _benchmark_jax_power(dim, n, "cpu"),
         ),
     ]
@@ -242,8 +264,15 @@ def _collect_results() -> list[dict[str, Any]]:
     if gpu_available:
         backends.append(
             (
-                "jax-gpu",
-                lambda dim, n: _benchmark_jax_generation(dim, n, "gpu"),
+                "jax-gpu-eager",
+                lambda dim, n: _benchmark_jax_generation(dim, n, "gpu", False),
+                lambda dim, n: _benchmark_jax_power(dim, n, "gpu"),
+            )
+        )
+        backends.append(
+            (
+                "jax-gpu-jit",
+                lambda dim, n: _benchmark_jax_generation(dim, n, "gpu", True),
                 lambda dim, n: _benchmark_jax_power(dim, n, "gpu"),
             )
         )
@@ -252,23 +281,31 @@ def _collect_results() -> list[dict[str, Any]]:
         for n in sizes:
             for backend_name, generation_bench, power_bench in backends:
                 logging.info("benchmark generation backend=%s dim=%s n=%s", backend_name, dim, n)
+                generation = generation_bench(dim, n)
                 results.append(
                     {
                         "operation": "gaussian-field-generation",
                         "backend": backend_name,
                         "dim": dim,
                         "n_per_axis": n,
-                        "seconds": generation_bench(dim, n),
+                        "seconds": generation["warm_seconds"],
+                        "cold_seconds": generation["cold_seconds"],
+                        "warm_seconds": generation["warm_seconds"],
                     }
                 )
+                if backend_name.endswith("-jit"):
+                    continue
                 logging.info("benchmark power backend=%s dim=%s n=%s", backend_name, dim, n)
+                power = power_bench(dim, n)
                 results.append(
                     {
                         "operation": "fully-averaged-power",
                         "backend": backend_name,
                         "dim": dim,
                         "n_per_axis": n,
-                        "seconds": power_bench(dim, n),
+                        "seconds": power["warm_seconds"],
+                        "cold_seconds": power["cold_seconds"],
+                        "warm_seconds": power["warm_seconds"],
                     }
                 )
 
@@ -278,12 +315,21 @@ def _collect_results() -> list[dict[str, Any]]:
 def _plot_results(results: list[dict[str, Any]], operation: str, output: Path) -> None:
     """Plot one benchmark operation with per-dimension subplots."""
     fig, axes = plt.subplots(1, len(SIZES), figsize=(15, 4.5), constrained_layout=True)
-    backend_order = ["numpy", "fftw", "jax-cpu", "jax-gpu"]
+    backend_order = [
+        "numpy",
+        "fftw",
+        "jax-cpu-eager",
+        "jax-cpu-jit",
+        "jax-gpu-eager",
+        "jax-gpu-jit",
+    ]
     colors = {
         "numpy": "#1f77b4",
         "fftw": "#ff7f0e",
-        "jax-cpu": "#2ca02c",
-        "jax-gpu": "#d62728",
+        "jax-cpu-eager": "#2ca02c",
+        "jax-cpu-jit": "#17becf",
+        "jax-gpu-eager": "#d62728",
+        "jax-gpu-jit": "#9467bd",
     }
 
     for ax, (dim, sizes) in zip(axes, SIZES.items(), strict=True):
@@ -332,6 +378,7 @@ def main() -> None:
         "gpu_name": _gpu_name(),
         "repeats": REPEATS,
         "warmups": WARMUPS,
+        "timing_fields": ["cold_seconds", "warm_seconds"],
         "boxlength": BOXLENGTH,
         "sizes": SIZES,
     }
