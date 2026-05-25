@@ -32,9 +32,10 @@ def test_discrete_power_gaussian() -> None:
 
     # This re-grids the discrete sample into a box, basically to verify the
     # indexing used by meshgrid within `create_discrete_sample`.
-    N = [pb.N] * pb.dim
-    L = [pb.boxlength] * pb.dim
-    edges = [np.linspace(-_L / 2.0, _L / 2.0, _n + 1) for _L, _n in zip(L, N, strict=True)]
+    edges = [
+        np.linspace(-axis_length / 2.0, axis_length / 2.0, axis_n + 1)
+        for axis_length, axis_n in zip(pb.boxlength, pb.N, strict=True)
+    ]
     delta_samp = np.histogramdd(sample, bins=edges, weights=None)[0].astype("float")
 
     # Check cross spectrum and assert a strong correlation

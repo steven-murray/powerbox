@@ -1,0 +1,712 @@
+{
+  "metadata": {
+    "python": "3.13.11",
+    "platform": "Linux-7.0.9-1-cachyos-x86_64-with-glibc2.43",
+    "cpu_count": 16,
+    "fftw_threads": 1,
+    "fftw_interface_cache": true,
+    "jax_version": "0.10.1",
+    "jax_enable_x64": true,
+    "jax_devices": [
+      "cuda:0"
+    ],
+    "gpu_name": "NVIDIA RTX A2000 Laptop GPU",
+    "repeats": 2,
+    "warmups": 1,
+    "boxlength": 100.0,
+    "sizes": {
+      "1": [
+        4096,
+        16384,
+        65536,
+        262144
+      ],
+      "2": [
+        64,
+        128,
+        256,
+        512
+      ],
+      "3": [
+        16,
+        32,
+        64,
+        96
+      ]
+    }
+  },
+  "results": [
+    {
+      "operation": "gaussian-field-generation",
+      "backend": "numpy",
+      "dim": 1,
+      "n_per_axis": 4096,
+      "seconds": 0.0023245269985636696
+    },
+    {
+      "operation": "fully-averaged-power",
+      "backend": "numpy",
+      "dim": 1,
+      "n_per_axis": 4096,
+      "seconds": 0.004199492497718893
+    },
+    {
+      "operation": "gaussian-field-generation",
+      "backend": "fftw",
+      "dim": 1,
+      "n_per_axis": 4096,
+      "seconds": 0.0033594454871490598
+    },
+    {
+      "operation": "fully-averaged-power",
+      "backend": "fftw",
+      "dim": 1,
+      "n_per_axis": 4096,
+      "seconds": 0.004036651997012086
+    },
+    {
+      "operation": "gaussian-field-generation",
+      "backend": "jax-cpu",
+      "dim": 1,
+      "n_per_axis": 4096,
+      "seconds": 0.00858461500320118
+    },
+    {
+      "operation": "fully-averaged-power",
+      "backend": "jax-cpu",
+      "dim": 1,
+      "n_per_axis": 4096,
+      "seconds": 0.011149297992233187
+    },
+    {
+      "operation": "gaussian-field-generation",
+      "backend": "jax-gpu",
+      "dim": 1,
+      "n_per_axis": 4096,
+      "seconds": 0.02009207650553435
+    },
+    {
+      "operation": "fully-averaged-power",
+      "backend": "jax-gpu",
+      "dim": 1,
+      "n_per_axis": 4096,
+      "seconds": 0.02992144499148708
+    },
+    {
+      "operation": "gaussian-field-generation",
+      "backend": "numpy",
+      "dim": 1,
+      "n_per_axis": 16384,
+      "seconds": 0.0017176510009448975
+    },
+    {
+      "operation": "fully-averaged-power",
+      "backend": "numpy",
+      "dim": 1,
+      "n_per_axis": 16384,
+      "seconds": 0.0026362219941802323
+    },
+    {
+      "operation": "gaussian-field-generation",
+      "backend": "fftw",
+      "dim": 1,
+      "n_per_axis": 16384,
+      "seconds": 0.001594919478520751
+    },
+    {
+      "operation": "fully-averaged-power",
+      "backend": "fftw",
+      "dim": 1,
+      "n_per_axis": 16384,
+      "seconds": 0.002799360503559001
+    },
+    {
+      "operation": "gaussian-field-generation",
+      "backend": "jax-cpu",
+      "dim": 1,
+      "n_per_axis": 16384,
+      "seconds": 0.009350647014798597
+    },
+    {
+      "operation": "fully-averaged-power",
+      "backend": "jax-cpu",
+      "dim": 1,
+      "n_per_axis": 16384,
+      "seconds": 0.011367968982085586
+    },
+    {
+      "operation": "gaussian-field-generation",
+      "backend": "jax-gpu",
+      "dim": 1,
+      "n_per_axis": 16384,
+      "seconds": 0.021040924490080215
+    },
+    {
+      "operation": "fully-averaged-power",
+      "backend": "jax-gpu",
+      "dim": 1,
+      "n_per_axis": 16384,
+      "seconds": 0.035850640007993206
+    },
+    {
+      "operation": "gaussian-field-generation",
+      "backend": "numpy",
+      "dim": 1,
+      "n_per_axis": 65536,
+      "seconds": 0.005479622501297854
+    },
+    {
+      "operation": "fully-averaged-power",
+      "backend": "numpy",
+      "dim": 1,
+      "n_per_axis": 65536,
+      "seconds": 0.01324068650137633
+    },
+    {
+      "operation": "gaussian-field-generation",
+      "backend": "fftw",
+      "dim": 1,
+      "n_per_axis": 65536,
+      "seconds": 0.006005166011163965
+    },
+    {
+      "operation": "fully-averaged-power",
+      "backend": "fftw",
+      "dim": 1,
+      "n_per_axis": 65536,
+      "seconds": 0.016014916516724043
+    },
+    {
+      "operation": "gaussian-field-generation",
+      "backend": "jax-cpu",
+      "dim": 1,
+      "n_per_axis": 65536,
+      "seconds": 0.013616669515613467
+    },
+    {
+      "operation": "fully-averaged-power",
+      "backend": "jax-cpu",
+      "dim": 1,
+      "n_per_axis": 65536,
+      "seconds": 0.025664841014076956
+    },
+    {
+      "operation": "gaussian-field-generation",
+      "backend": "jax-gpu",
+      "dim": 1,
+      "n_per_axis": 65536,
+      "seconds": 0.020981944995583035
+    },
+    {
+      "operation": "fully-averaged-power",
+      "backend": "jax-gpu",
+      "dim": 1,
+      "n_per_axis": 65536,
+      "seconds": 0.03405667800689116
+    },
+    {
+      "operation": "gaussian-field-generation",
+      "backend": "numpy",
+      "dim": 1,
+      "n_per_axis": 262144,
+      "seconds": 0.030704224001965486
+    },
+    {
+      "operation": "fully-averaged-power",
+      "backend": "numpy",
+      "dim": 1,
+      "n_per_axis": 262144,
+      "seconds": 0.082313183505903
+    },
+    {
+      "operation": "gaussian-field-generation",
+      "backend": "fftw",
+      "dim": 1,
+      "n_per_axis": 262144,
+      "seconds": 0.04826292599318549
+    },
+    {
+      "operation": "fully-averaged-power",
+      "backend": "fftw",
+      "dim": 1,
+      "n_per_axis": 262144,
+      "seconds": 0.06877084550797008
+    },
+    {
+      "operation": "gaussian-field-generation",
+      "backend": "jax-cpu",
+      "dim": 1,
+      "n_per_axis": 262144,
+      "seconds": 0.02599229448242113
+    },
+    {
+      "operation": "fully-averaged-power",
+      "backend": "jax-cpu",
+      "dim": 1,
+      "n_per_axis": 262144,
+      "seconds": 0.08321847098704893
+    },
+    {
+      "operation": "gaussian-field-generation",
+      "backend": "jax-gpu",
+      "dim": 1,
+      "n_per_axis": 262144,
+      "seconds": 0.024886685496312566
+    },
+    {
+      "operation": "fully-averaged-power",
+      "backend": "jax-gpu",
+      "dim": 1,
+      "n_per_axis": 262144,
+      "seconds": 0.08308713500446174
+    },
+    {
+      "operation": "gaussian-field-generation",
+      "backend": "numpy",
+      "dim": 2,
+      "n_per_axis": 64,
+      "seconds": 0.0011042395053664222
+    },
+    {
+      "operation": "fully-averaged-power",
+      "backend": "numpy",
+      "dim": 2,
+      "n_per_axis": 64,
+      "seconds": 0.0013681054988410324
+    },
+    {
+      "operation": "gaussian-field-generation",
+      "backend": "fftw",
+      "dim": 2,
+      "n_per_axis": 64,
+      "seconds": 0.0010611295001581311
+    },
+    {
+      "operation": "fully-averaged-power",
+      "backend": "fftw",
+      "dim": 2,
+      "n_per_axis": 64,
+      "seconds": 0.0012004474992863834
+    },
+    {
+      "operation": "gaussian-field-generation",
+      "backend": "jax-cpu",
+      "dim": 2,
+      "n_per_axis": 64,
+      "seconds": 0.010675697500118986
+    },
+    {
+      "operation": "fully-averaged-power",
+      "backend": "jax-cpu",
+      "dim": 2,
+      "n_per_axis": 64,
+      "seconds": 0.011476286003016867
+    },
+    {
+      "operation": "gaussian-field-generation",
+      "backend": "jax-gpu",
+      "dim": 2,
+      "n_per_axis": 64,
+      "seconds": 0.03101248551683966
+    },
+    {
+      "operation": "fully-averaged-power",
+      "backend": "jax-gpu",
+      "dim": 2,
+      "n_per_axis": 64,
+      "seconds": 0.03619769999932032
+    },
+    {
+      "operation": "gaussian-field-generation",
+      "backend": "numpy",
+      "dim": 2,
+      "n_per_axis": 128,
+      "seconds": 0.001869254992925562
+    },
+    {
+      "operation": "fully-averaged-power",
+      "backend": "numpy",
+      "dim": 2,
+      "n_per_axis": 128,
+      "seconds": 0.002322950487723574
+    },
+    {
+      "operation": "gaussian-field-generation",
+      "backend": "fftw",
+      "dim": 2,
+      "n_per_axis": 128,
+      "seconds": 0.0018045289907604456
+    },
+    {
+      "operation": "fully-averaged-power",
+      "backend": "fftw",
+      "dim": 2,
+      "n_per_axis": 128,
+      "seconds": 0.0022503080108435825
+    },
+    {
+      "operation": "gaussian-field-generation",
+      "backend": "jax-cpu",
+      "dim": 2,
+      "n_per_axis": 128,
+      "seconds": 0.011161570000695065
+    },
+    {
+      "operation": "fully-averaged-power",
+      "backend": "jax-cpu",
+      "dim": 2,
+      "n_per_axis": 128,
+      "seconds": 0.01366408501053229
+    },
+    {
+      "operation": "gaussian-field-generation",
+      "backend": "jax-gpu",
+      "dim": 2,
+      "n_per_axis": 128,
+      "seconds": 0.022970243997406214
+    },
+    {
+      "operation": "fully-averaged-power",
+      "backend": "jax-gpu",
+      "dim": 2,
+      "n_per_axis": 128,
+      "seconds": 0.04138342649093829
+    },
+    {
+      "operation": "gaussian-field-generation",
+      "backend": "numpy",
+      "dim": 2,
+      "n_per_axis": 256,
+      "seconds": 0.005801476494525559
+    },
+    {
+      "operation": "fully-averaged-power",
+      "backend": "numpy",
+      "dim": 2,
+      "n_per_axis": 256,
+      "seconds": 0.00804072548635304
+    },
+    {
+      "operation": "gaussian-field-generation",
+      "backend": "fftw",
+      "dim": 2,
+      "n_per_axis": 256,
+      "seconds": 0.00502706399129238
+    },
+    {
+      "operation": "fully-averaged-power",
+      "backend": "fftw",
+      "dim": 2,
+      "n_per_axis": 256,
+      "seconds": 0.008192840512492694
+    },
+    {
+      "operation": "gaussian-field-generation",
+      "backend": "jax-cpu",
+      "dim": 2,
+      "n_per_axis": 256,
+      "seconds": 0.013368528510909528
+    },
+    {
+      "operation": "fully-averaged-power",
+      "backend": "jax-cpu",
+      "dim": 2,
+      "n_per_axis": 256,
+      "seconds": 0.018132906494429335
+    },
+    {
+      "operation": "gaussian-field-generation",
+      "backend": "jax-gpu",
+      "dim": 2,
+      "n_per_axis": 256,
+      "seconds": 0.028981440496863797
+    },
+    {
+      "operation": "fully-averaged-power",
+      "backend": "jax-gpu",
+      "dim": 2,
+      "n_per_axis": 256,
+      "seconds": 0.03335255148704164
+    },
+    {
+      "operation": "gaussian-field-generation",
+      "backend": "numpy",
+      "dim": 2,
+      "n_per_axis": 512,
+      "seconds": 0.02369161500246264
+    },
+    {
+      "operation": "fully-averaged-power",
+      "backend": "numpy",
+      "dim": 2,
+      "n_per_axis": 512,
+      "seconds": 0.04503851750632748
+    },
+    {
+      "operation": "gaussian-field-generation",
+      "backend": "fftw",
+      "dim": 2,
+      "n_per_axis": 512,
+      "seconds": 0.024060735493549146
+    },
+    {
+      "operation": "fully-averaged-power",
+      "backend": "fftw",
+      "dim": 2,
+      "n_per_axis": 512,
+      "seconds": 0.0340747575100977
+    },
+    {
+      "operation": "gaussian-field-generation",
+      "backend": "jax-cpu",
+      "dim": 2,
+      "n_per_axis": 512,
+      "seconds": 0.022686195487040095
+    },
+    {
+      "operation": "fully-averaged-power",
+      "backend": "jax-cpu",
+      "dim": 2,
+      "n_per_axis": 512,
+      "seconds": 0.061239065500558354
+    },
+    {
+      "operation": "gaussian-field-generation",
+      "backend": "jax-gpu",
+      "dim": 2,
+      "n_per_axis": 512,
+      "seconds": 0.03131514850247186
+    },
+    {
+      "operation": "fully-averaged-power",
+      "backend": "jax-gpu",
+      "dim": 2,
+      "n_per_axis": 512,
+      "seconds": 0.062380102011957206
+    },
+    {
+      "operation": "gaussian-field-generation",
+      "backend": "numpy",
+      "dim": 3,
+      "n_per_axis": 16,
+      "seconds": 0.0014200719888322055
+    },
+    {
+      "operation": "fully-averaged-power",
+      "backend": "numpy",
+      "dim": 3,
+      "n_per_axis": 16,
+      "seconds": 0.00135260951356031
+    },
+    {
+      "operation": "gaussian-field-generation",
+      "backend": "fftw",
+      "dim": 3,
+      "n_per_axis": 16,
+      "seconds": 0.0013523419911507517
+    },
+    {
+      "operation": "fully-averaged-power",
+      "backend": "fftw",
+      "dim": 3,
+      "n_per_axis": 16,
+      "seconds": 0.0013844990025972947
+    },
+    {
+      "operation": "gaussian-field-generation",
+      "backend": "jax-cpu",
+      "dim": 3,
+      "n_per_axis": 16,
+      "seconds": 0.012052818987285718
+    },
+    {
+      "operation": "fully-averaged-power",
+      "backend": "jax-cpu",
+      "dim": 3,
+      "n_per_axis": 16,
+      "seconds": 0.01270040798408445
+    },
+    {
+      "operation": "gaussian-field-generation",
+      "backend": "jax-gpu",
+      "dim": 3,
+      "n_per_axis": 16,
+      "seconds": 0.03430409301654436
+    },
+    {
+      "operation": "fully-averaged-power",
+      "backend": "jax-gpu",
+      "dim": 3,
+      "n_per_axis": 16,
+      "seconds": 0.0361942814924987
+    },
+    {
+      "operation": "gaussian-field-generation",
+      "backend": "numpy",
+      "dim": 3,
+      "n_per_axis": 32,
+      "seconds": 0.0034991180000361055
+    },
+    {
+      "operation": "fully-averaged-power",
+      "backend": "numpy",
+      "dim": 3,
+      "n_per_axis": 32,
+      "seconds": 0.005017310497350991
+    },
+    {
+      "operation": "gaussian-field-generation",
+      "backend": "fftw",
+      "dim": 3,
+      "n_per_axis": 32,
+      "seconds": 0.003854108988889493
+    },
+    {
+      "operation": "fully-averaged-power",
+      "backend": "fftw",
+      "dim": 3,
+      "n_per_axis": 32,
+      "seconds": 0.004591031014570035
+    },
+    {
+      "operation": "gaussian-field-generation",
+      "backend": "jax-cpu",
+      "dim": 3,
+      "n_per_axis": 32,
+      "seconds": 0.013136194495018572
+    },
+    {
+      "operation": "fully-averaged-power",
+      "backend": "jax-cpu",
+      "dim": 3,
+      "n_per_axis": 32,
+      "seconds": 0.014863645992591046
+    },
+    {
+      "operation": "gaussian-field-generation",
+      "backend": "jax-gpu",
+      "dim": 3,
+      "n_per_axis": 32,
+      "seconds": 0.037213770498055965
+    },
+    {
+      "operation": "fully-averaged-power",
+      "backend": "jax-gpu",
+      "dim": 3,
+      "n_per_axis": 32,
+      "seconds": 0.04526803150656633
+    },
+    {
+      "operation": "gaussian-field-generation",
+      "backend": "numpy",
+      "dim": 3,
+      "n_per_axis": 64,
+      "seconds": 0.02446442999644205
+    },
+    {
+      "operation": "fully-averaged-power",
+      "backend": "numpy",
+      "dim": 3,
+      "n_per_axis": 64,
+      "seconds": 0.07588995450350922
+    },
+    {
+      "operation": "gaussian-field-generation",
+      "backend": "fftw",
+      "dim": 3,
+      "n_per_axis": 64,
+      "seconds": 0.02656898550048936
+    },
+    {
+      "operation": "fully-averaged-power",
+      "backend": "fftw",
+      "dim": 3,
+      "n_per_axis": 64,
+      "seconds": 0.06905739501235075
+    },
+    {
+      "operation": "gaussian-field-generation",
+      "backend": "jax-cpu",
+      "dim": 3,
+      "n_per_axis": 64,
+      "seconds": 0.02058176700666081
+    },
+    {
+      "operation": "fully-averaged-power",
+      "backend": "jax-cpu",
+      "dim": 3,
+      "n_per_axis": 64,
+      "seconds": 0.05051507749885786
+    },
+    {
+      "operation": "gaussian-field-generation",
+      "backend": "jax-gpu",
+      "dim": 3,
+      "n_per_axis": 64,
+      "seconds": 0.03804853999463376
+    },
+    {
+      "operation": "fully-averaged-power",
+      "backend": "jax-gpu",
+      "dim": 3,
+      "n_per_axis": 64,
+      "seconds": 0.06184799449692946
+    },
+    {
+      "operation": "gaussian-field-generation",
+      "backend": "numpy",
+      "dim": 3,
+      "n_per_axis": 96,
+      "seconds": 0.12233482900774106
+    },
+    {
+      "operation": "fully-averaged-power",
+      "backend": "numpy",
+      "dim": 3,
+      "n_per_axis": 96,
+      "seconds": 0.2549338819953846
+    },
+    {
+      "operation": "gaussian-field-generation",
+      "backend": "fftw",
+      "dim": 3,
+      "n_per_axis": 96,
+      "seconds": 0.08441790999495424
+    },
+    {
+      "operation": "fully-averaged-power",
+      "backend": "fftw",
+      "dim": 3,
+      "n_per_axis": 96,
+      "seconds": 0.23141942200891208
+    },
+    {
+      "operation": "gaussian-field-generation",
+      "backend": "jax-cpu",
+      "dim": 3,
+      "n_per_axis": 96,
+      "seconds": 0.0516774929856183
+    },
+    {
+      "operation": "fully-averaged-power",
+      "backend": "jax-cpu",
+      "dim": 3,
+      "n_per_axis": 96,
+      "seconds": 0.14810457699059043
+    },
+    {
+      "operation": "gaussian-field-generation",
+      "backend": "jax-gpu",
+      "dim": 3,
+      "n_per_axis": 96,
+      "seconds": 0.08082013149396516
+    },
+    {
+      "operation": "fully-averaged-power",
+      "backend": "jax-gpu",
+      "dim": 3,
+      "n_per_axis": 96,
+      "seconds": 0.12258111849951092
+    }
+  ]
+}

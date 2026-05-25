@@ -9,3 +9,4 @@ docs/_*
 .tox/*
 \.coverage
 _version.py
+!docs/_static

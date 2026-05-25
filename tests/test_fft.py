@@ -5,7 +5,7 @@ import contextlib
 import numpy as np
 import pytest
 
-from powerbox.dft import fft, fftfreq, fftshift, ifft, ifftshift
+from powerbox.dft import fft, fftfreq, fftshift, ifft, ifftshift, irfft
 from powerbox.dft_backend import FFTW, NumpyFFT
 from powerbox.tools import _magnitude_grid
 
@@ -24,6 +24,7 @@ BACKENDS = [
 
 HAVE_FFTW = False
 HAVE_FFTW_MULTITHREAD = False
+HAVE_JAX = False
 
 with contextlib.suppress(ValueError, ImportError):
     import pyfftw
@@ -35,6 +36,11 @@ with contextlib.suppress(ValueError, ImportError):
 
     BACKENDS.append(FFTW(nthreads=2))
     HAVE_FFTW_MULTITHREAD = True
+
+with contextlib.suppress(ImportError):
+    from powerbox.jax import dft as jax_dft
+
+    HAVE_JAX = True
 
 
 def gauss_ft(k, a, b, n=2):
@@ -131,6 +137,92 @@ NTHREADS_TO_CHECK = (None, 1, False)
 
 if HAVE_FFTW_MULTITHREAD:
     NTHREADS_TO_CHECK += (2,)
+
+
+@pytest.mark.skipif(not HAVE_FFTW, reason="pyFFTW not installed")
+def test_fftw_backend_enables_interface_cache() -> None:
+    """The FFTW backend should enable the pyFFTW interface cache for plan reuse."""
+    import pyfftw
+
+    pyfftw.interfaces.cache.disable()
+    assert not pyfftw.interfaces.cache.is_enabled()
+
+    FFTW(nthreads=1)
+
+    assert pyfftw.interfaces.cache.is_enabled()
+
+
+@pytest.mark.parametrize("shape", [(8,), (9,), (4, 5), (5, 4)])
+@pytest.mark.parametrize("backend", BACKENDS)
+def test_irfft_roundtrip_even_odd_shapes(shape, backend) -> None:
+    """Round-trip real fields via full spectrum -> reduced spectrum -> irfft."""
+    rng = np.random.default_rng(4)
+    field = rng.normal(size=shape)
+    boxlength = tuple(float(i + 2) for i in range(len(shape)))
+
+    full_spectrum, _ = fft(field, L=boxlength, a=0, b=1, backend=backend)
+    reduced = backend.ifftshift(full_spectrum, axes=(-1,))
+    reduced = reduced[(slice(None),) * (field.ndim - 1) + (slice(None, shape[-1] // 2 + 1),)]
+
+    reconstructed, _ = irfft(reduced, L=boxlength, a=0, b=1, N=shape, backend=backend)
+    reference, _ = ifft(full_spectrum, L=boxlength, a=0, b=1, backend=backend)
+
+    assert reconstructed.shape == shape
+    np.testing.assert_allclose(reconstructed, reference.real, rtol=1e-7, atol=1e-7)
+
+
+@pytest.mark.parametrize("shape", [(8,), (9,), (6, 5)])
+def test_irfft_rejects_n_inconsistent_with_reduced_shape(shape) -> None:
+    """Explicit N must match the reduced-spectrum dimensions."""
+    rng = np.random.default_rng(5)
+    field = rng.normal(size=shape)
+    full_spectrum, _ = fft(field, L=1.0, a=0, b=1, backend=NumpyFFT())
+    reduced = np.fft.ifftshift(full_spectrum, axes=(-1,))
+    reduced = reduced[(slice(None),) * (field.ndim - 1) + (slice(None, shape[-1] // 2 + 1),)]
+
+    wrong_last = (*shape[:-1], shape[-1] + 2)
+    with pytest.raises(ValueError, match="inconsistent with the reduced spectrum shape"):
+        irfft(reduced, N=wrong_last, a=0, b=1, backend=NumpyFFT())
+
+    if len(shape) > 1:
+        wrong_nonlast = (shape[0] + 1, shape[1])
+        with pytest.raises(ValueError, match="inconsistent with the reduced spectrum shape"):
+            irfft(reduced, N=wrong_nonlast, a=0, b=1, backend=NumpyFFT())
+
+
+@pytest.mark.parametrize("shape", [(6, 5), (5, 7)])
+@pytest.mark.parametrize("backend", BACKENDS)
+def test_irfft_phase_convention_matches_ifft_with_x0_and_bb(shape, backend) -> None:
+    """Irfft and ifft should agree under non-zero x0 with explicit bb."""
+    rng = np.random.default_rng(6)
+    field = rng.normal(size=shape)
+    boxlength = tuple(float(i + 2) for i in range(len(shape)))
+    x0 = tuple(0.2 * (i + 1) for i in range(len(shape)))
+
+    full_spectrum, _ = fft(field, L=boxlength, a=0, b=1, x0=x0, backend=backend)
+    reduced = backend.ifftshift(full_spectrum, axes=(-1,))
+    reduced = reduced[(slice(None),) * (field.ndim - 1) + (slice(None, shape[-1] // 2 + 1),)]
+
+    via_irfft, _ = irfft(reduced, L=boxlength, a=0, b=1, x0=x0, bb=2.5, N=shape, backend=backend)
+    via_ifft, _ = ifft(full_spectrum, L=boxlength, a=0, b=1, x0=x0, bb=2.5, backend=backend)
+
+    np.testing.assert_allclose(via_irfft, via_ifft.real, rtol=1e-7, atol=1e-7)
+
+
+@pytest.mark.skipif(not HAVE_JAX, reason="JAX backend not installed")
+def test_irfft_jax_backend_roundtrip() -> None:
+    """JAX irfft backend should match the NumPy reference for a fixed spectrum."""
+    rng = np.random.default_rng(7)
+    shape = (8, 7)
+    field = rng.normal(size=shape)
+    full_spectrum, _ = fft(field, L=(3.0, 4.0), a=0, b=1, backend=NumpyFFT())
+    reduced = np.fft.ifftshift(full_spectrum, axes=(-1,))
+    reduced = reduced[..., : shape[-1] // 2 + 1]
+
+    reference, _ = irfft(reduced, L=(3.0, 4.0), a=0, b=1, N=shape, backend=NumpyFFT())
+    jax_out, _ = jax_dft.irfft(reduced, L=(3.0, 4.0), a=0, b=1, N=shape)
+
+    np.testing.assert_allclose(np.asarray(jax_out), reference, rtol=1e-7, atol=1e-7)
 
 
 @pytest.mark.parametrize(("a", "b", "ainv", "binv"), ABCOMBOS)
