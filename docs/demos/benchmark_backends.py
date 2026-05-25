@@ -166,14 +166,13 @@ def _benchmark_jax_generation(
             pk=pkfunc,
             boxlength=BOXLENGTH,
             key=keys[0],
+            usejit=use_jit,
         )
 
         key_iter = iter(keys[1:])
 
-        delta_x = pb.delta_x if use_jit else pb._delta_x_eager
-
         def run() -> jax.Array:
-            return delta_x(key=next(key_iter))
+            return pb.delta_x(key=next(key_iter))
 
         return _time_jax(run)
 

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import importlib
 import itertools
+import warnings
 from contextlib import nullcontext
 
 import numpy as np
@@ -13,6 +14,7 @@ jax = pytest.importorskip("jax")
 jax.config.update("jax_enable_x64", True)
 jnp = pytest.importorskip("jax.numpy")
 jpb = importlib.import_module("powerbox.jax")
+jpb_powerbox = importlib.import_module("powerbox.jax.powerbox")
 jdft = importlib.import_module("powerbox.jax.dft")
 jtools = importlib.import_module("powerbox.jax.tools")
 ndft = importlib.import_module("powerbox.dft")
@@ -81,6 +83,7 @@ def test_jax_powerbox_jit_delta_x_matches_eager_delta_x() -> None:
         pk=lambda k: (1 + k) ** -2.0,
         boxlength=(4.0, 6.0),
         key=jax.random.key(21),
+        usejit=True,
     )
 
     key = jax.random.key(22)
@@ -97,6 +100,7 @@ def test_jax_lognormal_jit_delta_x_matches_eager_delta_x() -> None:
         pk=lambda k: (1 + k) ** -2.0,
         boxlength=(4.0, 6.0),
         key=jax.random.key(23),
+        usejit=True,
     )
 
     key = jax.random.key(24)
@@ -106,7 +110,7 @@ def test_jax_lognormal_jit_delta_x_matches_eager_delta_x() -> None:
     np.testing.assert_allclose(np.asarray(compiled), np.asarray(eager), rtol=1e-7, atol=1e-7)
 
 
-def test_jax_jit_delta_x_requires_key_if_not_provided_anywhere() -> None:
+def test_jax_delta_x_requires_key_if_not_provided_anywhere() -> None:
     pb = jpb.PowerBox(
         (8, 10),
         dim=2,
@@ -116,6 +120,65 @@ def test_jax_jit_delta_x_requires_key_if_not_provided_anywhere() -> None:
 
     with pytest.raises(ValueError, match="PRNG key"):
         pb.delta_x()
+
+
+def test_jax_default_usejit_heuristic_can_be_forced_via_threshold(monkeypatch) -> None:
+    monkeypatch.setattr(jpb_powerbox, "DEFAULT_JIT_NTOT_THRESHOLD", 10_000)
+    eager_pb = jpb.PowerBox(
+        (8, 8),
+        dim=2,
+        pk=lambda k: (1 + k) ** -2.0,
+        boxlength=4.0,
+        key=jax.random.key(25),
+    )
+    assert eager_pb.usejit is False
+
+    monkeypatch.setattr(jpb_powerbox, "DEFAULT_JIT_NTOT_THRESHOLD", 10)
+    jit_pb = jpb.PowerBox(
+        (8, 8),
+        dim=2,
+        pk=lambda k: (1 + k) ** -2.0,
+        boxlength=4.0,
+        key=jax.random.key(26),
+    )
+    assert jit_pb.usejit is True
+
+
+def test_jax_default_eager_mode_warns_only_on_repeated_calls(monkeypatch) -> None:
+    monkeypatch.setattr(jpb_powerbox, "DEFAULT_JIT_NTOT_THRESHOLD", 10_000)
+    pb = jpb.PowerBox(
+        (8, 8),
+        dim=2,
+        pk=lambda k: (1 + k) ** -2.0,
+        boxlength=4.0,
+        key=jax.random.key(27),
+    )
+
+    with warnings.catch_warnings(record=True) as record:
+        warnings.simplefilter("always")
+        pb.delta_x()
+        pb.delta_x()
+
+    assert len(record) == 1
+    assert "Repeated calls may be much slower" in str(record[0].message)
+
+
+def test_jax_explicit_eager_mode_does_not_warn_on_repeated_calls() -> None:
+    pb = jpb.PowerBox(
+        (8, 8),
+        dim=2,
+        pk=lambda k: (1 + k) ** -2.0,
+        boxlength=4.0,
+        key=jax.random.key(28),
+        usejit=False,
+    )
+
+    with warnings.catch_warnings(record=True) as record:
+        warnings.simplefilter("always")
+        pb.delta_x()
+        pb.delta_x()
+
+    assert record == []
 
 
 def test_jax_lognormal_correlation_array_matches_irfft_of_power() -> None:

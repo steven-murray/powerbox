@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import warnings
 from collections.abc import Callable, Sequence
 from functools import cached_property
 
@@ -14,6 +15,8 @@ from .._geometry import tuplify_type
 from ..dft_backend import JaxFFT
 from . import dft
 from .tools import _magnitude_grid
+
+DEFAULT_JIT_NTOT_THRESHOLD = 65536
 
 
 def _sample_gaussian_hermitian_fft(axis_lengths: tuple[int, ...], key: jax.Array) -> jax.Array:
@@ -50,12 +53,16 @@ class PowerBox:
         PRNG key used to generate realizations. Methods such as :meth:`delta_x` accept
         a per-call ``key=`` override. If no key is supplied either here or at call time,
         a :class:`ValueError` is raised.
+    usejit : bool, optional
+        Whether to use the cached JIT-compiled ``delta_x`` path. If omitted, a simple
+        heuristic selects JIT for large ``Ntot`` and eager execution for smaller boxes.
 
     Notes
     -----
     Geometry is normalized to per-axis tuples, matching the NumPy implementation's
     reduced-spectrum API. Unlike the NumPy implementation, random-state handling is
-    explicit through JAX PRNG keys.
+    explicit through JAX PRNG keys. ``delta_x()`` always uses the public JIT policy,
+    while a private eager path remains available for benchmarking and comparison.
     """
 
     def __init__(
@@ -70,6 +77,7 @@ class PowerBox:
         vol_normalised_power: bool = True,
         nthreads: int | None = None,
         key: jax.Array | None = None,
+        usejit: bool | None = None,
     ) -> None:
         del nthreads
 
@@ -90,6 +98,10 @@ class PowerBox:
 
         self.ensure_physical = ensure_physical
         self.Ntot = int(np.prod(self.N))
+        self._usejit_requested = usejit is not None
+        self.usejit = self._resolve_usejit(usejit)
+        self._delta_x_calls = 0
+        self._delta_x_warning_emitted = False
         self.dx = tuple(
             length / axis_n for length, axis_n in zip(self.boxlength, self.N, strict=True)
         )
@@ -126,6 +138,12 @@ class PowerBox:
         raise ValueError(
             "A JAX PRNG key is required. Pass `key=` to the constructor or to the method call."
         )
+
+    def _resolve_usejit(self, usejit: bool | None) -> bool:
+        """Resolve the cached JIT policy for this instance."""
+        if usejit is not None:
+            return bool(usejit)
+        return self.Ntot >= DEFAULT_JIT_NTOT_THRESHOLD
 
     def _power_array_rfft(self) -> jax.Array:
         """Return the input power spectrum on the reduced half-spectrum grid."""
@@ -219,12 +237,25 @@ class PowerBox:
         return _kernel
 
     def delta_x(self, key: jax.Array | None = None) -> jax.Array:
-        """Return the realized real-space field from the input power spectrum."""
-        return self._delta_x_kernel(self._resolve_key(key))
+        """Return the realized real-space field using the configured execution policy."""
+        self._delta_x_calls += 1
+        if (
+            not self.usejit
+            and not self._usejit_requested
+            and self._delta_x_calls > 1
+            and not self._delta_x_warning_emitted
+        ):
+            warnings.warn(
+                "delta_x() is using eager execution by default for this box size. "
+                "Repeated calls may be much slower than usejit=True.",
+                stacklevel=2,
+            )
+            self._delta_x_warning_emitted = True
 
-    def jit_delta_x(self, key: jax.Array | None = None) -> jax.Array:
-        """Backward-compatible alias for the JIT-backed :meth:`delta_x`."""
-        return self.delta_x(key=key)
+        run_key = self._resolve_key(key)
+        if self.usejit:
+            return self._delta_x_kernel(run_key)
+        return self._delta_x_eager(run_key)
 
     def create_discrete_sample(
         self,
@@ -280,4 +311,4 @@ class LogNormalPowerBox(PowerBox):
 
     def delta_x(self, key: jax.Array | None = None) -> jax.Array:
         """Return the realized lognormal over-density field."""
-        return self._delta_x_kernel(self._resolve_key(key))
+        return super().delta_x(key=key)

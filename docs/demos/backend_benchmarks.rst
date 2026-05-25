@@ -22,8 +22,8 @@ The compared backend variants are:
 - ``numpy`` using ``powerbox.PowerBox(..., nthreads=1)`` and ``powerbox.get_power(..., nthreads=1)``;
 - ``fftw`` using ``powerbox.PowerBox(..., nthreads=1)`` and
   ``powerbox.get_power(..., nthreads=1)``;
-- ``jax-cpu-eager`` / ``jax-gpu-eager`` using eager JAX execution;
-- ``jax-cpu-jit`` / ``jax-gpu-jit`` using the new cached JIT generation path (generation benchmark only).
+- ``jax-cpu-eager`` / ``jax-gpu-eager`` using ``usejit=False``;
+- ``jax-cpu-jit`` / ``jax-gpu-jit`` using ``usejit=True``.
 
 The FFTW series is intentionally single-threaded for these problem sizes. On this
 machine, the pyFFTW interface overhead and thread-management cost dominate before
@@ -88,6 +88,9 @@ Notes
 
 - The generated plots use warm timings. Cold timings are saved in
   ``backend_benchmark_results.json`` to quantify one-time JIT compilation costs.
+- In the public JAX API, ``delta_x()`` selects JIT automatically for large boxes and
+  falls back to eager execution for smaller ones; repeated eager-default calls emit a
+  one-time warning.
 - The GPU line is particularly useful as a development target: if future JAX refactors
   regress it noticeably, rerunning the benchmark script should reveal that quickly.
 - The raw metadata and timing table are written to
