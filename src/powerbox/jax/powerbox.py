@@ -273,7 +273,3 @@ class LogNormalPowerBox(PowerBox):
         field = self._irfft_to_field(dk, scale=jnp.sqrt(self.volume))
         sigma_g = jnp.var(field)
         return jnp.exp(field - sigma_g / 2) - 1
-
-    def delta_x(self, key: jax.Array | None = None) -> jax.Array:
-        """Return the realized lognormal over-density field."""
-        return super().delta_x(key=key)

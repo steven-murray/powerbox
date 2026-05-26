@@ -90,8 +90,11 @@ def test_jax_eager_mode_warns_only_on_repeated_calls(monkeypatch, usejit) -> Non
         pb.delta_x()
         pb.delta_x()
 
-    assert len(record) == 1
-    assert "Repeated calls may be much slower" in str(record[0].message)
+    if usejit is None:
+        assert len(record) == 1
+        assert "Repeated calls may be much slower" in str(record[0].message)
+    else:
+        assert len(record) == 0
 
 
 def test_jax_lognormal_correlation_array_matches_irfft_of_power() -> None:
