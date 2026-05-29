@@ -10,38 +10,15 @@ subclassing :class:`PowerBox` and over-writing the same methods as are over-writ
 from __future__ import annotations
 
 import warnings
+from collections.abc import Sequence
 
 import numpy as np
 
 from . import dft
+from ._fft_layout import full_spectrum_to_rfft, irfft_to_field
+from ._geometry import tuplify_type
+from ._hermitianity import hermitianize_rfft_array
 from .tools import _magnitude_grid
-
-# TODO: add hankel-transform version of LogNormal
-
-
-def _make_hermitian(mag, pha):
-    r"""
-    Take random arrays and convert them to a complex hermitian array.
-
-    Note that this assumes that mag is distributed normally.
-
-    Parameters
-    ----------
-    mag : array
-        Normally-distributed magnitudes of the complex vector.
-
-    pha : array
-        Uniformly distributed phases of the complex vector
-
-    Returns
-    -------
-    kspace : array
-        A complex hermitian array with normally distributed amplitudes.
-    """
-    revidx = (slice(None, None, -1),) * len(mag.shape)
-    mag = (mag + mag[revidx]) / np.sqrt(2)
-    pha = (pha - pha[revidx]) / 2 + np.pi
-    return mag * (np.cos(pha) + 1j * np.sin(pha))
 
 
 class PowerBox:
@@ -50,18 +27,21 @@ class PowerBox:
 
     Parameters
     ----------
-    N : int
-        Number of grid-points on a side for the resulting box (equivalently, number of
-        wavenumbers to use).
+    N : int or sequence of int
+        Number of grid-points on each side of the resulting box (equivalently, number of
+        wavenumbers to use). If a scalar, the same number is used along every axis. If a
+        sequence, it must have length ``dim``.
     pk : callable
         A callable of a single (vector) variable `k`, which is the isotropic power
         spectrum. The relationship of the `k` of which this is a function to the
         real-space co-ordinates, `x`, is determined by the parameters ``a,b``.
     dim : int, default 2
         Number of dimensions of resulting box.
-    boxlength : float, default 1.0
-        Length of the final signal on a side. This may have arbitrary units, so long
-        as `pk` is a function of a variable which has the inverse units.
+    boxlength : float or sequence of float, default 1.0
+        Length of the final signal along each axis. This may have arbitrary units, so
+        long as `pk` is a function of a variable which has the inverse units. If a
+        scalar, the same length is used along every axis. If a sequence, it must have
+        length ``dim``.
     ensure_physical : bool, optional
         Interpreting the power spectrum as a spectrum of density fluctuations, the
         minimum physical value of the real-space field, :meth:`delta_x`, is -1. With
@@ -104,6 +84,11 @@ class PowerBox:
     enables its direct interpretation as an overdensity field, and this interpretation
     is enforced in the :meth:`make_discrete_sample` method.
 
+    When scalar ``N`` and scalar ``boxlength`` are provided, the public attributes
+    ``N``, ``boxlength``, ``x``, and ``kvec`` retain their historical scalar/1-D forms.
+    When either quantity is specified per-axis, ``x`` and ``kvec`` return tuples of
+    1-D arrays, one for each axis.
+
     .. note:: None of the n-dimensional arrays that are created within the class are
               stored, due to the inefficiency in memory consumption that this would
               imply. Thus, each large array is created and *returned* by their
@@ -128,14 +113,20 @@ class PowerBox:
     >>> import matplotlib.pyplot as plt
     >>> pb = PowerBox(1000, lambda k : k**-7./5.)
     >>> plt.imshow(pb.delta_x())
+
+    To create a 2D non-cubic box with different resolutions and side lengths:
+
+    >>> pb = PowerBox((128, 192), lambda k: (1 + k) ** -2.0, dim=2, boxlength=(200.0, 600.0))
+    >>> field = pb.delta_x()
+    >>> x, y = pb.x
     """
 
     def __init__(
         self,
-        N: int,
+        N: int | Sequence[int],
         pk,
         dim: int = 2,
-        boxlength: float = 1.0,
+        boxlength: float | Sequence[float] = 1.0,
         ensure_physical: bool = False,
         a: float = 1.0,
         b: float = 1.0,
@@ -143,14 +134,14 @@ class PowerBox:
         seed: int | None = None,
         nthreads: int | None = None,
     ) -> None:
-        self.N = N
         self.dim = dim
-        self.boxlength = boxlength
-        self.L = boxlength
+        self.N = tuplify_type(int, N, dim, "N")
+        self.boxlength = tuplify_type(float, boxlength, dim, "boxlength")
+        self.L = self.boxlength
         self.fourier_a = a
         self.fourier_b = b
         self.vol_normalised_power = vol_normalised_power
-        self.V = self.boxlength**self.dim
+        self.V = float(np.prod(self.boxlength))
         self.fftbackend = dft.get_fft_backend(nthreads)
 
         if self.vol_normalised_power:
@@ -159,7 +150,7 @@ class PowerBox:
             self.pk = pk
 
         self.ensure_physical = ensure_physical
-        self.Ntot = self.N**self.dim
+        self.Ntot = int(np.prod(self.N))
 
         self.seed = seed
         if seed is None:
@@ -169,47 +160,74 @@ class PowerBox:
             # the Generator API required by modern NumPy.
             self.rng = np.random.Generator(np.random.MT19937(seed))
 
-        if N % 2 == 0:
-            self._even = True
-        else:
-            self._even = False
+        self.dx = tuple(
+            length / axis_n for length, axis_n in zip(self.boxlength, self.N, strict=True)
+        )
 
-        self.n = N + 1 if self._even else N
+    @property
+    def x(self) -> tuple[np.ndarray, ...]:
+        """The co-ordinates of the grid along each axis."""
+        return tuple(
+            np.arange(-length / 2, length / 2, axis_dx)[:axis_n]
+            for length, axis_dx, axis_n in zip(self.boxlength, self.dx, self.N, strict=True)
+        )
 
-        # Get the grid-size for the final real-space box.
-        self.dx = float(boxlength) / N
+    @property
+    def kvec(self) -> tuple[np.ndarray, ...]:
+        """The reduced wavenumber vectors for the half-Hermitian spectrum."""
+        axes = [
+            self.fftbackend.fftfreq(axis_n, d=axis_dx, b=self.fourier_b)
+            for axis_n, axis_dx in zip(self.N[:-1], self.dx[:-1], strict=True)
+        ]
+        axes.append(self.fftbackend.rfftfreq(self.N[-1], d=self.dx[-1], b=self.fourier_b))
+        return tuple(axes)
+
+    @property
+    def _rfft_shape(self) -> tuple[int, ...]:
+        """Shape of the half-Hermitian spectrum compatible with ``irfftn``."""
+        return (*self.N[:-1], self.N[-1] // 2 + 1)
+
+    def _irfft_to_field(self, spectrum, scale: float):
+        """Transform a reduced half-spectrum into a real-space field."""
+        return irfft_to_field(
+            spectrum,
+            scale=scale,
+            irfft_function=dft.irfft,
+            L=self.boxlength,
+            a=self.fourier_a,
+            b=self.fourier_b,
+            N=self.N,
+            backend=self.fftbackend,
+        )
+
+    def _full_spectrum_to_rfft(self, spectrum: np.ndarray) -> np.ndarray:
+        """Convert a centred full spectrum to reduced rFFT layout."""
+        return full_spectrum_to_rfft(
+            spectrum,
+            dim=self.dim,
+            rfft_last_axis_size=self._rfft_shape[-1],
+            backend=self.fftbackend,
+        )
 
     def k(self):
         """Return the full grid of wavenumber magnitudes."""
-        return _magnitude_grid(self.kvec, self.dim)
-
-    @property
-    def kvec(self):
-        """The vector of wavenumbers along a side."""
-        return self.fftbackend.fftfreq(self.N, d=self.dx, b=self.fourier_b)
+        return _magnitude_grid(list(self.kvec))
 
     @property
     def r(self):
         """The radial position of every point in the grid."""
-        return _magnitude_grid(self.x, self.dim)
-
-    @property
-    def x(self):
-        """The co-ordinates of the grid along a side."""
-        return np.arange(-self.boxlength / 2, self.boxlength / 2, self.dx)[: self.N]
+        return _magnitude_grid(list(self.x))
 
     def gauss_hermitian(self):
-        """Return a random array with Gaussian magnitudes and Hermitian symmetry."""
-        mag = self.rng.normal(0, 1, size=[self.n] * self.dim)
-        pha = 2 * np.pi * self.rng.uniform(size=[self.n] * self.dim)
+        """Return reduced Hermitian Gaussian modes sampled directly in rFFT layout."""
+        modes = (
+            self.rng.normal(0, 1, size=self._rfft_shape)
+            + 1j * self.rng.normal(0, 1, size=self._rfft_shape)
+        ) / np.sqrt(2)
 
-        dk = _make_hermitian(mag, pha)
+        hermitianize_rfft_array(modes, has_nyquist=self.N[-1] % 2 == 0)
 
-        if self._even:
-            cutidx = (slice(None, -1),) * self.dim
-            dk = dk[cutidx]
-
-        return dk
+        return modes
 
     def power_array(self):
         """Return the volume-normalized power spectrum evaluated on ``self.k``."""
@@ -234,24 +252,13 @@ class PowerBox:
         gh[...] = np.sqrt(p) * gh
         return gh
 
-    def delta_x(self):
+    def delta_x(self, delta_k: np.ndarray | None = None):
         """Return the realized real-space field from the input power spectrum."""
         # Here we multiply by V because the inverse Fourier transform of the
         # dimensionless power has units of 1/V, and we require a unitless
         # quantity for delta_x.
-        dk = self.fftbackend.empty((self.N,) * self.dim, dtype="complex128")
-        dk[...] = self.delta_k()
-        dk[...] = (
-            self.V
-            * dft.ifft(
-                dk,
-                L=self.boxlength,
-                a=self.fourier_a,
-                b=self.fourier_b,
-                backend=self.fftbackend,
-            )[0]
-        )
-        dk = np.real(dk)
+        dk = self.delta_k() if delta_k is None else delta_k
+        dk = self._irfft_to_field(dk, scale=self.V)
 
         if self.ensure_physical:
             np.clip(dk, -1, np.inf, dk)
@@ -310,23 +317,25 @@ class PowerBox:
         else:
             dx = delta_x
 
-        dx = (dx + 1) * self.dx**self.dim * nbar
+        dx = (dx + 1) * np.prod(self.dx) * nbar
         n = dx
 
         self.n_per_cell = self.rng.poisson(n)
 
         # Get all source positions
-        args = [self.x] * self.dim
+        args = self.x
         X = np.meshgrid(*args, indexing="ij")
 
         tracer_positions = np.array([x.flatten() for x in X]).T
         tracer_positions = tracer_positions.repeat(self.n_per_cell.flatten(), axis=0)
 
         if randomise_in_cell:
-            tracer_positions += self.rng.uniform(size=(np.sum(self.n_per_cell), self.dim)) * self.dx
+            tracer_positions += self.rng.uniform(
+                size=(np.sum(self.n_per_cell), self.dim)
+            ) * np.asarray(self.dx)
 
         if min_at_zero:
-            tracer_positions += self.boxlength / 2.0
+            tracer_positions += np.asarray(self.boxlength) / 2.0
 
         if store_pos:
             self.tracer_positions = tracer_positions
@@ -338,7 +347,8 @@ class LogNormalPowerBox(PowerBox):
     r"""Calculate Log-Normal density fields with given power spectra.
 
     See the documentation of :class:`PowerBox` for a detailed explanation of the
-    arguments, as this class has exactly the same arguments.
+    arguments, as this class has exactly the same arguments, including scalar or
+    per-axis ``N`` and ``boxlength`` inputs.
 
     This class calculates an (over-)density field of arbitrary dimension given an input
     isotropic power spectrum. In this case, the field has a log-normal distribution of
@@ -381,17 +391,8 @@ class LogNormalPowerBox(PowerBox):
 
     def correlation_array(self):
         """Return the correlation function from the input power on the grid."""
-        pa = self.fftbackend.empty((self.N,) * self.dim)
-        pa[...] = self.power_array()
-        return self.V * np.real(
-            dft.ifft(
-                pa,
-                L=self.boxlength,
-                a=self.fourier_a,
-                b=self.fourier_b,
-                backend=self.fftbackend,
-            )[0]
-        )
+        pa = self.power_array()
+        return self._irfft_to_field(pa, scale=self.V)
 
     def gaussian_correlation_array(self):
         """Correlation required for a Gaussian field to produce the input power."""
@@ -399,16 +400,18 @@ class LogNormalPowerBox(PowerBox):
 
     def gaussian_power_array(self):
         """Power spectrum required for a Gaussian field to produce the input power."""
-        gca = self.fftbackend.empty((self.N,) * self.dim)
+        gca = self.fftbackend.empty(self.N)
         gca[...] = self.gaussian_correlation_array()
         gpa = np.abs(
-            dft.fft(
-                gca,
-                L=self.boxlength,
-                a=self.fourier_a,
-                b=self.fourier_b,
-                backend=self.fftbackend,
-            )[0]
+            self._full_spectrum_to_rfft(
+                dft.fft(
+                    gca,
+                    L=self.boxlength,
+                    a=self.fourier_a,
+                    b=self.fourier_b,
+                    backend=self.fftbackend,
+                )[0]
+            )
         )
         gpa[self.k() == 0] = 0
         return gpa
@@ -427,19 +430,8 @@ class LogNormalPowerBox(PowerBox):
 
     def delta_x(self):
         """Return the real-space over-density field from the input power spectrum."""
-        dk = self.fftbackend.empty((self.N,) * self.dim, dtype="complex128")
-        dk[...] = self.delta_k()
-        dk[...] = (
-            np.sqrt(self.V)
-            * dft.ifft(
-                dk,
-                L=self.boxlength,
-                a=self.fourier_a,
-                b=self.fourier_b,
-                backend=self.fftbackend,
-            )[0]
-        )
-        dk = np.real(dk)
+        dk = self.delta_k()
+        dk = self._irfft_to_field(dk, scale=np.sqrt(self.V))
 
         sg = np.var(dk)
         return np.exp(dk - sg / 2) - 1
