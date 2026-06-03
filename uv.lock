@@ -1633,7 +1633,7 @@ dev = [
     { name = "ruff", specifier = ">=0.15.10" },
     { name = "scipy" },
     { name = "sphinx" },
-    { name = "sphinx-automodapi", specifier = "==0.7" },
+    { name = "sphinx-automodapi", specifier = "==0.22.0" },
     { name = "sphinx-rtd-theme" },
     { name = "wheel" },
 ]
@@ -1646,7 +1646,7 @@ docs = [
     { name = "packaging" },
     { name = "pandoc" },
     { name = "sphinx" },
-    { name = "sphinx-automodapi", specifier = "==0.7" },
+    { name = "sphinx-automodapi", specifier = "==0.22.0" },
     { name = "sphinx-rtd-theme" },
 ]
 tests = [
@@ -2361,15 +2361,16 @@ wheels = [
 
 [[package]]
 name = "sphinx-automodapi"
-version = "0.7"
+version = "0.22.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
+    { name = "packaging" },
     { name = "sphinx", version = "9.0.4", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
     { name = "sphinx", version = "9.1.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/84/b2/462449a4e4c0c60e3c05a674779dd6a16b53ca923c0cd110ccb3073469ff/sphinx-automodapi-0.7.tar.gz", hash = "sha256:684e623d1cbccfb1211496533142c55c860ed9249892b85d0f0461dd32e4e511", size = 31125, upload-time = "2018-01-18T11:13:16.427Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/3f/9f/16c79a06f4c6772124f03f1d69a0394bc1f52c154202db5d5905cb3579c7/sphinx_automodapi-0.22.0.tar.gz", hash = "sha256:9a6745d606eb948321f0bb7bd4511dc6d8481da8819caa1604d7138910173b38", size = 56683, upload-time = "2025-12-13T00:19:52.962Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/c6/be/7b24d806568a76d839f4ae0e84edcb71b7e5aa0f958d5bf35ec76acad648/sphinx_automodapi-0.7-py2.py3-none-any.whl", hash = "sha256:f3ea501157612879df415ce2eff18583bb3b7651a2e349279eff172f2da3ff23", size = 62889, upload-time = "2018-01-18T11:13:15.441Z" },
+    { url = "https://files.pythonhosted.org/packages/d3/a0/1a0c44070d2f7e8761ca221d51e1ce8f959b2a0add4cab13de0a677f81bc/sphinx_automodapi-0.22.0-py3-none-any.whl", hash = "sha256:8ecbe8c8ba33a1e3dbe03aea06879062567d611b543da3f33367512d45118b01", size = 111939, upload-time = "2025-12-13T00:19:51.596Z" },
 ]
 
 [[package]]
