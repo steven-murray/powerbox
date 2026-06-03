@@ -52,7 +52,7 @@ docs = [
     "ipykernel",
     "pandoc",
     "sphinx_rtd_theme",
-    "sphinx-automodapi==0.7",
+    "sphinx-automodapi==0.22.0",
     "matplotlib",
     "hmf",
     "packaging",  # required for camb
