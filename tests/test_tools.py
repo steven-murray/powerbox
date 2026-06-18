@@ -437,7 +437,7 @@ def test_null_variance_2d() -> None:
 
 
 def test_variance_2d() -> None:
-    rng = np.random.default_rng()
+    rng = np.random.default_rng(seed=1234)
     x = np.linspace(-3, 3, 400)
     X, Y = np.meshgrid(x, x)
     r2 = X**2 + Y**2
