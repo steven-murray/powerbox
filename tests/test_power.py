@@ -13,8 +13,17 @@ get_power = partial(get_power, bins_upto_boxlen=True)
 
 def test_power1d() -> None:
     p = [0] * 40
+    rng = np.random.default_rng(42)
     for i in range(40):
-        pb = PowerBox(8001, dim=1, pk=lambda k: 1.0 * k**-2.0, boxlength=1.0, a=0, b=1)
+        pb = PowerBox(
+            8001,
+            dim=1,
+            pk=lambda k: 1.0 * k**-2.0,
+            boxlength=1.0,
+            a=0,
+            b=1,
+            seed=rng.integers(0, 10000),
+        )
 
         p[i], k, *_ = get_power(pb.delta_x(), pb.boxlength, a=0, b=1)
 
@@ -23,8 +32,16 @@ def test_power1d() -> None:
 
 def test_power1d_n3() -> None:
     p = [0] * 40
+    rng = np.random.default_rng(123)
     for i in range(40):
-        pb = PowerBox(8001, dim=1, pk=lambda k: 1.0 * k**-3.0, boxlength=1.0, b=1)
+        pb = PowerBox(
+            8001,
+            dim=1,
+            pk=lambda k: 1.0 * k**-3.0,
+            boxlength=1.0,
+            b=1,
+            seed=rng.integers(0, 10000),
+        )
         p[i], k, *_ = get_power(pb.delta_x(), pb.boxlength, b=1)
 
     np.testing.assert_allclose(np.mean(np.array(p), axis=0)[2000:], 1.0 * k[2000:] ** -3.0, rtol=2)
@@ -32,8 +49,16 @@ def test_power1d_n3() -> None:
 
 def test_power1d_bigL() -> None:
     p = [0] * 40
+    rng = np.random.default_rng(456)
     for i in range(40):
-        pb = PowerBox(8001, dim=1, pk=lambda k: 1.0 * k**-3.0, boxlength=10.0, b=1)
+        pb = PowerBox(
+            8001,
+            dim=1,
+            pk=lambda k: 1.0 * k**-3.0,
+            boxlength=10.0,
+            b=1,
+            seed=rng.integers(0, 10000),
+        )
         p[i], k, *_ = get_power(pb.delta_x(), pb.boxlength, b=1)
 
     np.testing.assert_allclose(np.mean(np.array(p), axis=0)[2000:], 1.0 * k[2000:] ** -3.0, rtol=2)
@@ -41,8 +66,16 @@ def test_power1d_bigL() -> None:
 
 def test_power1d_ordinary_freq() -> None:
     p = [0] * 40
+    rng = np.random.default_rng(789)
     for i in range(40):
-        pb = PowerBox(8001, dim=1, pk=lambda k: 1.0 * k**-3.0, boxlength=1.0)
+        pb = PowerBox(
+            8001,
+            dim=1,
+            pk=lambda k: 1.0 * k**-3.0,
+            boxlength=1.0,
+            b=1,
+            seed=rng.integers(0, 10000),
+        )
         p[i], k, *_ = get_power(pb.delta_x(), pb.boxlength)
 
     np.testing.assert_allclose(np.mean(np.array(p), axis=0)[2000:], 1.0 * k[2000:] ** -3.0, rtol=2)
@@ -50,8 +83,16 @@ def test_power1d_ordinary_freq() -> None:
 
 def test_power1d_halfN() -> None:
     p = [0] * 40
+    rng = np.random.default_rng(101112)
     for i in range(40):
-        pb = PowerBox(4001, dim=1, pk=lambda k: 1.0 * k**-3.0, boxlength=1.0, b=1)
+        pb = PowerBox(
+            4001,
+            dim=1,
+            pk=lambda k: 1.0 * k**-3.0,
+            boxlength=1.0,
+            b=1,
+            seed=rng.integers(0, 100000),
+        )
         p[i], k, *_ = get_power(pb.delta_x(), pb.boxlength, b=1)
 
     np.testing.assert_allclose(np.mean(np.array(p), axis=0)[1000:], 1.0 * k[1000:] ** -3.0, rtol=2)
@@ -59,15 +100,31 @@ def test_power1d_halfN() -> None:
 
 def test_power2d() -> None:
     p = [0] * 5
+    rng = np.random.default_rng(13579)
     for i in range(5):
-        pb = PowerBox(200, dim=2, pk=lambda k: 1.0 * k**-2.0, boxlength=1.0, b=1)
+        pb = PowerBox(
+            200,
+            dim=2,
+            pk=lambda k: 1.0 * k**-2.0,
+            boxlength=1.0,
+            b=1,
+            seed=rng.integers(0, 10000),
+        )
         p[i], k, *_ = get_power(pb.delta_x(), pb.boxlength, b=1)
 
     np.testing.assert_allclose(np.mean(np.array(p), axis=0)[100:], 1.0 * k[100:] ** -2.0, rtol=2)
 
 
-def test_power3d() -> None:
-    pb = PowerBox(50, dim=3, pk=lambda k: 1.0 * k**-2.0, boxlength=1.0, b=1)
+def test_power3d():
+    rng = np.random.default_rng(13579)
+    pb = PowerBox(
+        50,
+        dim=3,
+        pk=lambda k: 1.0 * k**-2.0,
+        boxlength=1.0,
+        b=1,
+        seed=rng.integers(0, 10000),
+    )
     p, k, *_ = get_power(pb.delta_x(), pb.boxlength, b=1)
 
     print(p / (1.0 * k**-2.0))
