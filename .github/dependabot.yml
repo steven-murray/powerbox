@@ -4,18 +4,8 @@ updates:
     directory: "/"
     schedule:
       interval: monthly
-  - package-ecosystem: pip
-    directory: "/.github/workflows"
-    schedule:
-      interval: monthly
-  - package-ecosystem: pip
-    directory: "/docs"
-    schedule:
-      interval: monthly
-  - package-ecosystem: pip
+
+  - package-ecosystem: uv
     directory: "/"
     schedule:
       interval: monthly
-    versioning-strategy: lockfile-only
-    allow:
-      - dependency-type: "all"

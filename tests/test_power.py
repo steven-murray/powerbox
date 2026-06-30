@@ -1,14 +1,17 @@
-import pytest
-import numpy as np
+"""Tests for isotropic power-spectrum estimation."""
+
 import warnings
 from functools import partial
+
+import numpy as np
+import pytest
 
 from powerbox import PowerBox, get_power, ignore_zero_absk, ignore_zero_ki, power2delta
 
 get_power = partial(get_power, bins_upto_boxlen=True)
 
 
-def test_power1d():
+def test_power1d() -> None:
     p = [0] * 40
     rng = np.random.default_rng(42)
     for i in range(40):
@@ -24,12 +27,10 @@ def test_power1d():
 
         p[i], k, *_ = get_power(pb.delta_x(), pb.boxlength, a=0, b=1)
 
-    np.testing.assert_allclose(
-        np.mean(np.array(p), axis=0)[2000:], 1.0 * k[2000:] ** -2.0, rtol=2
-    )
+    np.testing.assert_allclose(np.mean(np.array(p), axis=0)[2000:], 1.0 * k[2000:] ** -2.0, rtol=2)
 
 
-def test_power1d_n3():
+def test_power1d_n3() -> None:
     p = [0] * 40
     rng = np.random.default_rng(123)
     for i in range(40):
@@ -43,12 +44,10 @@ def test_power1d_n3():
         )
         p[i], k, *_ = get_power(pb.delta_x(), pb.boxlength, b=1)
 
-    np.testing.assert_allclose(
-        np.mean(np.array(p), axis=0)[2000:], 1.0 * k[2000:] ** -3.0, rtol=2
-    )
+    np.testing.assert_allclose(np.mean(np.array(p), axis=0)[2000:], 1.0 * k[2000:] ** -3.0, rtol=2)
 
 
-def test_power1d_bigL():
+def test_power1d_bigL() -> None:
     p = [0] * 40
     rng = np.random.default_rng(456)
     for i in range(40):
@@ -62,12 +61,10 @@ def test_power1d_bigL():
         )
         p[i], k, *_ = get_power(pb.delta_x(), pb.boxlength, b=1)
 
-    np.testing.assert_allclose(
-        np.mean(np.array(p), axis=0)[2000:], 1.0 * k[2000:] ** -3.0, rtol=2
-    )
+    np.testing.assert_allclose(np.mean(np.array(p), axis=0)[2000:], 1.0 * k[2000:] ** -3.0, rtol=2)
 
 
-def test_power1d_ordinary_freq():
+def test_power1d_ordinary_freq() -> None:
     p = [0] * 40
     rng = np.random.default_rng(789)
     for i in range(40):
@@ -81,12 +78,10 @@ def test_power1d_ordinary_freq():
         )
         p[i], k, *_ = get_power(pb.delta_x(), pb.boxlength)
 
-    np.testing.assert_allclose(
-        np.mean(np.array(p), axis=0)[2000:], 1.0 * k[2000:] ** -3.0, rtol=2
-    )
+    np.testing.assert_allclose(np.mean(np.array(p), axis=0)[2000:], 1.0 * k[2000:] ** -3.0, rtol=2)
 
 
-def test_power1d_halfN():
+def test_power1d_halfN() -> None:
     p = [0] * 40
     rng = np.random.default_rng(101112)
     for i in range(40):
@@ -100,12 +95,10 @@ def test_power1d_halfN():
         )
         p[i], k, *_ = get_power(pb.delta_x(), pb.boxlength, b=1)
 
-    np.testing.assert_allclose(
-        np.mean(np.array(p), axis=0)[1000:], 1.0 * k[1000:] ** -3.0, rtol=2
-    )
+    np.testing.assert_allclose(np.mean(np.array(p), axis=0)[1000:], 1.0 * k[1000:] ** -3.0, rtol=2)
 
 
-def test_power2d():
+def test_power2d() -> None:
     p = [0] * 5
     rng = np.random.default_rng(13579)
     for i in range(5):
@@ -119,9 +112,7 @@ def test_power2d():
         )
         p[i], k, *_ = get_power(pb.delta_x(), pb.boxlength, b=1)
 
-    np.testing.assert_allclose(
-        np.mean(np.array(p), axis=0)[100:], 1.0 * k[100:] ** -2.0, rtol=2
-    )
+    np.testing.assert_allclose(np.mean(np.array(p), axis=0)[100:], 1.0 * k[100:] ** -2.0, rtol=2)
 
 
 def test_power3d():
@@ -140,8 +131,7 @@ def test_power3d():
     np.testing.assert_allclose(p, 1.0 * k**-2.0, rtol=2)
 
 
-def test_k_zero_ignore():
-
+def test_k_zero_ignore() -> None:
     pb = PowerBox(50, dim=2, pk=lambda k: 1.0 * k**-2.0, boxlength=1.0, b=1)
 
     dx = pb.delta_x()
@@ -155,7 +145,7 @@ def test_k_zero_ignore():
     assert p1[0] != p0[0]
 
 
-def test_k_weights():
+def test_k_weights() -> None:
     pb = PowerBox(50, dim=3, pk=lambda k: 1.0 * k**-2.0, boxlength=1.0, b=1)
 
     dx = pb.delta_x()
@@ -182,9 +172,7 @@ def test_k_weights():
     # set the masked region to zero in the full box
     with warnings.catch_warnings():
         warnings.filterwarnings("ignore", message="invalid value encountered in divide")
-        warnings.filterwarnings(
-            "ignore", message="One or more radial bins had no cells within it"
-        )
+        warnings.filterwarnings("ignore", message="One or more radial bins had no cells within it")
         p2, k2, *_ = get_power(
             real_space_field, pb.boxlength, bin_ave=False, k_weights=k_weights, bins=k3
         )
@@ -195,35 +183,29 @@ def test_k_weights():
     assert np.allclose(p2[~np.isnan(p2)], p3[~np.isnan(p2)])
 
 
-def test_prefactor_fnc():
+def test_prefactor_fnc() -> None:
     pb = PowerBox(50, dim=3, pk=lambda k: 1.0 * k**-2.0, boxlength=1.0, b=1)
-    pdelta, kdelta, *_ = get_power(
-        pb.delta_x(), pb.boxlength, prefactor_fnc=power2delta
-    )
+    pdelta, kdelta, *_ = get_power(pb.delta_x(), pb.boxlength, prefactor_fnc=power2delta)
     p, k, *_ = get_power(pb.delta_x(), pb.boxlength)
 
     np.testing.assert_allclose(k, kdelta)
     assert np.any(p != pdelta)
 
 
-def test_k_weights_fnc():
+def test_k_weights_fnc() -> None:
     pb = PowerBox(50, dim=3, pk=lambda k: 1.0 * k**-2.0, boxlength=1.0, b=1)
     with warnings.catch_warnings():
         warnings.filterwarnings("ignore", message="invalid value encountered in divide")
-        warnings.filterwarnings(
-            "ignore", message="One or more radial bins had no cells within it"
-        )
+        warnings.filterwarnings("ignore", message="One or more radial bins had no cells within it")
         p_ki0, *_ = get_power(pb.delta_x(), pb.boxlength, k_weights=ignore_zero_ki)
     p, *_ = get_power(pb.delta_x(), pb.boxlength, k_weights=ignore_zero_absk)
 
     assert not np.allclose(p, p_ki0)
 
 
-def test_res_ndim_zero():
+def test_res_ndim_zero() -> None:
     pb = PowerBox(50, dim=3, pk=lambda k: 1.0 * k**-2.0, boxlength=1.0, b=1)
-    p, k, var, sumweights, remaining_freq = get_power(
-        pb.delta_x(), pb.boxlength, res_ndim=0
-    )
+    p, k, var, sumweights, remaining_freq = get_power(pb.delta_x(), pb.boxlength, res_ndim=0)
 
     assert p.ndim == 3
     assert k is None
@@ -232,7 +214,7 @@ def test_res_ndim_zero():
     assert len(remaining_freq) == 3
 
 
-def test_res_ndim_invalid():
+def test_res_ndim_invalid() -> None:
     pb = PowerBox(50, dim=3, pk=lambda k: 1.0 * k**-2.0, boxlength=1.0, b=1)
     with pytest.raises(ValueError, match="res_ndim must be between"):
         get_power(pb.delta_x(), pb.boxlength, res_ndim=-1)

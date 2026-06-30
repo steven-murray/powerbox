@@ -1,4 +1,5 @@
-# -*- coding: utf-8 -*-
+"""Sphinx configuration for the powerbox documentation."""
+
 #
 # powerbox documentation build configuration file, created by
 # sphinx-quickstart on Thu Feb 23 07:59:57 2017.
@@ -16,13 +17,13 @@
 # add these directories to sys.path here. If the directory is relative to the
 # documentation root, use os.path.abspath to make it absolute, like shown here.
 #
-import os
-import sys
 import re
-import io
+import sys
+from pathlib import Path
 
+DOCS_DIR = Path(__file__).resolve().parent
 
-sys.path.insert(0, os.path.abspath("../"))
+sys.path.insert(0, str(DOCS_DIR.parent.resolve()))
 
 
 # -- General configuration ------------------------------------------------
@@ -80,14 +81,13 @@ author = "Steven Murray"
 # built documents.
 #
 def read(*names, **kwargs):
-    with io.open(
-        os.path.join(os.path.dirname(__file__), *names),
-        encoding=kwargs.get("encoding", "utf8"),
-    ) as fp:
+    """Read and return a text file relative to the docs directory."""
+    with DOCS_DIR.joinpath(*names).open(encoding=kwargs.get("encoding", "utf8")) as fp:
         return fp.read()
 
 
 def find_version(*file_paths):
+    """Extract the package ``__version__`` string from a source file."""
     version_file = read(*file_paths)
     version_match = re.search(r"^__version__ = ['\"]([^'\"]*)['\"]", version_file, re.M)
     if version_match:

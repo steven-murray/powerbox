@@ -16,12 +16,12 @@ except ModuleNotFoundError:  # pragma: no cover
 
 __all__ = [
     "FFTW",
-    "NumpyFFT",
-    "get_fft_backend",
     "LogNormalPowerBox",
+    "NumpyFFT",
     "PowerBox",
     "angular_average",
     "angular_average_nd",
+    "get_fft_backend",
     "get_power",
     "ignore_zero_absk",
     "ignore_zero_ki",

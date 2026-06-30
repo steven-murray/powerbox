@@ -1,14 +1,16 @@
-import pytest
+"""Tests for discrete sampling and power recovery."""
+
+from functools import partial
 
 import numpy as np
-from functools import partial
+import pytest
 
 from powerbox import LogNormalPowerBox, PowerBox, get_power
 
 get_power = partial(get_power, bins_upto_boxlen=True)
 
 
-def test_discrete_power_gaussian():
+def test_discrete_power_gaussian() -> None:
     pb = PowerBox(
         N=512,
         dim=2,
@@ -30,7 +32,7 @@ def test_discrete_power_gaussian():
     # indexing used by meshgrid within `create_discrete_sample`.
     N = [pb.N] * pb.dim
     L = [pb.boxlength] * pb.dim
-    edges = [np.linspace(-_L / 2.0, _L / 2.0, _n + 1) for _L, _n in zip(L, N)]
+    edges = [np.linspace(-_L / 2.0, _L / 2.0, _n + 1) for _L, _n in zip(L, N, strict=True)]
     delta_samp = np.histogramdd(sample, bins=edges, weights=None)[0].astype("float")
 
     # Check cross spectrum and assert a strong correlation
@@ -42,7 +44,7 @@ def test_discrete_power_gaussian():
     assert corr_bar > 10
 
 
-def test_discrete_power_lognormal():
+def test_discrete_power_lognormal() -> None:
     pb = LogNormalPowerBox(
         N=512,
         dim=2,
@@ -59,13 +61,13 @@ def test_discrete_power_lognormal():
 
     assert res < 1e-1
 
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match=r"Try transposing deltax\."):
         power, bins, _, _ = get_power(sample.T, pb.boxlength, N=pb.N)
 
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match=r"Try transposing deltax\."):
         power, bins, _, _ = get_power(sample.T, pb.boxlength, N=pb.N, deltax2=sample.T)
 
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match=r"Try transposing deltax2\."):
         power, bins, _, _ = get_power(sample, pb.boxlength, N=pb.N, deltax2=sample.T)
 
     get_power(sample, pb.boxlength, N=pb.N, deltax2=sample, dimensionless=False)
