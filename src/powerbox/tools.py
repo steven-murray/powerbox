@@ -414,7 +414,7 @@ def above_mu_min_angular_generator(
 
 
 def regular_angular_generator(
-    angular_resolution: float = 0.05,
+    angular_resolution: float = 0.05, min_points_per_dim: int = 100
 ) -> Callable[[np.ndarray, int], tuple[np.ndarray, np.ndarray]]:
     r"""
     Return regularly sampled spherical coordinates at a given angular resolution.
@@ -427,7 +427,6 @@ def regular_angular_generator(
         The number of dimensions to average over.
     angular_resolution : float, optional
         The angular resolution in radians for the sample points for the interpolation.
-        Defaults to 0.1 rad.
 
     Returns
     -------
@@ -443,7 +442,7 @@ def regular_angular_generator(
             np.max(
                 [
                     np.round(2 * np.pi * bins / angular_resolution),
-                    np.ones_like(bins) * 100,
+                    np.ones_like(bins) * min_points_per_dim,
                 ],
                 axis=0,
             ),
