@@ -23,15 +23,13 @@ angular_average_nd = partial(angular_average_nd, bins_upto_boxlen=True)
 
 
 def test_warn_interp_weights() -> None:
-    rng = np.random.default_rng()
-    x = np.linspace(-3, 3, 400)
+    x = np.linspace(-3, 3, 100)
     X, Y = np.meshgrid(x, x)
     r2 = X**2 + Y**2
     P = r2**-1.0
-    P = np.repeat(P, 100).reshape(400, 400, 100)
-    freq = [x, x, np.linspace(-2, 2, 100)]
-    weights = rng.random(np.prod(P.shape)).reshape(P.shape)
-    with pytest.warns(RuntimeWarning):
+    freq = [x, x]
+    weights = np.linspace(0, 1, P.size).reshape(P.shape)
+    with pytest.warns(RuntimeWarning, match="Interpolating with non-binary weights is slow"):
         angular_average(
             P,
             freq,
@@ -108,9 +106,11 @@ def test_weights_shape() -> None:
 
 
 @pytest.mark.parametrize("n", range(1, 5))
-def test_interp_w_weights(n) -> None:
-    x = np.linspace(-3, 3, 20)
-    P = np.ones(n * [20])
+@pytest.mark.parametrize("interpolation_method", ["linear", "nan-aware"])
+def test_interp_w_weights(n: int, interpolation_method: str) -> None:
+    size = 20
+    x = np.linspace(-3, 3, size)
+    P = np.ones(n * [size])
     weights = np.ones_like(P)
     if n == 1:
         P[2:5] = 0
@@ -131,29 +131,19 @@ def test_interp_w_weights(n) -> None:
         weights[:, :, :, 1:2] = 0
 
     # Test 4D avg works
-    freq = [x for _ in range(n)]
+    freq = [x] * n
     p_k_lin, *_ = angular_average(
         field=P,
         coords=freq,
         bins=10,
-        interpolation_method="linear",
+        interpolation_method=interpolation_method,
         weights=weights,
-        interp_points_generator=regular_angular_generator(angular_resolution=0.4),
-        log_bins=True,
-        bins_upto_boxlen=True,
-    )
-
-    assert np.all(p_k_lin == 1.0)
-
-    # Test 4D avg works (nan-aware)
-    freq = [x for _ in range(n)]
-    p_k_lin, *_ = angular_average(
-        field=P,
-        coords=freq,
-        bins=10,
-        interpolation_method="nan-aware",
-        weights=weights,
-        interp_points_generator=regular_angular_generator(angular_resolution=0.4),
+        interp_points_generator=regular_angular_generator(
+            angular_resolution=2
+            * np.pi
+            * 10 ** (-1 / n),  # use roughly constant number of samples for each ndim
+            min_points_per_dim=10,  # use at least 10 samples per dim
+        ),
         log_bins=True,
         bins_upto_boxlen=True,
     )
@@ -368,8 +358,7 @@ def test_angular_avg_nd_4_2(interpolation_method) -> None:
     X, Y = np.meshgrid(x, x)
     r2 = X**2 + Y**2
     P = r2**-1.0
-    P = np.repeat(P, 10).reshape(200, 200, 10)
-    P = np.repeat(P, 10).reshape(200, 200, 10, 10)
+    P = np.repeat(P, 100).reshape(200, 200, 10, 10)
 
     freq = [x, x, np.linspace(-2, 2, 10), np.linspace(-2, 2, 10)]
     angular_average_nd(field=P, coords=freq[:2], bins=50)
@@ -497,12 +486,12 @@ def test_sum() -> None:
 
 
 def test_var_trivial_weights() -> None:
-    rng = np.random.default_rng()
+    rng = np.random.default_rng(9187)
     x = np.linspace(-3, 3, 400)
     X, Y = np.meshgrid(x, x)
     r2 = X**2 + Y**2
     P = np.ones_like(r2)
-    P += rng.normal(scale=1, size=(len(x), len(x)))
+    P += rng.normal(scale=1, size=(P.shape))
     var = angular_average(
         P,
         np.sqrt(r2),
@@ -540,7 +529,7 @@ def test_cross_power_identity() -> None:
 
 @pytest.mark.skip
 def test_against_multirealisation() -> None:
-    rng = np.random.default_rng()
+    rng = np.random.default_rng(1234)
     x = np.linspace(-3, 3, 1000)
     X, Y = np.meshgrid(x, x)
     r2 = X**2 + Y**2
