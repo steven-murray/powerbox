@@ -177,7 +177,9 @@ def test_power_spectrum_bin_centres_in_edges(grf_2d_small, pb_small_2d) -> None:
 
 def test_power_spectrum_log_bins(grf_2d_small, pb_small_2d) -> None:
     """log_bins=True produces log-spaced bin_edges and geometric bin_centres."""
-    result = get_power(grf_2d_small, pb_small_2d.size, b=1, log_bins=True)
+    # Log-spaced bins over this small grid necessarily leave some bins empty.
+    with pytest.warns(UserWarning, match="no cells within it"):
+        result = get_power(grf_2d_small, pb_small_2d.size, b=1, log_bins=True)
 
     # bin_centres should be geometric means of adjacent edges
     expected_centres = np.exp((np.log(result.bin_edges[1:]) + np.log(result.bin_edges[:-1])) / 2)

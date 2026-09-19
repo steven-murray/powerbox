@@ -13,7 +13,13 @@ from powerbox import PowerBox
 
 def test_scalar_inputs_expand_to_tuple_geometry() -> None:
     """Scalar constructor inputs are normalized to tuple-valued reduced geometry."""
-    pb = PowerBox(N=16, dim=2, pk=lambda k: (1 + k) ** -2.0, boxlength=4.0, seed=1234)
+    # Both deprecated names are exercised here on purpose, so both warnings are expected.
+    with pytest.warns(DeprecationWarning, match="parameter is deprecated") as record:
+        pb = PowerBox(N=16, dim=2, pk=lambda k: (1 + k) ** -2.0, boxlength=4.0, seed=1234)
+
+    messages = " ".join(str(warning.message) for warning in record)
+    assert "`N` parameter is deprecated" in messages
+    assert "`boxlength` parameter is deprecated" in messages
 
     assert pb.shape == (16, 16)
     assert pb.size == (4.0, 4.0)
@@ -66,7 +72,7 @@ def test_non_volume_normalized_powerbox_uses_input_power_directly() -> None:
     pb = PowerBox(
         shape=(16, 16),
         pk=lambda k: k + 1.0,
-        boxlength=4.0,
+        size=(4.0, 4.0),
         seed=1234,
         vol_normalised_power=False,
     )
@@ -76,7 +82,7 @@ def test_non_volume_normalized_powerbox_uses_input_power_directly() -> None:
 
 def test_negative_power_raises() -> None:
     """Negative input power remains a hard error."""
-    pb = PowerBox(shape=(16, 16), pk=lambda k: -np.ones_like(k), boxlength=4.0, seed=1234)
+    pb = PowerBox(shape=(16, 16), pk=lambda k: -np.ones_like(k), size=(4.0, 4.0), seed=1234)
 
     with pytest.raises(ValueError, match="returned negative values"):
         pb.delta_k()

@@ -12,8 +12,8 @@ Benchmark setup
 
 The benchmark script is ``docs/demos/benchmark_backends.py``. It records both a
 ``cold`` timing (first run, including any one-time setup such as JAX compilation) and a
-``warm`` timing (median of repeated post-warmup runs) for each configuration, using
-cubic boxes with shapes ``(N,)*dim`` and ``boxlength=100``. The current size ladders are
+``warm`` timing (median of repeated post-warm-up runs) for each configuration, using
+cubic boxes with ``shape=(N,)*dim`` and ``size=(100,)*dim``. The current size ladders are
 ``[4096, 16384, 65536, 262144]`` in 1D, ``[64, 128, 256, 512]`` in 2D, and
 ``[16, 32, 64, 96]`` in 3D.
 

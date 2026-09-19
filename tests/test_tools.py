@@ -528,7 +528,7 @@ def test_logbins() -> None:
 
 
 def test_cross_power_identity() -> None:
-    pb = PowerBox(shape=(200, 200), pk=lambda k: 1.0 * k**-2.0, boxlength=1.0, b=1)
+    pb = PowerBox(shape=(200, 200), pk=lambda k: 1.0 * k**-2.0, size=(1.0, 1.0), b=1)
     dx = pb.delta_x()
     p = get_power(dx, pb.size, b=1).power
     p_cross = get_power(dx, pb.size, b=1, deltax2=dx).power

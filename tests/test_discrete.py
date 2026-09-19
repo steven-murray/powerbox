@@ -12,9 +12,8 @@ get_power = partial(get_power, bins_upto_boxlen=True)
 
 def test_discrete_power_gaussian() -> None:
     pb = PowerBox(
-        N=512,
-        dim=2,
-        boxlength=100.0,
+        shape=(512, 512),
+        size=(100.0, 100.0),
         pk=lambda u: 0.1 * u**-1.5,
         ensure_physical=True,
     )
@@ -51,9 +50,8 @@ def test_discrete_power_gaussian() -> None:
 
 def test_discrete_power_lognormal() -> None:
     pb = LogNormalPowerBox(
-        N=512,
-        dim=2,
-        boxlength=100.0,
+        shape=(512, 512),
+        size=(100.0, 100.0),
         pk=lambda u: 0.1 * u**-1.5,
         ensure_physical=True,
         seed=1212,
@@ -82,9 +80,8 @@ def test_discrete_power_lognormal() -> None:
 
 def test_discrete_power_gaussian_non_cubic() -> None:
     pb = PowerBox(
-        N=(96, 128),
-        dim=2,
-        boxlength=(80.0, 140.0),
+        shape=(96, 128),
+        size=(80.0, 140.0),
         pk=lambda u: 0.1 * (1 + u) ** -1.5,
         ensure_physical=True,
         seed=1212,
@@ -101,20 +98,18 @@ def test_discrete_power_gaussian_non_cubic() -> None:
     assert np.all(np.isfinite(result.power))
 
 
-def test_create_discrete_sample_warns_and_stores_positions() -> None:
+def test_create_discrete_sample_warns_without_seed() -> None:
     pb = PowerBox(
-        N=(24, 32),
-        dim=2,
-        boxlength=(20.0, 35.0),
+        shape=(24, 32),
+        size=(20.0, 35.0),
         pk=lambda u: 0.1 * (1 + u) ** -1.5,
         ensure_physical=True,
     )
 
     with pytest.warns(UserWarning, match="You Should provide `seed`"):
-        sample = pb.create_discrete_sample(nbar=50.0, store_pos=True, min_at_zero=True)
+        sample = pb.create_discrete_sample(nbar=50.0, min_at_zero=True)
 
-    assert hasattr(pb, "tracer_positions")
-    np.testing.assert_allclose(sample, pb.tracer_positions)
+    assert sample.shape[1] == pb.dim
     assert np.all(sample >= 0)
 
 

@@ -18,10 +18,9 @@ ndft = importlib.import_module("powerbox.dft")
 
 def test_jax_unsupported_paths_raise() -> None:
     pb = jpb.PowerBox(
-        N=16,
-        dim=2,
+        shape=(16, 16),
         pk=lambda k: (1 + k) ** -2.0,
-        boxlength=4.0,
+        size=(4.0, 4.0),
         key=jax.random.key(3),
     )
     field = pb.delta_x()
