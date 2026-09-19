@@ -1667,11 +1667,13 @@ fftw = [
     { name = "pyfftw" },
 ]
 jax = [
+    { name = "attrs" },
     { name = "jax" },
 ]
 
 [package.dev-dependencies]
 dev = [
+    { name = "attrs" },
     { name = "flake8" },
     { name = "hmf" },
     { name = "ipykernel" },
@@ -1707,6 +1709,7 @@ docs = [
     { name = "sphinx-rtd-theme" },
 ]
 tests = [
+    { name = "attrs" },
     { name = "flake8" },
     { name = "jax" },
     { name = "pyfftw" },
@@ -1718,6 +1721,7 @@ tests = [
 
 [package.metadata]
 requires-dist = [
+    { name = "attrs", marker = "extra == 'jax'", specifier = ">=26.0.0" },
     { name = "jax", marker = "extra == 'jax'", specifier = ">=0.4.35" },
     { name = "numpy", specifier = ">=2.2" },
     { name = "pyfftw", marker = "extra == 'fftw'" },
@@ -1726,6 +1730,7 @@ provides-extras = ["fftw", "jax"]
 
 [package.metadata.requires-dev]
 dev = [
+    { name = "attrs", specifier = ">=26.0.0" },
     { name = "flake8" },
     { name = "hmf" },
     { name = "ipykernel" },
@@ -1759,6 +1764,7 @@ docs = [
     { name = "sphinx-rtd-theme" },
 ]
 tests = [
+    { name = "attrs", specifier = ">=26.0.0" },
     { name = "flake8" },
     { name = "jax", specifier = ">=0.4.35" },
     { name = "pyfftw" },
