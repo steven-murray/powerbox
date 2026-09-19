@@ -5,6 +5,8 @@ correct, but more about checking that the interface behaves as expected, and tha
 various options are doing what they are supposed to do.
 """
 
+import warnings
+
 import numpy as np
 import pytest
 
@@ -86,3 +88,53 @@ def test_negative_power_raises() -> None:
 
     with pytest.raises(ValueError, match="returned negative values"):
         pb.delta_k()
+
+
+@pytest.mark.parametrize(
+    ("kwargs", "match"),
+    [
+        ({}, "You must provide 'shape'"),
+        ({"shape": (15, 18), "dim": 3}, "shape must have same length as dim"),
+        ({"shape": (15, 0)}, "All elements of shape must be positive integers"),
+        ({"shape": (15, -2)}, "All elements of shape must be positive integers"),
+        ({"shape": (15, 18), "size": (3.0, 0.0)}, "All elements of size must be positive"),
+        ({"shape": (15, 18), "size": (3.0, -1.0)}, "All elements of size must be positive"),
+        # The deprecated aliases must not be combined with the names that replace them.
+        ({"N": 15, "shape": (15, 18)}, "Don't provide both N and shape"),
+        ({"shape": (15, 18), "boxlength": 3.0, "size": (3.0, 9.0)}, "Don't provide both boxlength"),
+    ],
+)
+def test_geometry_validation_rejects_inconsistent_inputs(kwargs, match) -> None:
+    """Contradictory or non-physical geometry is rejected at construction."""
+    with warnings.catch_warnings():
+        # The last two cases pass a deprecated name on purpose, to check it against its
+        # replacement; the deprecation itself is asserted separately.
+        warnings.simplefilter("ignore", DeprecationWarning)
+        with pytest.raises(ValueError, match=match):
+            PowerBox(pk=lambda k: (1 + k) ** -2.0, **kwargs)
+
+
+def test_scalar_n_without_dim_defaults_to_two_dimensions() -> None:
+    """The deprecated scalar ``N`` keeps its historical two-dimensional default."""
+    with pytest.warns(DeprecationWarning, match="`N` parameter is deprecated"):
+        pb = PowerBox(N=16, pk=lambda k: (1 + k) ** -2.0)
+
+    assert pb.shape == (16, 16)
+    assert pb.dim == 2
+
+
+@pytest.mark.parametrize(
+    ("alias", "canonical"),
+    [("L", "size"), ("V", "volume"), ("Ntot", "total_ncells"), ("N", None)],
+)
+def test_deprecated_aliases_warn_and_agree_with_their_replacements(alias, canonical) -> None:
+    """The v1.2 removal candidates still work, and still return the same thing."""
+    pb = PowerBox(shape=(15, 18), pk=lambda k: (1 + k) ** -2.0, size=(3.0, 9.0))
+
+    if canonical is None:
+        # `N` is an input alias rather than a derived quantity, so it is simply unset here.
+        assert pb.N is None
+        return
+
+    with pytest.warns(DeprecationWarning, match=f"`{alias}` attribute is deprecated"):
+        assert getattr(pb, alias) == getattr(pb, canonical)

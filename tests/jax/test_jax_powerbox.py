@@ -176,3 +176,31 @@ def test_jax_powerbox_delta_k_rejects_negative_power() -> None:
     )
     with pytest.raises(ValueError, match="negative values"):
         pb.delta_k()
+
+
+def test_jax_geometry_accessors_match_the_numpy_backend() -> None:
+    """The JAX real- and Fourier-space grids agree with the NumPy implementation."""
+    from powerbox import PowerBox as NumpyPowerBox
+
+    shape, size = (15, 18), (3.0, 9.0)
+    kwargs = {"pk": lambda k: (1 + k) ** -2.0, "shape": shape, "size": size}
+    jax_box = jpb.PowerBox(key=jax.random.key(0), **kwargs)
+    numpy_box = NumpyPowerBox(seed=0, **kwargs)
+
+    for jax_axis, numpy_axis in zip(jax_box.x, numpy_box.x, strict=True):
+        np.testing.assert_allclose(np.asarray(jax_axis), numpy_axis)
+    np.testing.assert_allclose(np.asarray(jax_box.r), numpy_box.r)
+    np.testing.assert_allclose(np.asarray(jax_box.k()), numpy_box.k())
+
+
+def test_jax_non_volume_normalized_power_is_used_directly() -> None:
+    """Disabling volume normalization leaves the power callable unscaled, as for NumPy."""
+    pb = jpb.PowerBox(
+        shape=(8, 8),
+        pk=lambda k: k + 1.0,
+        size=(4.0, 4.0),
+        key=jax.random.key(0),
+        vol_normalised_power=False,
+    )
+
+    np.testing.assert_allclose(np.asarray(pb.pk(jnp.array([1.5, 2.5]))), [2.5, 3.5])
