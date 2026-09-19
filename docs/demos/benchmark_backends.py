@@ -50,6 +50,7 @@ STATIC_DIR = DOCS_DIR / "_static"
 STATIC_DIR.mkdir(exist_ok=True)
 
 logging.basicConfig(level=logging.INFO, format="%(message)s")
+logger = logging.getLogger(__name__)
 
 GENERATION_FIGURE = STATIC_DIR / "backend_benchmark_generation.png"
 POWER_FIGURE = STATIC_DIR / "backend_benchmark_power.png"
@@ -273,7 +274,7 @@ def _collect_results() -> list[dict[str, Any]]:
     for dim, sizes in SIZES.items():
         for n in sizes:
             for backend_name, generation_bench, power_bench in backends:
-                logging.info("benchmark generation backend=%s dim=%s n=%s", backend_name, dim, n)
+                logger.info("benchmark generation backend=%s dim=%s n=%s", backend_name, dim, n)
                 generation = generation_bench(dim, n)
                 results.append(
                     {
@@ -288,7 +289,7 @@ def _collect_results() -> list[dict[str, Any]]:
                 )
                 if backend_name.endswith("-jit"):
                     continue
-                logging.info("benchmark power backend=%s dim=%s n=%s", backend_name, dim, n)
+                logger.info("benchmark power backend=%s dim=%s n=%s", backend_name, dim, n)
                 power = power_bench(dim, n)
                 results.append(
                     {
