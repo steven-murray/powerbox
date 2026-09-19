@@ -1,6 +1,40 @@
 Changelog
 =========
 
+Unreleased
+----------
+**Bugfixes**
+
+- Fixed a normalisation error in ``LogNormalPowerBox`` that made the generated field
+  depend on the Fourier convention ``(a, b)``. ``correlation_array()`` was too small by
+  ``((2*pi)**(1-a) / b)**(dim/2)``, which is exactly one for the cosmological ``(1, 1)``
+  and numpy ``(0, 2*pi)`` conventions but not in general, so only users of other
+  conventions were affected. Since ``log(1 + xi)`` depends on the absolute scale of the
+  correlation function, the error did not cancel as it does for Gaussian fields.
+- Fixed a factor-of-two power deficit on the self-conjugate surfaces of the Hermitian
+  spectrum in the NumPy backend. Enforcing Hermitian symmetry *averaged* each mode with
+  its conjugate partner, which halves the variance; it now uses a norm-preserving
+  projection. This affected all ``PowerBox`` and ``LogNormalPowerBox`` fields, biasing the
+  recovered power low by a few percent overall and by ~10% in the lowest-|k| modes. The
+  JAX backend was not affected.
+- ``LogNormalPowerBox`` now reports when the requested power spectrum cannot be realized
+  as a lognormal field on the given grid, i.e. when ``log(1 + xi)`` is not positive
+  semi-definite. Previously the negative modes of the required Gaussian power spectrum
+  were silently replaced by their absolute values, yielding a field with the wrong power
+  spectrum. A slight violation, of the size that discretising any realistic spectrum
+  produces, now warns and sets those modes to zero; a material one (worst mode below
+  -1e-3 of the largest, which needs a field variance around unity) raises a
+  ``ValueError``.
+- ``LogNormalPowerBox.delta_x()`` now uses the theoretical latent Gaussian variance rather
+  than the sample variance of the realization.
+
+**Features**
+
+- New ``PowerBox.variance`` property: the field variance implied by the input power
+  spectrum, computed by mode summation and so requiring no Fourier transform.
+- New ``PowerBox.synthesis_norm`` property, documenting the Fourier-convention factor that
+  relates a single spectral mode to its contribution to the real-space field.
+
 0.6.1
 -----
 **Bugfixes**

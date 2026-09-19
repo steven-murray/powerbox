@@ -20,7 +20,8 @@ same shape, because JAX can amortize compilation and run faster afterward. Use
 ``usejit=False`` if you only need a single quick evaluation, or if you are debugging
 and want the simplest eager execution path.
 
-If you do not pass ``usejit``, ``powerbox.jax`` chooses a default based on ``Ntot``.
+If you do not pass ``usejit``, ``powerbox.jax`` chooses a default based on
+``total_ncells``.
 That default is intended to be a sensible starting point, not a guaranteed optimal
 choice for every machine or workload.
 
@@ -34,15 +35,14 @@ Gaussian field generation
 
    key = jax.random.key(0)
    pb = jpb.PowerBox(
-       (128, 192),
+       shape=(128, 192),
        pk=lambda k: (1 + k) ** -2.0,
-       dim=2,
-       boxlength=(200.0, 600.0),
+       size=(200.0, 600.0),
        key=key,
    )
 
    field = pb.delta_x()
-   result = jpb.get_power(jpb.fftshift(field), pb.boxlength, bins_upto_boxlen=True)
+   result = jpb.get_power(jpb.fftshift(field), pb.size, bins_upto_boxlen=True)
 
 JAX power-spectrum estimation
 -----------------------------
@@ -54,15 +54,14 @@ JAX power-spectrum estimation
 
    key = jax.random.key(2)
    pb = jpb.PowerBox(
-       (128, 192),
+       shape=(128, 192),
        pk=lambda k: (1 + k) ** -2.0,
-       dim=2,
-       boxlength=(200.0, 600.0),
+       size=(200.0, 600.0),
        key=key,
    )
 
    field = pb.delta_x()
-   power = jpb.get_power(field, pb.boxlength, bins_upto_boxlen=True)
+   power = jpb.get_power(field, pb.size, bins_upto_boxlen=True)
    print(power.bin_centres)
    print(power.power)
 
@@ -75,10 +74,9 @@ Lognormal field generation
    import powerbox.jax as jpb
 
    pb = jpb.LogNormalPowerBox(
-       128,
+       shape=(128, 128),
        pk=lambda k: (1 + k) ** -2.0,
-       dim=2,
-       boxlength=200.0,
+       size=(200.0, 200.0),
        key=jax.random.key(1),
    )
 

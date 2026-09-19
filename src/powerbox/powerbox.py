@@ -10,17 +10,37 @@ subclassing :class:`PowerBox` and over-writing the same methods as are over-writ
 from __future__ import annotations
 
 import warnings
-from collections.abc import Sequence
+from collections.abc import Callable
+from functools import cached_property
 
+import attrs
 import numpy as np
+from attrs import validators as vld
 
 from . import dft
 from ._fft_layout import full_spectrum_to_rfft, irfft_to_field
-from ._geometry import tuplify_type
 from ._hermitianity import hermitianize_rfft_array
+from .dft_backend import FFTBackend
 from .tools import _magnitude_grid
 
+# How negative the most negative mode of a lognormal box's required Gaussian power
+# spectrum may be, as a fraction of its largest mode, before the construction is rejected
+# outright rather than merely reported.
+#
+# Some violation is normal and harmless: a realistic cosmological power spectrum on a
+# 256^3 grid reaches about -4e-5 here, and zeroing those modes changes the realized field
+# negligibly. A field whose variance genuinely exceeds what the log-transform supports
+# looks quite different: about -0.02 for a marginal case, -0.7 for a hopeless one. This
+# threshold sits in the gap, with roughly an order of magnitude of margin on each side.
+#
+# The measure is deliberately the depth of the worst mode relative to the spectrum's own
+# scale, rather than the share of the total power held by negative modes: the latter is
+# diluted by the number of grid cells, so it would call the same physical configuration
+# acceptable on a fine grid and unacceptable on a coarse one.
+_GAUSSIAN_POWER_MAX_DEPTH = 1e-3
 
+
+@attrs.define(kw_only=True, slots=False, frozen=True)
 class PowerBox:
     r"""
     Generate real- and fourier-space Gaussian fields with a given power spectrum.
@@ -121,55 +141,176 @@ class PowerBox:
     >>> x, y = pb.x
     """
 
-    def __init__(
-        self,
-        N: int | Sequence[int],
-        pk,
-        dim: int = 2,
-        boxlength: float | Sequence[float] = 1.0,
-        ensure_physical: bool = False,
-        a: float = 1.0,
-        b: float = 1.0,
-        vol_normalised_power: bool = True,
-        seed: int | None = None,
-        nthreads: int | None = None,
-    ) -> None:
-        self.dim = dim
-        self.N = tuplify_type(int, N, dim, "N")
-        self.boxlength = tuplify_type(float, boxlength, dim, "boxlength")
-        self.L = self.boxlength
-        self.fourier_a = a
-        self.fourier_b = b
-        self.vol_normalised_power = vol_normalised_power
-        self.V = float(np.prod(self.boxlength))
-        self.fftbackend = dft.get_fft_backend(nthreads)
+    N: int | None = attrs.field(
+        default=None, converter=attrs.converters.optional(int), validator=vld.optional(vld.gt(0))
+    )
+    _dim: int | None = attrs.field(
+        converter=attrs.converters.optional(int), default=None, validator=vld.optional(vld.gt(0))
+    )
+    shape: tuple[int, ...] = attrs.field(converter=lambda x: tuple(int(i) for i in x))
 
-        if self.vol_normalised_power:
-            self.pk = lambda k: pk(k) / self.V
+    _pk: Callable[[np.ndarray], np.ndarray] = attrs.field(repr=False)
+
+    _boxlength: float | None = attrs.field(
+        default=None, converter=attrs.converters.optional(float), validator=vld.optional(vld.gt(0))
+    )
+    size: tuple[float, ...] = attrs.field(converter=lambda x: tuple(float(i) for i in x))
+
+    ensure_physical: bool = attrs.field(default=False, converter=bool)
+    fourier_a: float = attrs.field(default=1.0, converter=float, alias="a")
+    fourier_b: float = attrs.field(default=1.0, converter=float, alias="b")
+    vol_normalised_power: bool = attrs.field(default=True, converter=bool)
+    nthreads: int | None = attrs.field(
+        default=None, converter=attrs.converters.optional(int), validator=vld.optional(vld.gt(0))
+    )
+    seed: int | None = attrs.field(default=None, converter=attrs.converters.optional(int))
+
+    fftbackend: FFTBackend = attrs.field()
+
+    @N.validator
+    def _validate_N(self, attribute: attrs.Attribute, value: int | None) -> None:
+        """Validate the N parameter."""
+        if value is not None:
+            warnings.warn(
+                "The `N` parameter is deprecated in favor of `shape`. Support for `N` "
+                "will be removed in v1.2.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+
+    @shape.default
+    def _shape_default(self) -> tuple[int, ...]:
+        """Default the shape parameter to the value of N."""
+        if self.N is None:
+            raise ValueError("You must provide 'shape'")
+        elif self._dim is None:
+            # If using N, have two dimensions by default
+            return (self.N, self.N)
         else:
-            self.pk = pk
+            return (self.N,) * self._dim
 
-        self.ensure_physical = ensure_physical
-        self.Ntot = int(np.prod(self.N))
+    @shape.validator
+    def _validate_shape(self, attribute: attrs.Attribute, value: tuple[int, ...]) -> None:
+        """Validate the shape parameter."""
+        if self._dim is not None and len(value) != self._dim:
+            raise ValueError(f"shape must have same length as dim ({self._dim}), but got {value}.")
+        if self.N is not None and any(axis_n != self.N for axis_n in value):
+            raise ValueError(f"Don't provide both N and shape. Got N={self.N} and shape={value}.")
+        for axis_n in value:
+            if axis_n <= 0:
+                raise ValueError("All elements of shape must be positive integers.")
 
-        self.seed = seed
-        if seed is None:
-            self.rng = np.random.default_rng()
-        else:
-            # Keep seeded realizations close to historical behavior while using
-            # the Generator API required by modern NumPy.
-            self.rng = np.random.Generator(np.random.MT19937(seed))
+    @property
+    def dim(self) -> int:
+        """The number of spatial dimensions."""
+        return len(self.shape)
 
-        self.dx = tuple(
-            length / axis_n for length, axis_n in zip(self.boxlength, self.N, strict=True)
+    @_boxlength.validator
+    def _validate_boxlength(self, attribute: attrs.Attribute, value: float | None) -> None:
+        """Validate the boxlength parameter."""
+        if value is not None:
+            warnings.warn(
+                "The `boxlength` parameter is deprecated in favor of `size`. Support "
+                "for `boxlength` will be removed in v1.2.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+
+    @size.default
+    def _size_default(self) -> tuple[float, ...]:
+        """Default the size parameter to the value of boxlength."""
+        if self._boxlength is None:
+            return (1.0,) * self.dim
+        return (float(self._boxlength),) * self.dim
+
+    @size.validator
+    def _validate_size(self, attribute: attrs.Attribute, value: tuple[float, ...]) -> None:
+        """Validate the size parameter."""
+        if self._boxlength is not None and any(length != self._boxlength for length in value):
+            raise ValueError(
+                f"Don't provide both boxlength and size. Got boxlength={self._boxlength} "
+                f"and size={value}."
+            )
+        for length in value:
+            if length <= 0:
+                raise ValueError("All elements of size must be positive real numbers.")
+        if len(value) != self.dim:
+            raise ValueError(f"size must have same length as dim ({self.dim}), but got {value}.")
+
+    @property
+    def L(self) -> tuple[float, ...]:
+        """Alias for ``boxlength``."""
+        warnings.warn(
+            "The `L` attribute is deprecated and will be removed in v1.2. Use `boxlength` instead.",
+            DeprecationWarning,
+            stacklevel=2,
         )
+        return self.size
+
+    def pk(self, k: np.ndarray) -> np.ndarray:
+        """Return the input power spectrum evaluated at k."""
+        if self.vol_normalised_power:
+            return self._pk(k) / self.volume
+        return self._pk(k)
+
+    @property
+    def volume(self) -> float:
+        """The physical volume of the box."""
+        return float(np.prod(self.size))
+
+    @property
+    def V(self) -> float:
+        """The physical volume of the box.
+
+        Deprecated alias for `volume`. Will be removed in v1.2. Use `volume` instead.
+        """
+        warnings.warn(
+            "The `V` attribute is deprecated and will be removed in v1.2. Use `volume` instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self.volume
+
+    @property
+    def total_ncells(self) -> int:
+        """The total number of grid cells in the box."""
+        return int(np.prod(self.shape))
+
+    @property
+    def Ntot(self) -> int:
+        """The total number of grid cells in the box.
+
+        Deprecated alias for `total_ncells`. Will be removed in v1.2. Use `total_ncells`
+        instead.
+        """
+        warnings.warn(
+            "The `Ntot` attribute is deprecated and will be removed in v1.2. Use "
+            "`total_ncells` instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self.total_ncells
+
+    @property
+    def dx(self) -> tuple[float, ...]:
+        """The physical grid spacing along each axis."""
+        return tuple(length / axis_n for length, axis_n in zip(self.size, self.shape, strict=True))
+
+    @fftbackend.default
+    def _default_fftbackend(self) -> FFTBackend:
+        return dft.get_fft_backend(self.nthreads)
+
+    @cached_property
+    def rng(self) -> np.random.Generator:
+        """The random number generator used for creating the fields."""
+        return np.random.default_rng(self.seed)
 
     @property
     def x(self) -> tuple[np.ndarray, ...]:
         """The co-ordinates of the grid along each axis."""
         return tuple(
             np.arange(-length / 2, length / 2, axis_dx)[:axis_n]
-            for length, axis_dx, axis_n in zip(self.boxlength, self.dx, self.N, strict=True)
+            for length, axis_dx, axis_n in zip(self.size, self.dx, self.shape, strict=True)
         )
 
     @property
@@ -177,15 +318,74 @@ class PowerBox:
         """The reduced wavenumber vectors for the half-Hermitian spectrum."""
         axes = [
             self.fftbackend.fftfreq(axis_n, d=axis_dx, b=self.fourier_b)
-            for axis_n, axis_dx in zip(self.N[:-1], self.dx[:-1], strict=True)
+            for axis_n, axis_dx in zip(self.shape[:-1], self.dx[:-1], strict=True)
         ]
-        axes.append(self.fftbackend.rfftfreq(self.N[-1], d=self.dx[-1], b=self.fourier_b))
+        axes.append(self.fftbackend.rfftfreq(self.shape[-1], d=self.dx[-1], b=self.fourier_b))
         return tuple(axes)
 
     @property
     def _rfft_shape(self) -> tuple[int, ...]:
         """Shape of the half-Hermitian spectrum compatible with ``irfftn``."""
-        return (*self.N[:-1], self.N[-1] // 2 + 1)
+        return (*self.shape[:-1], self.shape[-1] // 2 + 1)
+
+    @property
+    def _xp(self):
+        """The array namespace (``numpy`` or ``jax.numpy``) of the active FFT backend."""
+        return getattr(self.fftbackend, "xp", np)
+
+    @property
+    def synthesis_norm(self) -> float:
+        r"""The amplitude with which a single Fourier mode enters the real-space field.
+
+        The field synthesis performed by :meth:`delta_x` is equivalent to
+
+        .. math:: \delta_j = A \sum_m \sqrt{P_m}\, g_m e^{i\mathbf{k}_m\cdot\mathbf{x}_j},
+
+        where :math:`P_m` is :meth:`power_array`, :math:`g_m` are unit-variance Hermitian
+        Gaussian modes, and :math:`A` is this quantity. It arises from the normalisation
+        applied by ``_irfft_to_field(..., scale=volume)``, which contributes
+        :math:`V_{\rm box} V_k / N_{\rm tot}` together with the inverse-transform
+        convention pre-factor :math:`(b/(2\pi)^{1+a})^{n/2}`, and evaluates to
+
+        .. math:: A = \left(\frac{(2\pi)^{1-a}}{b}\right)^{n/2}.
+
+        It is exactly one for both the cosmological convention ``(a, b) = (1, 1)`` and
+        the numpy convention ``(a, b) = (0, 2\pi)``, but not in general.
+
+        Any quantity that is *quadratic* in the field -- most importantly the correlation
+        function, :math:`\xi(r) = A^2 \sum_m P_m e^{i\mathbf{k}\cdot\mathbf{r}}` -- picks
+        up a second power of this factor. Linear pipelines never see it, because it
+        cancels between generation and measurement; :class:`LogNormalPowerBox` does see
+        it, because :math:`\log(1 + \xi)` depends on the absolute scale of :math:`\xi`.
+        """
+        return float(((2 * np.pi) ** (1 - self.fourier_a) / self.fourier_b) ** (self.dim / 2))
+
+    @property
+    def _hermitian_multiplicity(self):
+        r"""Multiplicity of each mode of the reduced spectrum in the full spectrum.
+
+        Every mode of the reduced ``rfftn`` spectrum stands for two modes of the full
+        spectrum -- itself and its conjugate partner -- except on the self-conjugate
+        surfaces of the final axis, which are counted once.
+        """
+        index = self._xp.arange(self._rfft_shape[-1])
+        self_conjugate = index == 0
+        if self.shape[-1] % 2 == 0:
+            self_conjugate = self_conjugate | (index == self._rfft_shape[-1] - 1)
+        return self._xp.where(self_conjugate, 1.0, 2.0)
+
+    @cached_property
+    def variance(self) -> float:
+        r"""The variance of the field, i.e. the zero-lag correlation :math:`\xi(0)`.
+
+        This is the value implied by the input power spectrum on this grid, not the sample
+        variance of any realization. Because :math:`\xi(0) = A^2 \sum_m P_m` over the
+        *full* spectrum (with :math:`A` being :attr:`synthesis_norm`), it is obtained by
+        summing the reduced spectrum with Hermitian multiplicities, and so costs no
+        Fourier transform.
+        """
+        summed = self._xp.sum(self.power_array() * self._hermitian_multiplicity)
+        return float(self.synthesis_norm**2 * summed)
 
     def _irfft_to_field(self, spectrum, scale: float):
         """Transform a reduced half-spectrum into a real-space field."""
@@ -193,10 +393,10 @@ class PowerBox:
             spectrum,
             scale=scale,
             irfft_function=dft.irfft,
-            L=self.boxlength,
+            L=self.size,
             a=self.fourier_a,
             b=self.fourier_b,
-            N=self.N,
+            N=self.shape,
             backend=self.fftbackend,
         )
 
@@ -225,7 +425,7 @@ class PowerBox:
             + 1j * self.rng.normal(0, 1, size=self._rfft_shape)
         ) / np.sqrt(2)
 
-        hermitianize_rfft_array(modes, has_nyquist=self.N[-1] % 2 == 0)
+        hermitianize_rfft_array(modes, has_nyquist=self.shape[-1] % 2 == 0)
 
         return modes
 
@@ -237,20 +437,55 @@ class PowerBox:
         k[mask] = self.pk(k[mask])
         return k
 
+    def _mode_amplitudes(self):
+        """Return the per-mode amplitude that multiplies the Hermitian Gaussian modes.
+
+        Subclasses that realize a non-Gaussian field override this to substitute the
+        power spectrum of the underlying *latent* Gaussian field.
+
+        Validation happens here, on the array that has just been computed, so that no
+        quantity is computed twice. It is skipped when the values are abstract (inside a
+        traced, compiled function), where a data-dependent branch is impossible; a backend
+        that traces is responsible for touching :attr:`_validated_spectrum` first.
+        """
+        power = self.power_array()
+        if not self.fftbackend.is_traced(power) and bool(self._xp.any(power < 0)):
+            raise ValueError("The power spectrum function has returned negative values.")
+        return self._xp.sqrt(power)
+
+    @cached_property
+    def _validated_spectrum(self) -> None:
+        """Run the spectrum checks on concrete values, at most once per instance.
+
+        The checks live inside :meth:`_mode_amplitudes` so that they see the array that has
+        just been computed. That works directly for an eagerly-evaluated backend, but not
+        inside a compiled kernel, where the values are abstract. Touching this beforehand
+        performs them once, outside any trace, and caches the result.
+
+        It depends only on the constructor arguments, never on a realization, so it could
+        in principle be an ``attrs`` validator -- but that would force a lognormal box to
+        perform two Fourier transforms at construction whether or not a field is ever
+        generated, so it stays lazy.
+        """
+        self._mode_amplitudes()
+
+    def _transform_field(self, field):
+        """Map the realized latent Gaussian field to the output field.
+
+        The identity (up to ``ensure_physical`` clipping) for a Gaussian box. Subclasses
+        override this to apply their one-point transformation.
+        """
+        if self.ensure_physical:
+            return self._xp.clip(field, -1, None)
+        return field
+
     def delta_k(self):
         """Return a realization of ``delta_k``.
 
         The gaussianised square root of the power spectrum (i.e. the Fourier
         co-efficients).
         """
-        p = self.power_array()
-
-        if np.any(p < 0):
-            raise ValueError("The power spectrum function has returned negative values.")
-
-        gh = self.gauss_hermitian()
-        gh[...] = np.sqrt(p) * gh
-        return gh
+        return self._mode_amplitudes() * self.gauss_hermitian()
 
     def delta_x(self, delta_k: np.ndarray | None = None):
         """Return the realized real-space field from the input power spectrum."""
@@ -258,19 +493,13 @@ class PowerBox:
         # dimensionless power has units of 1/V, and we require a unitless
         # quantity for delta_x.
         dk = self.delta_k() if delta_k is None else delta_k
-        dk = self._irfft_to_field(dk, scale=self.V)
-
-        if self.ensure_physical:
-            np.clip(dk, -1, np.inf, dk)
-
-        return dk
+        return self._transform_field(self._irfft_to_field(dk, scale=self.volume))
 
     def create_discrete_sample(
         self,
         nbar: float,
         randomise_in_cell: bool = True,
         min_at_zero: bool = False,
-        store_pos: bool = False,
         delta_x=None,
     ):
         r"""Create a sample of tracers of the underlying density distribution.
@@ -288,9 +517,6 @@ class PowerBox:
         min_at_zero : bool, optional
             Whether to make the lower corner of the box at the origin, otherwise the
             centre of the box is at the origin.
-        store_pos : bool, optional
-            Whether to store the sample of tracers as an instance variable
-            ``tracer_positions``.
         delta_x : numpy.ndarray
             Field from which to draw discrete samples. This is likely the
             output of a previous call to `delta_x()`, but could in principle be
@@ -320,25 +546,22 @@ class PowerBox:
         dx = (dx + 1) * np.prod(self.dx) * nbar
         n = dx
 
-        self.n_per_cell = self.rng.poisson(n)
+        n_per_cell = self.rng.poisson(n)
 
         # Get all source positions
         args = self.x
         X = np.meshgrid(*args, indexing="ij")
 
         tracer_positions = np.array([x.flatten() for x in X]).T
-        tracer_positions = tracer_positions.repeat(self.n_per_cell.flatten(), axis=0)
+        tracer_positions = tracer_positions.repeat(n_per_cell.flatten(), axis=0)
 
         if randomise_in_cell:
-            tracer_positions += self.rng.uniform(
-                size=(np.sum(self.n_per_cell), self.dim)
-            ) * np.asarray(self.dx)
+            tracer_positions += self.rng.uniform(size=(np.sum(n_per_cell), self.dim)) * np.asarray(
+                self.dx
+            )
 
         if min_at_zero:
-            tracer_positions += np.asarray(self.boxlength) / 2.0
-
-        if store_pos:
-            self.tracer_positions = tracer_positions
+            tracer_positions += np.asarray(self.size) / 2.0
 
         return tracer_positions
 
@@ -390,48 +613,119 @@ class LogNormalPowerBox(PowerBox):
         super().__init__(*args, **kwargs)
 
     def correlation_array(self):
-        """Return the correlation function from the input power on the grid."""
-        pa = self.power_array()
-        return self._irfft_to_field(pa, scale=self.V)
+        r"""Return the correlation function of the input power on the grid.
+
+        This is the true dimensionless correlation function of the field that
+        :class:`PowerBox` would generate from the same power spectrum, so that its
+        zero-lag value, ``correlation_array()[(0,) * dim]``, is the variance of that
+        field. Obtaining that requires two powers of :attr:`synthesis_norm` (one from the
+        inverse transform itself, and one because :math:`\xi` is quadratic in the field),
+        which is why the scale here is ``volume * synthesis_norm`` rather than ``volume``.
+        """
+        return self._irfft_to_field(self.power_array(), scale=self.volume * self.synthesis_norm)
 
     def gaussian_correlation_array(self):
         """Correlation required for a Gaussian field to produce the input power."""
-        return np.log(1 + self.correlation_array())
+        return self._xp.log1p(self.correlation_array())
+
+    @cached_property
+    def gaussian_variance(self) -> float:
+        r"""The variance of the latent Gaussian field, :math:`\xi_G(0) = \ln(1 + \xi(0))`.
+
+        This is the theoretical value implied by the input power spectrum, rather than the
+        sample variance of any particular realization, so that :meth:`delta_x` realizes
+        the lognormal model exactly as specified. It reuses :attr:`PowerBox.variance`, and
+        so needs no Fourier transform of its own.
+        """
+        return float(np.log1p(self.variance))
 
     def gaussian_power_array(self):
-        """Power spectrum required for a Gaussian field to produce the input power."""
-        gca = self.fftbackend.empty(self.N)
-        gca[...] = self.gaussian_correlation_array()
-        gpa = np.abs(
-            self._full_spectrum_to_rfft(
-                dft.fft(
-                    gca,
-                    L=self.boxlength,
-                    a=self.fourier_a,
-                    b=self.fourier_b,
-                    backend=self.fftbackend,
-                )[0]
-            )
+        r"""Power spectrum required for a Gaussian field to produce the input power.
+
+        Returned in the same normalisation as :meth:`PowerBox.power_array`, so that the
+        inherited Gaussian synthesis machinery consumes it unchanged.
+
+        Negative modes are clipped to zero so that the square root taken by :meth:`delta_k`
+        is well-defined. They are not clipped *silently*: :meth:`_validate_gaussian_power`
+        warns about them, and raises if the violation is large enough to matter.
+        """
+        gpa = self._unclipped_gaussian_power_array()
+        if not self.fftbackend.is_traced(gpa):
+            self._validate_gaussian_power(gpa)
+        return self._xp.where(gpa < 0, 0.0, gpa)
+
+    def _unclipped_gaussian_power_array(self):
+        """Return the required Gaussian power spectrum without clipping negative modes."""
+        full = dft.fft(
+            self.gaussian_correlation_array(),
+            L=self.size,
+            a=self.fourier_a,
+            b=self.fourier_b,
+            backend=self.fftbackend,
+        )[0]
+        gpa = self._full_spectrum_to_rfft(full.real) / (self.volume * self.synthesis_norm)
+        return self._xp.where(self.k() == 0, 0.0, gpa)
+
+    def _validate_gaussian_power(self, gaussian_power) -> None:
+        r"""Check that the required Gaussian power spectrum is positive semi-definite.
+
+        Although :math:`\xi` is positive semi-definite by construction, its log-transform
+        :math:`\ln(1 + \xi)` need not be. This happens for fields of large variance, and
+        means the requested power spectrum is not realizable as a lognormal field on this
+        grid at all -- there is no Gaussian field whose exponential has that power. It is
+        a genuine limitation of the Coles & Jones (1991) construction, not a numerical
+        problem, so it is reported rather than silently worked around.
+        """
+        largest = float(self._xp.max(gaussian_power))
+        smallest = float(self._xp.min(gaussian_power))
+        if smallest >= 0:
+            return
+
+        negative = gaussian_power < 0
+        n_negative = int(self._xp.sum(negative))
+        n_modes = int(gaussian_power.size)
+        depth = smallest / largest
+        negative_share = float(
+            self._xp.sum(self._xp.abs(gaussian_power[negative]))
+            / self._xp.sum(self._xp.abs(gaussian_power))
         )
-        gpa[self.k() == 0] = 0
-        return gpa
 
-    def delta_k(self):
+        description = (
+            f"{n_negative} of {n_modes} modes ({n_negative / n_modes:.3%}) of the Gaussian "
+            "power spectrum required to produce the requested lognormal field are "
+            f"negative; the most negative is {depth:.3g} times the largest mode, and "
+            f"negative modes hold {negative_share:.3g} of the total power. The field "
+            f"variance implied by the input power is xi(0) = {self.variance:.4g}."
+        )
+
+        if depth > -_GAUSSIAN_POWER_MAX_DEPTH:
+            warnings.warn(
+                f"{description} This is a small violation of the positive-definiteness "
+                "that the lognormal construction requires, of the size expected from "
+                "discretising a realistic power spectrum, and these modes are set to zero. "
+                "It is reported because the generated field is then not exactly the "
+                "requested one.",
+                stacklevel=3,
+            )
+            return
+
+        raise ValueError(
+            f"{description} log(1 + xi) is therefore not a valid correlation function on "
+            "this grid, so no lognormal field with this power spectrum exists here: the "
+            "construction generally fails once xi(0) approaches or exceeds unity. Consider "
+            "reducing the amplitude of `pk`, increasing `size`, coarsening `shape`, or "
+            "using a `pk` that falls off more steeply at high k."
+        )
+
+    def _mode_amplitudes(self):
+        """Return the mode amplitudes of the *latent Gaussian* field."""
+        return self._xp.sqrt(self.gaussian_power_array())
+
+    def _transform_field(self, field):
+        r"""Exponentiate the latent Gaussian field into a lognormal over-density.
+
+        The :math:`-\sigma_G^2/2` term makes the field zero-mean in expectation, and uses
+        the theoretical latent variance rather than that of the realization, so the field
+        realizes the specified model rather than a realization-dependent variant of it.
         """
-        Return a realization of ``delta_k``.
-
-        i.e. the gaussianised square root of the unitless power spectrum
-        (i.e. the Fourier co-efficients)
-        """
-        p = self.gaussian_power_array()
-        gh = self.gauss_hermitian()
-        gh[...] = np.sqrt(p) * gh
-        return gh
-
-    def delta_x(self):
-        """Return the real-space over-density field from the input power spectrum."""
-        dk = self.delta_k()
-        dk = self._irfft_to_field(dk, scale=np.sqrt(self.V))
-
-        sg = np.var(dk)
-        return np.exp(dk - sg / 2) - 1
+        return self._xp.exp(field - self.gaussian_variance / 2) - 1

@@ -8,7 +8,7 @@ different physical extent or resolution from the others.
 Constructing a non-cubic Gaussian field
 ---------------------------------------
 
-Pass tuples for ``N`` and ``boxlength`` with one entry per dimension:
+Pass tuples for ``shape`` and ``size`` with one entry per dimension:
 
 .. code-block:: python
 
@@ -17,9 +17,8 @@ Pass tuples for ``N`` and ``boxlength`` with one entry per dimension:
    from powerbox import PowerBox
 
    pb = PowerBox(
-       N=(128, 192),
-       dim=2,
-       boxlength=(200.0, 600.0),
+       shape=(128, 192),
+       size=(200.0, 600.0),
        pk=lambda k: (1 + k) ** -2.0,
        seed=1234,
    )
@@ -43,7 +42,7 @@ Checking the recovered power spectrum
 -------------------------------------
 
 The resulting field can be passed straight into :func:`powerbox.get_power` with the same
-per-axis ``boxlength`` tuple:
+per-axis ``size`` tuple:
 
 .. code-block:: python
 
@@ -51,7 +50,7 @@ per-axis ``boxlength`` tuple:
 
    from powerbox import get_power
 
-   result = get_power(field, pb.boxlength, bins_upto_boxlen=True)
+   result = get_power(field, pb.size, bins_upto_boxlen=True)
 
    plt.loglog(result.bin_avg[1:], result.power[1:], label="measured")
    plt.loglog(result.bin_avg[1:], (1 + result.bin_avg[1:]) ** -2.0, label="input")
@@ -67,7 +66,7 @@ Discrete sampling uses the same geometry:
 .. code-block:: python
 
    sample = pb.create_discrete_sample(nbar=1e-2, min_at_zero=True)
-   discrete_result = get_power(sample, pb.boxlength, N=pb.N, bins_upto_boxlen=True)
+   discrete_result = get_power(sample, pb.size, N=pb.shape, bins_upto_boxlen=True)
 
-When scalar values are passed for ``N`` and ``boxlength``, existing workflows are
-unchanged.
+The older scalar ``N`` and ``boxlength`` arguments still work, and expand to every axis,
+but they are deprecated in favour of ``shape`` and ``size`` and will be removed in v1.2.
