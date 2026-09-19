@@ -17,7 +17,9 @@ license= {text= "MIT"}
 requires-python = ">=3.11"
 keywords=["power-spectrum", "signal processing"]
 dependencies = [
-    "numpy>=2.2"
+    "numpy>=2.2",
+    "attrs>=26.0.0",
+    "scipy",
 ]
 classifiers = [
     "Programming Language :: Python :: 3",
@@ -35,6 +37,9 @@ readme = {file = ["README.rst"]}
 fftw = [
     'pyfftw'
 ]
+jax = [
+    "jax>=0.4.35",
+]
 
 [dependency-groups]
 tests = [
@@ -42,8 +47,8 @@ tests = [
     "flake8",
     "pytest",
     "pytest-cov",
-    "scipy",
     "pyfftw",
+    "jax>=0.4.35",
 ]
 docs = [
     "sphinx",

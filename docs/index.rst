@@ -13,6 +13,7 @@ Contents
    :maxdepth: 2
 
    examples
+   migrating_to_v1
    license
    changelog
    authors
