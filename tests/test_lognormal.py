@@ -87,3 +87,21 @@ def test_positive_definiteness_policy_scales_with_the_size_of_the_violation(dept
     else:
         with pytest.raises(ValueError, match="not a valid correlation function"):
             pb._validate_gaussian_power(gaussian_power)
+
+
+def test_lognormal_reports_a_correlation_function_below_minus_one():
+    """When xi reaches -1 the log-transform is undefined, and the error says so.
+
+    ``log(1 + xi)`` is NaN there, which poisons every mode of the Gaussian power spectrum.
+    The error must explain that, rather than report NaNs as if they were mode depths.
+    """
+    pb = LogNormalPowerBox(shape=(64, 64), pk=lambda k: 50 * k**-2.0, size=(1.0, 1.0), seed=1)
+
+    assert pb.correlation_array().min() < -1
+
+    with pytest.raises(ValueError, match="not a valid correlation function") as excinfo:
+        pb.delta_x()
+
+    message = str(excinfo.value)
+    assert "at or below -1" in message
+    assert "nan" not in message.lower()
