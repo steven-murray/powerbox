@@ -10,7 +10,7 @@ import warnings
 import numpy as np
 import pytest
 
-from powerbox import PowerBox
+from powerbox import NumpyFFT, PowerBox
 
 
 def test_scalar_inputs_expand_to_tuple_geometry() -> None:
@@ -138,3 +138,49 @@ def test_deprecated_aliases_warn_and_agree_with_their_replacements(alias, canoni
 
     with pytest.warns(DeprecationWarning, match=f"`{alias}` attribute is deprecated"):
         assert getattr(pb, alias) == getattr(pb, canonical)
+
+
+@pytest.mark.parametrize("nthreads", [0, 1, False, True])
+def test_nthreads_that_mean_numpy_are_accepted(nthreads) -> None:
+    """``nthreads`` of 0 or 1 (or a bool) selects NumPy's FFT, as documented."""
+    pb = PowerBox(shape=(16, 16), pk=lambda k: (1 + k) ** -2.0, nthreads=nthreads, seed=1)
+
+    assert isinstance(pb.fftbackend, NumpyFFT)
+    assert pb.delta_x().shape == (16, 16)
+
+
+def test_negative_nthreads_is_rejected() -> None:
+    """Only a negative thread count is meaningless."""
+    with pytest.raises(ValueError, match="'nthreads' must be >= 0"):
+        PowerBox(shape=(16, 16), pk=lambda k: (1 + k) ** -2.0, nthreads=-1)
+
+
+@pytest.mark.parametrize(
+    ("kwargs", "name"),
+    [({"shape": 16}, "shape"), ({"shape": (16, 16), "size": 4.0}, "size")],
+)
+def test_bare_numbers_for_per_axis_geometry_get_a_helpful_error(kwargs, name) -> None:
+    """``shape`` and ``size`` are sequences; a bare number says so rather than 'not iterable'."""
+    with pytest.raises(TypeError, match=rf"`{name}` must be a sequence with one entry per axis"):
+        PowerBox(pk=lambda k: (1 + k) ** -2.0, **kwargs)
+
+
+def test_boxlength_attribute_is_a_deprecated_alias_of_size() -> None:
+    """Reading ``boxlength`` keeps working for one more minor version, and warns."""
+    pb = PowerBox(shape=(15, 18), pk=lambda k: (1 + k) ** -2.0, size=(3.0, 9.0))
+
+    with pytest.warns(DeprecationWarning, match="`boxlength` attribute is deprecated") as record:
+        assert pb.boxlength == pb.size
+
+    assert "Use `size`" in str(record[0].message)
+
+
+def test_deprecated_attribute_warnings_point_at_the_replacement_that_exists() -> None:
+    """Every deprecation message names an attribute that actually exists."""
+    pb = PowerBox(shape=(15, 18), pk=lambda k: (1 + k) ** -2.0, size=(3.0, 9.0))
+
+    for alias in ("boxlength", "L", "V", "Ntot"):
+        with pytest.warns(DeprecationWarning, match=f"`{alias}` attribute is deprecated") as record:
+            getattr(pb, alias)
+        replacement = str(record[0].message).split("Use `")[1].split("`")[0]
+        assert hasattr(pb, replacement)

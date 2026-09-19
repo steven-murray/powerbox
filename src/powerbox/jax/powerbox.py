@@ -35,14 +35,16 @@ class PowerBox(_NumpyPowerBox):
 
     Parameters
     ----------
-    N : int or sequence of int
-        Number of grid points on each axis.
+    shape : sequence of int
+        Number of grid points on each axis. The number of spatial dimensions is
+        ``len(shape)``.
     pk : callable
         Callable returning the isotropic input power spectrum as a function of ``k``.
-    dim : int, default 2
-        Number of spatial dimensions.
-    boxlength : float or sequence of float, default 1.0
-        Physical side length of the box along each axis.
+    size : sequence of float, optional
+        Physical side length of the box along each axis. Defaults to a unit box.
+    dim : int, optional
+        Number of spatial dimensions. Inferred from ``shape``; only useful as a
+        consistency check.
     ensure_physical : bool, optional
         If ``True``, clip the returned real-space field to values greater than ``-1``.
     a, b : float, optional
@@ -57,7 +59,7 @@ class PowerBox(_NumpyPowerBox):
         a :class:`ValueError` is raised.
     usejit : bool, optional
         Whether to use the cached JIT-compiled ``delta_x`` path. If omitted, a simple
-        heuristic selects JIT for large ``Ntot`` and eager execution for smaller boxes.
+        heuristic selects JIT for large ``total_ncells`` and eager execution for smaller boxes.
 
     Notes
     -----

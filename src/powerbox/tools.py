@@ -64,8 +64,8 @@ class PowerSpectrum:
     Examples
     --------
     >>> from powerbox import PowerBox, get_power
-    >>> pb = PowerBox(50, dim=2, pk=lambda k: k**-2., boxlength=1.0, b=1)
-    >>> result = get_power(pb.delta_x(), pb.boxlength, b=1,
+    >>> pb = PowerBox(shape=(50, 50), pk=lambda k: k**-2., size=(1.0, 1.0), b=1)
+    >>> result = get_power(pb.delta_x(), pb.size, b=1,
     ...                    bins_upto_boxlen=True)
     >>> result.power.shape  # 1-D power spectrum
     (22,)
@@ -1456,8 +1456,8 @@ def get_power(
 
     >>> from powerbox import PowerBox, get_power
     >>> import matplotlib.pyplot as plt
-    >>> pb = PowerBox(250, lambda k: k**-2., bins_upto_boxlen=True)
-    >>> result = get_power(pb.delta_x(), pb.boxlength, bins_upto_boxlen=True)
+    >>> pb = PowerBox(shape=(250, 250), pk=lambda k: k**-2.)
+    >>> result = get_power(pb.delta_x(), pb.size, bins_upto_boxlen=True)
     >>> plt.plot(result.bin_avg, result.power)
     >>> plt.plot(result.bin_avg, result.bin_avg**-2.)
     >>> plt.xscale('log')
@@ -1466,7 +1466,7 @@ def get_power(
     An example of a prefactor_fnc applied to the box in the above example:
 
     >>> from powerbox import get_power, power2delta
-    >>> result = get_power(pb.delta_x(), pb.boxlength, prefactor_fnc=power2delta,
+    >>> result = get_power(pb.delta_x(), pb.size, prefactor_fnc=power2delta,
     ...                    bins_upto_boxlen=True)
     """
     deltax, deltax2, Npart1, Npart2, dim, N, boxlength = _prepare_get_power_inputs(

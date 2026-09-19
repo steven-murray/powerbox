@@ -40,6 +40,33 @@ from .tools import _magnitude_grid
 _GAUSSIAN_POWER_MAX_DEPTH = 1e-3
 
 
+_UNREALIZABLE_ADVICE = (
+    "Consider reducing the amplitude of `pk`, increasing `size`, coarsening `shape`, or "
+    "using a `pk` that falls off more steeply at high k."
+)
+
+
+def _require_sequence(value, name: str, example: str) -> None:
+    """Reject a bare number where one entry per axis is required."""
+    if np.ndim(value) == 0:
+        raise TypeError(
+            f"`{name}` must be a sequence with one entry per axis, e.g. `{name}={example}`, "
+            f"but got the single number {value!r}."
+        )
+
+
+def _as_int_tuple(value) -> tuple[int, ...]:
+    """Convert the ``shape`` argument to a tuple of ints."""
+    _require_sequence(value, "shape", "(128, 128)")
+    return tuple(int(i) for i in value)
+
+
+def _as_float_tuple(value) -> tuple[float, ...]:
+    """Convert the ``size`` argument to a tuple of floats."""
+    _require_sequence(value, "size", "(100.0, 100.0)")
+    return tuple(float(i) for i in value)
+
+
 @attrs.define(kw_only=True, slots=False, frozen=True)
 class PowerBox:
     r"""
@@ -47,21 +74,28 @@ class PowerBox:
 
     Parameters
     ----------
-    N : int or sequence of int
-        Number of grid-points on each side of the resulting box (equivalently, number of
-        wavenumbers to use). If a scalar, the same number is used along every axis. If a
-        sequence, it must have length ``dim``.
+    shape : sequence of int
+        Number of grid-points along each axis of the resulting box (equivalently, number
+        of wavenumbers to use), one entry per axis. The number of dimensions of the box
+        is ``len(shape)``. This is required unless the deprecated ``N`` is given.
     pk : callable
         A callable of a single (vector) variable `k`, which is the isotropic power
         spectrum. The relationship of the `k` of which this is a function to the
         real-space co-ordinates, `x`, is determined by the parameters ``a,b``.
-    dim : int, default 2
-        Number of dimensions of resulting box.
-    boxlength : float or sequence of float, default 1.0
-        Length of the final signal along each axis. This may have arbitrary units, so
-        long as `pk` is a function of a variable which has the inverse units. If a
-        scalar, the same length is used along every axis. If a sequence, it must have
-        length ``dim``.
+    size : sequence of float, optional
+        Length of the box along each axis, one entry per axis. This may have arbitrary
+        units, so long as `pk` is a function of a variable which has the inverse units.
+        Defaults to a unit box.
+    dim : int, optional
+        Number of dimensions of the box. This is inferred from ``shape``, so it is only
+        useful as a consistency check, or (with the deprecated scalar ``N``) to say how
+        many axes ``N`` applies to.
+    N : int, optional
+        Deprecated in favour of ``shape``; will be removed in v1.2. Number of grid-points
+        along every axis. Uses ``dim`` axes, or two if ``dim`` is not given.
+    boxlength : float, optional
+        Deprecated in favour of ``size``; will be removed in v1.2. Length of the box
+        along every axis.
     ensure_physical : bool, optional
         Interpreting the power spectrum as a spectrum of density fluctuations, the
         minimum physical value of the real-space field, :meth:`delta_x`, is -1. With
@@ -76,14 +110,15 @@ class PowerBox:
         Whether the input power spectrum, ``pk``, is volume-weighted. Default True
         because of standard cosmological usage.
     seed: int, optional
-        A random seed to define the initial conditions. If not set, it will remain
-        random, and each call to eg. :meth:`delta_x()` will produce a *different*
-        realisation.
+        A random seed to define the initial conditions. If not set, the box is seeded
+        from system entropy and is not reproducible. If set, a new box with the same seed
+        reproduces the same *sequence* of realisations, but successive calls to eg.
+        :meth:`delta_x()` on one box still produce *different* realisations.
     nthreads : int, optional
         Number of threads for pyFFTW. If set to None, uses pyFFTW with the number of
-        threads equal to the number of available CPUs. If set to 0 or 1, uses numpy's
-        FFT routine instead. If set to an integer greater than 1, uses pyFFTW with that
-        many threads.
+        threads equal to the number of available CPUs. If set to 0 or 1 (or ``False`` or
+        ``True``), uses numpy's FFT routine instead. If set to an integer greater than 1,
+        uses pyFFTW with that many threads.
 
     Notes
     -----
@@ -102,12 +137,13 @@ class PowerBox:
     The primary quantity of interest is :meth:`delta_x`, which is a zero-mean Gaussian
     field with a power spectrum equivalent to that which was input. Being zero-mean
     enables its direct interpretation as an overdensity field, and this interpretation
-    is enforced in the :meth:`make_discrete_sample` method.
+    is enforced in the :meth:`create_discrete_sample` method.
 
-    When scalar ``N`` and scalar ``boxlength`` are provided, the public attributes
-    ``N``, ``boxlength``, ``x``, and ``kvec`` retain their historical scalar/1-D forms.
-    When either quantity is specified per-axis, ``x`` and ``kvec`` return tuples of
-    1-D arrays, one for each axis.
+    The per-axis quantities ``shape``, ``size``, ``dx``, ``x`` and ``kvec`` are all
+    tuples with one entry per axis. The spectrum-space quantities (:attr:`kvec`,
+    :meth:`k`, :meth:`power_array`, :meth:`gauss_hermitian` and :meth:`delta_k`) use the
+    half-spectrum layout of a real FFT: the last axis holds only the non-negative
+    frequencies, ``shape[-1] // 2 + 1`` of them.
 
     .. note:: None of the n-dimensional arrays that are created within the class are
               stored, due to the inefficiency in memory consumption that this would
@@ -115,15 +151,17 @@ class PowerBox:
               respective method, to be stored/discarded by the user.
 
     .. warning:: Due to the above note, repeated calls to eg. :meth:`delta_x()` will
-                 produce *different* realisations of the real-space field, unless the
-                 `seed` parameter is set in the constructor.
+                 produce *different* realisations of the real-space field, even if the
+                 `seed` parameter is set in the constructor (which makes a *new* box
+                 reproducible, not repeated calls on one box). Keep the returned array if
+                 you need the same field twice.
 
     Examples
     --------
     To create a 3-dimensional box of gaussian over-densities, gridded into 100 bins,
     with cosmological conventions, and a power-law power spectrum, simply use
 
-    >>> pb = PowerBox(100,lambda k : 0.1*k**-3., dim=3, boxlength=100.0)
+    >>> pb = PowerBox(shape=(100,) * 3, pk=lambda k: 0.1 * k**-3.0, size=(100.0,) * 3)
     >>> overdensities = pb.delta_x()
     >>> grid = pb.x
     >>> radii = pb.r
@@ -131,12 +169,12 @@ class PowerBox:
     To create a 2D turbulence structure, with arbitrary units, once can use
 
     >>> import matplotlib.pyplot as plt
-    >>> pb = PowerBox(1000, lambda k : k**-7./5.)
+    >>> pb = PowerBox(shape=(1000, 1000), pk=lambda k: k ** (-7.0 / 5.0))
     >>> plt.imshow(pb.delta_x())
 
     To create a 2D non-cubic box with different resolutions and side lengths:
 
-    >>> pb = PowerBox((128, 192), lambda k: (1 + k) ** -2.0, dim=2, boxlength=(200.0, 600.0))
+    >>> pb = PowerBox(shape=(128, 192), pk=lambda k: (1 + k) ** -2.0, size=(200.0, 600.0))
     >>> field = pb.delta_x()
     >>> x, y = pb.x
     """
@@ -147,21 +185,21 @@ class PowerBox:
     _dim: int | None = attrs.field(
         converter=attrs.converters.optional(int), default=None, validator=vld.optional(vld.gt(0))
     )
-    shape: tuple[int, ...] = attrs.field(converter=lambda x: tuple(int(i) for i in x))
+    shape: tuple[int, ...] = attrs.field(converter=_as_int_tuple)
 
     _pk: Callable[[np.ndarray], np.ndarray] = attrs.field(repr=False)
 
     _boxlength: float | None = attrs.field(
         default=None, converter=attrs.converters.optional(float), validator=vld.optional(vld.gt(0))
     )
-    size: tuple[float, ...] = attrs.field(converter=lambda x: tuple(float(i) for i in x))
+    size: tuple[float, ...] = attrs.field(converter=_as_float_tuple)
 
     ensure_physical: bool = attrs.field(default=False, converter=bool)
     fourier_a: float = attrs.field(default=1.0, converter=float, alias="a")
     fourier_b: float = attrs.field(default=1.0, converter=float, alias="b")
     vol_normalised_power: bool = attrs.field(default=True, converter=bool)
     nthreads: int | None = attrs.field(
-        default=None, converter=attrs.converters.optional(int), validator=vld.optional(vld.gt(0))
+        default=None, converter=attrs.converters.optional(int), validator=vld.optional(vld.ge(0))
     )
     seed: int | None = attrs.field(default=None, converter=attrs.converters.optional(int))
 
@@ -238,10 +276,28 @@ class PowerBox:
             raise ValueError(f"size must have same length as dim ({self.dim}), but got {value}.")
 
     @property
-    def L(self) -> tuple[float, ...]:
-        """Alias for ``boxlength``."""
+    def boxlength(self) -> tuple[float, ...]:
+        """The box length along each axis.
+
+        Deprecated alias for `size`. Will be removed in v1.2. Use `size` instead. Unlike the
+        pre-v1 attribute, this is a tuple with one entry per axis.
+        """
         warnings.warn(
-            "The `L` attribute is deprecated and will be removed in v1.2. Use `boxlength` instead.",
+            "The `boxlength` attribute is deprecated and will be removed in v1.2. Use `size` "
+            "instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self.size
+
+    @property
+    def L(self) -> tuple[float, ...]:
+        """The box length along each axis.
+
+        Deprecated alias for `size`. Will be removed in v1.2. Use `size` instead.
+        """
+        warnings.warn(
+            "The `L` attribute is deprecated and will be removed in v1.2. Use `size` instead.",
             DeprecationWarning,
             stacklevel=2,
         )
@@ -570,8 +626,8 @@ class LogNormalPowerBox(PowerBox):
     r"""Calculate Log-Normal density fields with given power spectra.
 
     See the documentation of :class:`PowerBox` for a detailed explanation of the
-    arguments, as this class has exactly the same arguments, including scalar or
-    per-axis ``N`` and ``boxlength`` inputs.
+    arguments, as this class has exactly the same arguments, including per-axis
+    ``shape`` and ``size`` inputs.
 
     This class calculates an (over-)density field of arbitrary dimension given an input
     isotropic power spectrum. In this case, the field has a log-normal distribution of
@@ -582,28 +638,30 @@ class LogNormalPowerBox(PowerBox):
     To create a log-normal over-density field:
 
     >>> from powerbox import LogNormalPowerBox
-    >>> lnpb = LogNormalPowerBox(100,lambda k : k**-7./5.,dim=2, boxlength=1.0)
-    >>> overdensities = lnpb.delta_x
+    >>> lnpb = LogNormalPowerBox(shape=(100, 100), pk=lambda k: 0.01 * k**-2.0, size=(1.0, 1.0))
+    >>> overdensities = lnpb.delta_x()
     >>> grid = lnpb.x
     >>> radii = lnpb.r
 
     To plot the overdensities:
 
     >>> import matplotlib.pyplot as plt
-    >>> plt.imshow(pb.delta_x)
+    >>> plt.imshow(overdensities)
 
     Compare the fields from a Gaussian and Lognormal realisation with the same power:
 
-    >>> lnpb = LogNormalPowerBox(300,lambda k : k**-7./5.,dim=2, boxlength=1.0)
-    >>> pb = PowerBox(300,lambda k : k**-7./5.,dim=2, boxlength=1.0)
-    >>> fig,ax = plt.subplots(2,1,sharex=True,sharey=True,figsize=(12,5))
-    >>> ax[0].imshow(lnpb.delta_x,aspect="equal",vmin=-1,vmax=lnpb.delta_x.max())
-    >>> ax[1].imshow(pb.delta_x,aspect="equal",vmin=-1,vmax = lnpb.delta_x.max())
+    >>> kwargs = dict(shape=(300, 300), pk=lambda k: 0.01 * k**-2.0, size=(1.0, 1.0), seed=1)
+    >>> lnpb = LogNormalPowerBox(**kwargs)
+    >>> pb = PowerBox(**kwargs)
+    >>> ln_field, gauss_field = lnpb.delta_x(), pb.delta_x()
+    >>> fig, ax = plt.subplots(2, 1, sharex=True, sharey=True, figsize=(12, 5))
+    >>> ax[0].imshow(ln_field, aspect="equal", vmin=-1, vmax=ln_field.max())
+    >>> ax[1].imshow(gauss_field, aspect="equal", vmin=-1, vmax=ln_field.max())
 
     To create and plot a discrete version of the field:
 
     >>> positions = lnpb.create_discrete_sample(
-    >>>     nbar=1000.0, # Number density in terms of boxlength units
+    >>>     nbar=1000.0, # Number density in terms of size units
     >>>     randomise_in_cell=True
     >>> )
     >>> plt.scatter(positions[:,0],positions[:,1],s=2,alpha=0.5,lw=0)
@@ -656,8 +714,12 @@ class LogNormalPowerBox(PowerBox):
 
     def _unclipped_gaussian_power_array(self):
         """Return the required Gaussian power spectrum without clipping negative modes."""
+        # log(1 + xi) is NaN wherever xi < -1. That is reported, with an explanation, by
+        # `_validate_gaussian_power`, so the bare floating-point warning is just noise.
+        with np.errstate(invalid="ignore", divide="ignore"):
+            gaussian_correlation = self.gaussian_correlation_array()
         full = dft.fft(
-            self.gaussian_correlation_array(),
+            gaussian_correlation,
             L=self.size,
             a=self.fourier_a,
             b=self.fourier_b,
@@ -676,6 +738,19 @@ class LogNormalPowerBox(PowerBox):
         a genuine limitation of the Coles & Jones (1991) construction, not a numerical
         problem, so it is reported rather than silently worked around.
         """
+        if not bool(self._xp.all(self._xp.isfinite(gaussian_power))):
+            # log(1 + xi) is undefined wherever xi <= -1, which poisons every mode of the
+            # transform, so there is no meaningful "most negative mode" to report.
+            raise ValueError(
+                "The correlation function implied by the requested power spectrum reaches "
+                f"{float(self._xp.min(self.correlation_array())):.4g}, at or below -1, where "
+                "log(1 + xi) is undefined. log(1 + xi) is therefore not a valid correlation "
+                "function on this grid, so no lognormal field with this power spectrum exists "
+                f"here. The field variance implied by the input power is xi(0) = "
+                f"{self.variance:.4g}, and the construction generally fails once that "
+                f"approaches or exceeds unity. {_UNREALIZABLE_ADVICE}"
+            )
+
         largest = float(self._xp.max(gaussian_power))
         smallest = float(self._xp.min(gaussian_power))
         if smallest >= 0:
@@ -712,9 +787,8 @@ class LogNormalPowerBox(PowerBox):
         raise ValueError(
             f"{description} log(1 + xi) is therefore not a valid correlation function on "
             "this grid, so no lognormal field with this power spectrum exists here: the "
-            "construction generally fails once xi(0) approaches or exceeds unity. Consider "
-            "reducing the amplitude of `pk`, increasing `size`, coarsening `shape`, or "
-            "using a `pk` that falls off more steeply at high k."
+            "construction generally fails once xi(0) approaches or exceeds unity. "
+            f"{_UNREALIZABLE_ADVICE}"
         )
 
     def _mode_amplitudes(self):
