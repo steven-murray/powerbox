@@ -74,27 +74,43 @@ def test_jax_default_usejit_heuristic_can_be_forced_via_threshold(monkeypatch) -
     assert jit_pb.usejit is True
 
 
-@pytest.mark.parametrize("usejit", [None, False])
-def test_jax_eager_mode_warns_only_on_repeated_calls(monkeypatch, usejit) -> None:
-    monkeypatch.setattr(jpb_powerbox, "DEFAULT_JIT_NTOT_THRESHOLD", 10_000)
+@pytest.mark.parametrize(
+    ("threshold", "usejit", "expect_warning"),
+    [
+        # Above the threshold: eager was chosen by the heuristic, so say so, once.
+        (10_000, None, True),
+        # Eager was asked for explicitly: the user knows, so stay quiet.
+        (10_000, False, False),
+        # Below the threshold: JIT is the default, so there is nothing to report.
+        (1, None, False),
+        (1, True, False),
+    ],
+)
+def test_jax_eager_mode_warns_only_when_chosen_implicitly(
+    monkeypatch, threshold, usejit, expect_warning
+) -> None:
+    """The execution-policy warning fires only for an implicitly-chosen eager path."""
+    monkeypatch.setattr(jpb_powerbox, "DEFAULT_JIT_NTOT_THRESHOLD", threshold)
     pb = jpb.PowerBox(
         shape=(8, 8),
         pk=lambda k: (1 + k) ** -2.0,
-        boxlength=4.0,
+        size=(4.0, 4.0),
         key=jax.random.key(27),
         usejit=usejit,
     )
+    assert pb.usejit is (threshold == 1)
 
     with warnings.catch_warnings(record=True) as record:
         warnings.simplefilter("always")
         pb.delta_x()
         pb.delta_x()
 
-    if usejit is None:
-        assert len(record) == 1
-        assert "Repeated calls may be much slower" in str(record[0].message)
-    else:
-        assert len(record) == 0
+    messages = [str(warning.message) for warning in record]
+    policy_warnings = [m for m in messages if "chosen by the size heuristic" in m]
+
+    # Warned at most once, however many times delta_x() is called.
+    assert len(policy_warnings) == (1 if expect_warning else 0)
+    assert messages == policy_warnings, f"unexpected warnings: {messages}"
 
 
 def test_jax_lognormal_correlation_array_matches_irfft_of_power() -> None:

@@ -1,26 +1,59 @@
 """Physical tests of the full end-to-end process of field generation and power recovery.
 
 This module tests the combination of PowerBox (and its subclasses) and get_power.
+
+Fourier-convention handling is *not* tested here: it is covered exactly, to machine
+precision, in ``test_convention_equivalence.py``. This module runs at the default
+convention and instead spends its budget on statistical sensitivity, so that it can see a
+small systematic bias in the recovered power rather than only a gross one.
 """
 
 import numpy as np
 import pytest
 from scipy import stats
 
-from powerbox import LogNormalPowerBox, PowerBox, get_power
+from powerbox import LogNormalPowerBox, PowerBox, dft, get_power
+from powerbox.tools import _magnitude_grid, angular_average
+
+# Chosen so the test detects a uniform 2% bias in the recovered power with a wide margin
+# (p ~ 3e-10), while leaving an unbiased roundtrip consistent (chi2/dof ~ 1.2, p ~ 0.4).
+# Two thirds of this detects 2% only marginally (p ~ 1e-4). A percent-level sensitivity is
+# what makes this test worth running: a normalisation error affecting one surface of the
+# Hermitian spectrum shows up as only a ~1.5% median deficit here (though ~11% in the
+# lowest-|k| modes), so a coarser test would pass straight through it.
+NREALIZATIONS = 192
+
+# A uniform bias of this size must be detected; asserted directly by
+# test_roundtrip_statistic_detects_a_small_bias.
+DETECTABLE_BIAS = 0.02
 
 
-def _assert_reasonable_power_recovery(
+def expected_binned_power(pb: PowerBox, psobj, pk) -> np.ndarray:
+    """Return the exact expectation of the binned power: the mean of ``pk`` over each bin.
+
+    Comparing against ``pk(bin_avg)`` instead would introduce a deterministic bias
+    wherever ``pk`` is curved across a bin, which is largest in the sparsely-populated
+    low-|k| bins. Averaging the theory through the same binning as the measurement removes
+    that by construction, so the null hypothesis under test is exactly right.
+    """
+    freq = [dft.fftfreq(n, d=d, b=pb.fourier_b) for n, d in zip(pb.shape, pb.dx, strict=True)]
+    kmag = _magnitude_grid(list(freq))
+    nonzero = kmag > 0
+    theory = np.where(nonzero, pk(np.where(nonzero, kmag, 1)), np.nan)
+    return angular_average(theory, freq, psobj.bin_edges, bins_upto_boxlen=True)[0]
+
+
+def roundtrip_pvalue(
     measured_power: np.ndarray,
     expected_power: np.ndarray,
-    nsamples: np.ndarray,
     nrealizations: int,
-) -> None:
-    """Require statistically consistent roundtrip recovery via a t/chi-square test.
+) -> tuple[float, int, float]:
+    """Return the two-sided p-value of a chi-square test of ensemble power recovery.
 
-    The test compares the ensemble mean of recovered power to theory, normalized by the
-    empirical standard error in each bin. Adjacent radial bins are correlated, so we
-    thin the t-series before applying a chi-square goodness-of-fit test.
+    Each bin contributes a t-score: the deviation of the ensemble-mean power from theory,
+    in units of the empirical standard error of that mean. Adjacent radial bins are
+    correlated, so the series is thinned to approximately independent samples before the
+    scores are combined.
     """
     mean_power = np.mean(measured_power, axis=0)
     std_power = np.std(measured_power, axis=0, ddof=1)
@@ -31,26 +64,19 @@ def _assert_reasonable_power_recovery(
         & (std_power > 0)
         & np.isfinite(expected_power)
         & (expected_power > 0)
-        & (nsamples >= 4)
     )
-
     # Exclude the zero mode explicitly.
     mask[0] = False
     assert np.count_nonzero(mask) >= 8
 
     tscore = (mean_power[mask] - expected_power[mask]) / (std_power[mask] / np.sqrt(nrealizations))
-
-    # Neighboring bins are correlated; thin to approximately independent samples.
     stride = max(1, tscore.size // 32)
     tscore = tscore[::stride]
 
     dof = tscore.size
-    chi2 = np.sum(tscore**2)
+    chi2 = float(np.sum(tscore**2))
     cdf = stats.chi2.cdf(chi2, dof)
-    two_sided_p = 2 * min(cdf, 1 - cdf)
-    assert two_sided_p > 1e-4, (
-        f"roundtrip inconsistency: dof={dof}, chi2/dof={chi2 / dof:.3f}, p={two_sided_p:.3e}"
-    )
+    return 2 * min(cdf, 1 - cdf), dof, chi2 / dof
 
 
 def pk_like_matter_power(amp=1, low_slope=1, hi_slope=2):
@@ -60,43 +86,56 @@ def pk_like_matter_power(amp=1, low_slope=1, hi_slope=2):
     return pk
 
 
+def realize_power(boxtype, shape, size, pkfunc, nrealizations=NREALIZATIONS):
+    """Return the stacked recovered power and its exact expectation."""
+    power = []
+    for seed in range(nrealizations):
+        pb = boxtype(shape=shape, pk=pkfunc, size=size, ensure_physical=False, seed=seed)
+        psobj = get_power(pb.delta_x(), pb.size, bins_upto_boxlen=True)
+        power.append(psobj.power)
+
+    return np.asarray(power), expected_binned_power(pb, psobj, pkfunc)
+
+
 @pytest.mark.parametrize(
-    ("shape", "size", "a", "b", "pkamp", "low_slope", "hi_slope"),
+    ("shape", "size"),
     [
-        ((48, 72), (120.0, 180.0), 1, 1, 1, 1, 2),
-        ((49, 72), (120.0, 180.0), 1, 1, 1, 1, 2),
-        ((48, 71), (120.0, 180.0), 1, 1, 1, 1, 2),
-        ((49, 71), (120.0, 180.0), 1, 1, 1, 1, 2),
-        ((49, 71), (120.0, 180.0), 0, 1, 1, 1, 2),
-        ((49, 71), (120.0, 180.0), 0, 2 * np.pi, 1, 1, 2),
-        ((49, 71), (120.0, 180.0), 1, 2 * np.pi, 1, 1, 2),
+        ((48, 72), (120.0, 180.0)),
+        ((49, 72), (120.0, 180.0)),
+        ((48, 71), (120.0, 180.0)),
+        ((49, 71), (120.0, 180.0)),
+        ((32, 40, 48), (80.0, 100.0, 120.0)),
     ],
 )
 @pytest.mark.parametrize("boxtype", [PowerBox, LogNormalPowerBox])
-def test_roundtrip_power_recovery(shape, size, boxtype, a, b, pkamp, low_slope, hi_slope) -> None:
-    """Non-cubic fields recover input power across odd/even grids and Fourier conventions."""
-    nrealizations = 24
-    power = []
+def test_roundtrip_power_recovery(shape, size, boxtype) -> None:
+    """Non-cubic fields recover their input power spectrum, across odd/even grids."""
+    pkfunc = pk_like_matter_power(amp=1, low_slope=1, hi_slope=2)
+    power, expected = realize_power(boxtype, shape, size, pkfunc)
 
-    pkfunc = pk_like_matter_power(amp=pkamp, low_slope=low_slope, hi_slope=hi_slope)
-    for seed in range(nrealizations):
-        pb = boxtype(
-            shape=shape,
-            pk=pkfunc,
-            size=size,
-            ensure_physical=False,
-            seed=seed,
-            a=a,
-            b=b,
-        )
-        psobj = get_power(pb.delta_x(), pb.size, a=a, b=b, bins_upto_boxlen=True)
-        power.append(psobj.power)
+    pvalue, dof, reduced_chi2 = roundtrip_pvalue(power, expected, NREALIZATIONS)
+    assert pvalue > 1e-4, (
+        f"roundtrip inconsistency: dof={dof}, chi2/dof={reduced_chi2:.3f}, p={pvalue:.3e}"
+    )
 
-    power = np.asarray(power)
-    expected = pkfunc(psobj.bin_avg)
-    _assert_reasonable_power_recovery(
-        measured_power=power,
-        expected_power=expected,
-        nsamples=psobj.nsamples,
-        nrealizations=nrealizations,
+
+@pytest.mark.parametrize("boxtype", [PowerBox, LogNormalPowerBox])
+def test_roundtrip_statistic_detects_a_small_bias(boxtype) -> None:
+    """The roundtrip test is powerful enough to be a meaningful check.
+
+    A test that passes is only informative if it would fail on a realistic defect. This
+    asserts the sensitivity claimed by ``NREALIZATIONS``: a uniform bias of
+    ``DETECTABLE_BIAS`` in the recovered power is rejected, while the true power is not.
+    """
+    shape, size = (48, 72), (120.0, 180.0)
+    pkfunc = pk_like_matter_power(amp=1, low_slope=1, hi_slope=2)
+    power, expected = realize_power(boxtype, shape, size, pkfunc)
+
+    unbiased, _, _ = roundtrip_pvalue(power, expected, NREALIZATIONS)
+    assert unbiased > 1e-4
+
+    biased, _, _ = roundtrip_pvalue(power * (1 + DETECTABLE_BIAS), expected, NREALIZATIONS)
+    assert biased < 1e-4, (
+        f"a {DETECTABLE_BIAS:.0%} bias was not detected (p={biased:.3e}); the roundtrip "
+        "test is too weak to guard against normalisation errors."
     )

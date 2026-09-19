@@ -12,6 +12,7 @@ import jax.numpy as jnp
 
 from .._fft_layout import full_spectrum_to_rfft, irfft_to_field
 from ..dft_backend import JaxFFT
+from ..powerbox import LogNormalPowerBox as _NumpyLogNormalPowerBox
 from ..powerbox import PowerBox as _NumpyPowerBox
 from . import dft
 from .tools import _magnitude_grid
@@ -183,18 +184,17 @@ class PowerBox(_NumpyPowerBox):
 
     def delta_k(self, key: jax.Array | None = None) -> jax.Array:
         """Return a realization of the Fourier-space field."""
-        power = self.power_array()
-        if bool(jnp.any(power < 0)):
-            raise ValueError("The power spectrum function has returned negative values.")
-        return jnp.sqrt(power) * self.gauss_hermitian(key=key)
+        return self._mode_amplitudes() * self.gauss_hermitian(key=key)
 
     def _delta_x_eager(self, key: jax.Array | None = None) -> jax.Array:
-        """Return the realized real-space field without JIT compilation."""
-        dk = jnp.sqrt(self._power_array_rfft()) * self._gaussian_modes_rfft(key=key)
-        field = self._irfft_to_field(dk, scale=self.volume)
-        if self.ensure_physical:
-            field = jnp.clip(field, -1, jnp.inf)
-        return field
+        """Return the realized real-space field without JIT compilation.
+
+        The mode amplitudes and the one-point transformation come from the shared
+        implementation in :mod:`powerbox.powerbox`; only the PRNG handling is specific to
+        this backend.
+        """
+        dk = self._mode_amplitudes() * self._gaussian_modes_rfft(key=key)
+        return self._transform_field(self._irfft_to_field(dk, scale=self.volume))
 
     @cached_property
     def _delta_x_kernel(self) -> Callable[[jax.Array], jax.Array]:
@@ -209,11 +209,21 @@ class PowerBox(_NumpyPowerBox):
     def delta_x(self, key: jax.Array | None = None) -> jax.Array:
         """Return the realized real-space field using the configured execution policy."""
         if not self.usejit and self._usejit is None and len(self._delta_x_keys) == 1:
+            # Note that the default chose eager *because* the box is small, so JIT is not
+            # a foregone win here; the point is to surface the choice, not to recommend
+            # overriding it blindly.
             warnings.warn(
-                "delta_x() is using eager execution by default for this box size. "
-                "Repeated calls may be much slower than usejit=True.",
+                "delta_x() is using eager execution, chosen by the size heuristic for a box "
+                f"of {self.total_ncells} cells. Compilation may still pay off over repeated "
+                "calls at this size: pass usejit=True to find out, or usejit=False to keep "
+                "eager execution and silence this warning.",
                 stacklevel=2,
             )
+
+        # The spectrum checks need a data-dependent branch, which is impossible on traced
+        # values, so they run here -- outside any trace -- and are skipped when the
+        # compiled kernel re-evaluates the same expression.
+        _ = self._validated_spectrum
 
         run_key = self._resolve_key(key)
         self._delta_x_keys.append(run_key)
@@ -236,40 +246,8 @@ class PowerBox(_NumpyPowerBox):
         )
 
 
-class LogNormalPowerBox(PowerBox):
-    r"""Generate JAX-backed lognormal density fields with a given power spectrum."""
-
-    def correlation_array(self) -> jax.Array:
-        """Return the correlation function from the input power on the grid."""
-        return self._irfft_to_field(self.power_array(), scale=self.volume)
-
-    def gaussian_correlation_array(self) -> jax.Array:
-        """Return the Gaussian correlation producing the target lognormal power."""
-        return jnp.log1p(self.correlation_array())
-
-    def gaussian_power_array(self) -> jax.Array:
-        """Return the Gaussian power spectrum producing the target lognormal field."""
-        gaussian_power = jnp.abs(
-            self._full_spectrum_to_rfft(
-                dft.fft(
-                    self.gaussian_correlation_array(),
-                    L=self.size,
-                    a=self.fourier_a,
-                    b=self.fourier_b,
-                    backend=self.fftbackend,
-                )[0]
-            )
-        )
-        return jnp.where(self.k() == 0, 0, gaussian_power)
-
-    def delta_k(self, key: jax.Array | None = None) -> jax.Array:
-        """Return a realization of the Gaussianized Fourier-space field."""
-        return jnp.sqrt(self.gaussian_power_array()) * self.gauss_hermitian(key=key)
-
-    def _delta_x_eager(self, key: jax.Array | None = None) -> jax.Array:
-        """Return the realized lognormal over-density field without JIT compilation."""
-        dk = jnp.sqrt(self.gaussian_power_array())
-        dk = dk * self._gaussian_modes_rfft(key=key)
-        field = self._irfft_to_field(dk, scale=jnp.sqrt(self.volume))
-        sigma_g = jnp.var(field)
-        return jnp.exp(field - sigma_g / 2) - 1
+# The lognormal construction is written against the FFT backend's array namespace, so it
+# operates on jax.Array without re-implementation; only the PRNG handling and JIT policy,
+# inherited from the JAX PowerBox above, are specific to this backend.
+class LogNormalPowerBox(_NumpyLogNormalPowerBox, PowerBox):
+    """Generate JAX-backed lognormal density fields with a given power spectrum."""

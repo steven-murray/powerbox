@@ -17,6 +17,14 @@ with contextlib.suppress(ImportError):
 class FFTBackend(ABC):  # noqa: B024
     """Abstract base class for FFT backends."""
 
+    def is_traced(self, x) -> bool:
+        """Whether ``x`` is an abstract value inside a traced (compiled) function.
+
+        Only backends with a tracing execution model can answer yes. Callers use this to
+        skip checks that require concrete values, such as inspecting an array's sign.
+        """
+        return False
+
     def fftshift(self, x, *args, **kwargs):
         """
         Apply ``numpy.fftshift`` while preserving units when present.
@@ -175,6 +183,12 @@ class JaxFFT(FFTBackend):
         self.empty = jnp.empty
         self.have_fftw = False
         self.nthreads = 1
+
+    def is_traced(self, x) -> bool:
+        """Whether ``x`` is a JAX tracer, i.e. an abstract value inside a transformation."""
+        import jax
+
+        return isinstance(x, jax.core.Tracer)
 
 
 @cache
