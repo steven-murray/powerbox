@@ -129,10 +129,9 @@ def _time_jax(fn: Callable[[], Any]) -> dict[str, float]:
 def _benchmark_numpy_generation(dim: int, n: int) -> dict[str, float]:
     """Benchmark Gaussian field generation with the NumPy FFT backend."""
     pb = PowerBox(
-        n,
-        dim=dim,
+        shape=(n,) * dim,
         pk=pkfunc,
-        boxlength=BOXLENGTH,
+        size=(BOXLENGTH,) * dim,
         seed=1234,
         nthreads=1,
     )
@@ -142,10 +141,9 @@ def _benchmark_numpy_generation(dim: int, n: int) -> dict[str, float]:
 def _benchmark_fftw_generation(dim: int, n: int) -> dict[str, float]:
     """Benchmark Gaussian field generation with the FFTW backend."""
     pb = PowerBox(
-        n,
-        dim=dim,
+        shape=(n,) * dim,
         pk=pkfunc,
-        boxlength=BOXLENGTH,
+        size=(BOXLENGTH,) * dim,
         seed=1234,
         nthreads=FFTW_THREADS,
     )
@@ -161,10 +159,9 @@ def _benchmark_jax_generation(
 
     with jax.default_device(device):
         pb = jpb.PowerBox(
-            n,
-            dim=dim,
+            shape=(n,) * dim,
             pk=pkfunc,
-            boxlength=BOXLENGTH,
+            size=(BOXLENGTH,) * dim,
             key=keys[0],
             usejit=use_jit,
         )
@@ -180,10 +177,9 @@ def _benchmark_jax_generation(
 def _benchmark_numpy_power(dim: int, n: int) -> dict[str, float]:
     """Benchmark fully averaged power-spectrum estimation with NumPy FFT."""
     field = PowerBox(
-        n,
-        dim=dim,
+        shape=(n,) * dim,
         pk=pkfunc,
-        boxlength=BOXLENGTH,
+        size=(BOXLENGTH,) * dim,
         seed=2024,
         nthreads=1,
     ).delta_x()
@@ -197,10 +193,9 @@ def _benchmark_numpy_power(dim: int, n: int) -> dict[str, float]:
 def _benchmark_fftw_power(dim: int, n: int) -> dict[str, float]:
     """Benchmark fully averaged power-spectrum estimation with FFTW."""
     field = PowerBox(
-        n,
-        dim=dim,
+        shape=(n,) * dim,
         pk=pkfunc,
-        boxlength=BOXLENGTH,
+        size=(BOXLENGTH,) * dim,
         seed=2024,
         nthreads=1,
     ).delta_x()
@@ -217,10 +212,9 @@ def _benchmark_jax_power(dim: int, n: int, device_kind: str) -> dict[str, float]
 
     with jax.default_device(device):
         field = jpb.PowerBox(
-            n,
-            dim=dim,
+            shape=(n,) * dim,
             pk=pkfunc,
-            boxlength=BOXLENGTH,
+            size=(BOXLENGTH,) * dim,
             key=jax.random.key(2024),
         ).delta_x()
 
